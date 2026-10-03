@@ -29,9 +29,9 @@ BANDS = {
     'hud': (('#14a874', '#35e0a0'), ('#1a7dff', '#3cc4ff'), ('#ff7a1a', '#ffb23f'), ('#e01e3c', '#ff4d6a')),
 }
 ACCENT = {
-    'neon': {'claude': ('#ff8a2b', '#ffd23f'), 'codex': ('#22d3ee', '#4f7bff'), 'grok': ('#d946ef', '#8b5cf6')},
+    'neon': {'claude': ('#ff8a2b', '#ffd23f'), 'codex': ('#7a9dff', '#b1a7ff'), 'grok': ('#e8eaf0', '#ffffff')},
     'retro': {'claude': ('#ff9f43', '#ffcf6b'), 'codex': ('#3ee68b', '#9bffc8'), 'grok': ('#b388ff', '#e0d0ff')},
-    'hud': {'claude': ('#ff8a3d', '#ffb47a'), 'codex': ('#2fd4ff', '#8be9ff'), 'grok': ('#3ef29b', '#9dffcb')},
+    'hud': {'claude': ('#ff8a3d', '#ffb47a'), 'codex': ('#7a9dff', '#b1a7ff'), 'grok': ('#dfe3ea', '#ffffff')},
 }
 
 
