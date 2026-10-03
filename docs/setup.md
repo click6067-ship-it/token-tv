@@ -33,10 +33,12 @@ GIF that the stock photo album plays; it is re-sent only when a number changes o
 
 ## Make it yours
 
-**Start with a working face. Fork it, change it, show us yours.** A face is one Python function
-that draws 240×240 pixels; [docs/clock-faces.md](clock-faces.md) walks through it with sample
-data, no clock or login needed. Your face runs from your own fork right away and shows up in the
-dashboard's **Themes** list as *Local*.
+**Start with a working face.** No clock, login or fork needed: run the
+[Game Boy example](../examples/gameboy) and ask your AI to change it. A face is one Python function
+that draws 240×240 pixels; [docs/clock-faces.md](clock-faces.md) walks through it with sample data.
+Copying the example or forking does not register it: after you add it to `RENDERERS` and
+`STYLES` as the guide shows, it appears in the dashboard's **Themes** list as *Local*. Keep your
+copy locally, or fork if you want your version on GitHub.
 
 Want others to use it? Open a pull request with the *New clock face* template. Shared faces appear in
 **Themes** for everyone on the next release, sorted by **Popular** (👍 on each theme's GitHub issue)
@@ -46,7 +48,8 @@ or **New**. Likes are counted by hand before releases, so the list says when the
 <summary><b>Hardware</b></summary>
 
 - A GeekMagic **SmallTV**-style 240×240 Wi-Fi clock whose stock firmware has a photo album page.
-  The author's cost ₩6,000 (about $5) on an AliExpress sale; prices vary.
+  The author's receipt shows ₩5,650 (a Korean AliExpress discount); prices vary by region.
+  No other device has been checked.
 - Any always-on machine on the same network with Python 3.10+ and the official CLIs you use.
 
 The stock photo API (`/theme/list`, `/photo/list`, `/photo/upload`) is verified on the author's
@@ -67,6 +70,13 @@ Every login is checked against the email you configured. The clock gets only a p
 never a password, token or cookie. Polling runs every five minutes; old readings say OLD and
 missing data shows a dash, never a fake 0%. Claude accounts with `refresh_with_cli: true` may
 refresh an expired login through the CLI, which sends one tiny prompt.
+
+**5-hour or weekly?** Both windows are read. The clock shows whichever is more used, with that
+window's reset time. The web dashboard shows the same window first; open the other windows
+under it to see the rest.
+
+**Other screens (HYTE, Apple Watch)?** There is a browser dashboard,
+but its layout on a HYTE Y70 display has not been tested. There is no Apple Watch app.
 </details>
 
 <details>

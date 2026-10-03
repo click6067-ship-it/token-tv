@@ -7,7 +7,7 @@ not "probably fine".
 
 | Clock | Firmware web UI | What TokenTV uses | Checked |
 | --- | --- | --- | --- |
-| The author's 240×240 GeekMagic SmallTV-style Wi-Fi clock (bought on an AliExpress sale for about ₩6,000 / $5) | Stock firmware with the **SD_PRO** web UI and a photo album | `/theme/list`, `/photo/list`, `/photo/upload`, photo theme id `2` | One unit, Linux host |
+| The author's 240×240 GeekMagic SmallTV-style Wi-Fi clock (receipt: ₩5,650 on a Korean AliExpress discount; prices vary by region) | Stock firmware with the **SD_PRO** web UI and a photo album | `/theme/list`, `/photo/list`, `/photo/upload`, photo theme id `2` | One unit, Linux host |
 
 TokenTV never flashes firmware and never deletes your photos. It uploads one picture, switches the
 clock to its photo theme, and `token-tv run --restore-display` puts the original theme back.
