@@ -11,11 +11,25 @@ This is a separate example. It is **not** registered as a product theme and was 
 The first two images use the same sample: Claude A 25% (5H, 3h 41m), Codex A 72% (WK, 2d 6h), Grok A 94% (BUD, 12d 3h).
 The third image marks Codex as an old reading and gives Grok no data.
 
-## Run
+## Run it (no clock, no login, no fork)
+
+Checked on Linux (2026-10-04). Python 3.10+.
 
 ```bash
-PYTHONPATH=. python3 examples/gameboy/gameboy.py
+git clone https://github.com/click6067-ship-it/token-tv && cd token-tv
+python3 -m venv .venv && .venv/bin/pip install -e .
+.venv/bin/python examples/gameboy/gameboy.py   # writes before.png, after.png, after-old-unknown.png here
 ```
+
+## Make your own in three steps
+
+1. Copy the folder (commands below were checked on Linux):
+   `.venv/bin/python -c "import shutil; shutil.copytree('examples/gameboy', 'examples/my-face')"`
+2. In `examples/my-face/gameboy.py`, change the four colours on the line `DARKEST, DARK, LIGHT, LIGHTEST = ...`
+   (or ask your AI for a different look).
+3. Run `.venv/bin/python examples/my-face/gameboy.py` and open `examples/my-face/after.png` (240×240).
+
+Want to keep it on GitHub? Fork the repository and commit your folder. Want others to see it? [Share a face](https://github.com/click6067-ship-it/token-tv/issues/new?template=share_a_face.md).
 
 ## What the face does
 
