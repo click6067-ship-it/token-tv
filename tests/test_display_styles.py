@@ -36,16 +36,16 @@ class DisplayStyleTests(unittest.TestCase):
             thread.start()
             root = f'http://127.0.0.1:{server.server_port}'
             try:
-                with urlopen(root + '/frame/0.jpg?style=clean') as response:
+                with urlopen(root + '/frame/0.jpg?style=digital') as response:
                     preview = response.read()
                 self.assertEqual(Image.open(io.BytesIO(preview)).size, (240, 240))
                 self.assertEqual(prefs.snapshot()['style'], 'pixel')
-                request = Request(root + '/display/style', data=b'{"style":"clean"}', headers={'Content-Type': 'application/json'})
+                request = Request(root + '/display/style', data=b'{"style":"digital"}', headers={'Content-Type': 'application/json'})
                 with urlopen(request) as response:
-                    self.assertEqual(json.load(response)['style'], 'clean')
+                    self.assertEqual(json.load(response)['style'], 'digital')
                 self.assertTrue(prefs.changed.is_set())
-                self.assertEqual(load_config(path)['display_style'], 'clean')
-                self.assertEqual(DisplayPreferences(path, load_config(path)).snapshot()['style'], 'clean')
+                self.assertEqual(load_config(path)['display_style'], 'digital')
+                self.assertEqual(DisplayPreferences(path, load_config(path)).snapshot()['style'], 'digital')
                 for style in STYLES:
                     with urlopen(root + '/frame/0.jpg?style=' + style) as response:
                         self.assertEqual(Image.open(io.BytesIO(response.read())).size, (240, 240))

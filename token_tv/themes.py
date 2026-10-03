@@ -1,4 +1,4 @@
-"""Six LCD themes that match the web appearances; every reading stays live text.
+"""Four LCD themes that match the web appearances; every reading stays live text.
 
 Each 240×240 frame shows one account per provider in three rows. Fonts are the
 bundled web fonts, gauges keep ten 10% cells, and each used-quota band is drawn as
@@ -25,15 +25,11 @@ BANDS = {
     'digital': (('#13b884', '#3dfcb0'), ('#6fd13a', '#c3f562'), ('#ff6a2b', '#ff9d45'), ('#e8243f', '#ff5a6a')),
     'neon': (('#00b894', '#2cf5b0'), ('#1f7bff', '#38d6ff'), ('#ff8a1f', '#ffc23d'), ('#ff2a4a', '#ff3d81')),
     'retro': (('#2aa84a', '#5ee06a'), ('#8fc93a', '#d3e84a'), ('#ff7a1f', '#ffab3d'), ('#d62b3c', '#ff5a5f')),
-    'modern': (('#22c4a6', '#6ee7b7'), ('#2f8cff', '#79c0ff'), ('#f08a24', '#f6c453'), ('#e8455f', '#f7768e')),
-    'sakura': (('#fbdde6', '#f2b8c9'), ('#f5bccb', '#e7899f'), ('#ea98ae', '#cf5679'), ('#d65a80', '#a3264b')),
     'hud': (('#14a874', '#35e0a0'), ('#1a7dff', '#3cc4ff'), ('#ff7a1a', '#ffb23f'), ('#e01e3c', '#ff4d6a')),
 }
 ACCENT = {
     'neon': {'claude': ('#ff8a2b', '#ffd23f'), 'codex': ('#22d3ee', '#4f7bff'), 'grok': ('#d946ef', '#8b5cf6')},
     'retro': {'claude': ('#ff9f43', '#ffcf6b'), 'codex': ('#3ee68b', '#9bffc8'), 'grok': ('#b388ff', '#e0d0ff')},
-    'modern': {'claude': ('#f4a07a',) * 2, 'codex': ('#6ea8ff',) * 2, 'grok': ('#5ee0b5',) * 2},
-    'sakura': {'claude': ('#cc6440',) * 2, 'codex': ('#6b4fa0',) * 2, 'grok': ('#34283a',) * 2},
     'hud': {'claude': ('#ff8a3d', '#ffb47a'), 'codex': ('#2fd4ff', '#8be9ff'), 'grok': ('#3ef29b', '#9dffcb')},
 }
 
@@ -382,84 +378,6 @@ def render_retro(snapshot):
     return cv.finish()
 
 
-def render_modern(snapshot):
-    cv = Canvas('#0b0e13')
-    for r in range(160, 0, -8):
-        cv.back.ellipse((200 - r, -60 - r, 200 + r, -60 + r), fill=mix('#0b0e13', '#1a2130', 1 - r / 160))
-    man = lambda s, w=600: face('manrope.ttf', s, w)
-    for index, row in enumerate(overview_rows(snapshot)):
-        y = ROWS[index]
-        a = ACCENT['modern'][row['provider']][0]
-        used, period, old, reset = reading(row)
-        for x in range(5, 235):
-            cv.back.line((x, y + 1, x, y + ROW_H - 2), fill=mix('#131820', a, max(0, .1 - (x - 5) / 1600)))
-        cv.draw.rounded_rectangle((4, y, 235, y + ROW_H - 1), radius=12, outline=mix('#222934', a, .28))
-        cv.back.rounded_rectangle((4, y, 235, y + ROW_H - 1), radius=12, outline=None)
-        cv.draw.rounded_rectangle((12, y + 10, 44, y + 42), radius=9, fill=mix('#0f1319', a, .14),
-                                  outline=mix('#0f1319', a, .3))
-        cv.ink.alpha_composite(glyph(row['provider'], 18, a), (19, y + 17))
-        cv.spaced((53, y + 11), account_label(row), man(8, 700), '#9ba5b3', 1.6)
-        cv.text((53, y + 58), period + (' · OLD' if old else ''), man(8, 600), '#f7768e' if old else '#7a8493', anchor='ls')
-        number = number_text(used)
-        cv.text((51, y + 18), number, man(30, 600), '#f4f6f9')
-        if used is not None:
-            x = 51 + cv.draw.textlength(number, font=man(30, 600)) + 1
-            cv.text((x, y + 29), '%', man(15, 600), '#f4f6f9')
-        cv.draw.line((158, y + 11, 158, y + 50), fill='#2f3744')
-        clock_mark(cv, (170, y + 18), 4, a, 1)
-        cv.spaced((228, y + 14), 'RESETS IN', man(7, 700), '#7a8493', 1.2, anchor='ra')
-        cv.text((228, y + 27), reset, man(14, 500), '#f4f6f9', anchor='ra')
-        gauge(cv, (12, y + 62, 228, y + 66), used, band('modern', used or 0), gap=3, shape='round', radius=2,
-              track='#232a35', empty='#3a4352', stale=old)
-    return cv.finish()
-
-
-def blossom(cv, cx, cy, r, petal='#f7b6c8', heart='#e0507f'):
-    for i in range(5):
-        a = math.radians(i * 72 - 90)
-        x, y = cx + math.cos(a) * r * .55, cy + math.sin(a) * r * .55
-        cv.draw.ellipse((x - r * .5, y - r * .5, x + r * .5, y + r * .5), fill=petal)
-    cv.draw.ellipse((cx - r * .22, cy - r * .22, cx + r * .22, cy + r * .22), fill=heart)
-
-
-def render_sakura(snapshot):
-    plum, mauve, pink = '#4a2433', '#8a6574', '#c2557a'
-    cv = Canvas('#fbeef2')
-    for r in range(150, 0, -6):
-        cv.back.ellipse((250 - r, -40 - r, 250 + r, -40 + r), fill=mix('#fbeef2', '#ffe1ea', 1 - r / 150))
-    for x, y, rot in ((18, 80, 20), (226, 158, -30), (120, 238, 10), (60, 158, 40)):
-        cv.back.ellipse((x - 3, y - 2, x + 3, y + 2), fill='#f4b3c6')
-    serif = lambda s, w=600: face('cormorant-garamond.woff2', s, w)
-    lining = {'features': ['lnum']}
-    shadow = Image.new('RGBA', (SIZE, SIZE), (0, 0, 0, 0))
-    for y in ROWS:
-        ImageDraw.Draw(shadow).rounded_rectangle((7, y + 4, 232, y + ROW_H), radius=14, fill=(166, 74, 108, 45))
-    cv.base.alpha_composite(shadow.filter(ImageFilter.GaussianBlur(4)))
-    for index, row in enumerate(overview_rows(snapshot)):
-        y = ROWS[index]
-        a = ACCENT['sakura'][row['provider']][0]
-        used, period, old, reset = reading(row)
-        cv.back.rounded_rectangle((5, y, 234, y + ROW_H - 2), radius=14, fill='#fffafc', outline='#ffffff')
-        cv.back.rounded_rectangle((12, y + 10, 44, y + 42), radius=10, fill='#fbe6ed', outline='#ffffff')
-        cv.ink.alpha_composite(glyph(row['provider'], 18, a), (19, y + 17))
-        cv.text((52, y + 6), account_label(row), serif(15, 700), plum)
-        cv.text((51, y + 17), number_text(used), serif(31, 600), plum, **lining)
-        if used is not None:
-            x = 51 + cv.draw.textlength(number_text(used), font=serif(31, 600)) + 1
-            cv.text((x, y + 30), '%', serif(17, 600), plum)
-        cv.draw.ellipse((147, y + 13, 165, y + 31), fill='#fbe1ea')
-        clock_mark(cv, (156, y + 22), 5, pink, 1)
-        cv.spaced((228, y + 12), 'RESETS IN', face('manrope.ttf', 7, 700), mauve, 1.1, anchor='ra')
-        cv.text((228, y + 21), reset, serif(17, 600), plum, anchor='ra', **lining)
-        cv.spaced((228, y + 52), period + (' OLD' if old else ''), face('manrope.ttf', 7, 700), '#a3264b' if old else mauve, 1.4, anchor='rs')
-        gauge(cv, (12, y + 60, 227, y + 65), used, band('sakura', used or 0), gap=3, shape='round', radius=3,
-              track='#f5e3e9', empty='#e7c2cf', stale=old)
-    blossom(cv, 226, 8, 9)
-    blossom(cv, 214, 3, 6)
-    blossom(cv, 9, 236, 7)
-    return cv.finish()
-
-
 def render_hud(snapshot):
     cv = Canvas('#03080e')
     for g in range(0, SIZE, 12):
@@ -497,5 +415,4 @@ def render_hud(snapshot):
     return cv.finish(blur=2)
 
 
-RENDERERS = {'digital': render_digital, 'neon': render_neon, 'retro': render_retro,
-             'modern': render_modern, 'sakura': render_sakura, 'hud': render_hud}
+RENDERERS = {'digital': render_digital, 'neon': render_neon, 'retro': render_retro, 'hud': render_hud}

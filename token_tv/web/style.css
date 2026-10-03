@@ -10,7 +10,6 @@
 @font-face{font-family:'Orbitron';src:url('/assets/orbitron.ttf') format('truetype');font-weight:400 900;font-display:swap}
 @font-face{font-family:'Oxanium';src:url('/assets/oxanium.woff2') format('woff2');font-weight:500 800;font-display:swap}
 @font-face{font-family:'Press Start 2P';src:url('/assets/press-start-2p.ttf') format('truetype');font-display:swap}
-@font-face{font-family:'Cormorant Garamond';src:url('/assets/cormorant-garamond.woff2') format('woff2');font-weight:500 700;font-display:swap}
 @font-face{font-family:'Chakra Petch';src:url('/assets/chakra-petch-500.woff2') format('woff2');font-weight:500;font-display:swap}
 @font-face{font-family:'Chakra Petch';src:url('/assets/chakra-petch-700.woff2') format('woff2');font-weight:700;font-display:swap}
 
@@ -51,7 +50,7 @@ select.control{appearance:none;padding-right:38px;background-image:linear-gradie
 /* ── Appearance picker: each tile previews its own theme. ─────────── */
 .theme-section{margin:2px 0 34px}
 .section-label{display:block;margin:0 0 10px;font:700 10px/1.2 var(--font-label);letter-spacing:.24em;text-transform:uppercase;color:var(--ink-3)}
-.themes{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:8px}
+.themes{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
 .theme-button{display:grid;gap:9px;padding:6px 6px 10px;border:1px solid var(--line);border-radius:calc(var(--radius-control) + 4px);background:color-mix(in srgb,var(--panel) 72%,transparent);color:var(--ink-2);font:600 11.5px/1.25 var(--font-label);text-align:left;transition:border-color .16s ease-out,color .16s ease-out,background .16s ease-out}
 .theme-button:hover{color:var(--ink);border-color:var(--line-2)}
 .theme-button[aria-pressed=true]{color:var(--ink);border-color:var(--ink-2);box-shadow:0 0 0 1px var(--ink-2)}
@@ -68,12 +67,6 @@ select.control{appearance:none;padding-right:38px;background-image:linear-gradie
 .swatch[data-swatch=retro]{border-radius:0;background:#141d52;box-shadow:inset 0 0 0 2px #4a64c8,inset 0 0 0 4px #0a0d26}
 .swatch[data-swatch=retro] i{height:6px;border-radius:0;-webkit-mask:repeating-linear-gradient(90deg,#000 0 5px,transparent 5px 6px);mask:repeating-linear-gradient(90deg,#000 0 5px,transparent 5px 6px)}
 .swatch[data-swatch=retro] i:nth-child(1){--c:#ff9f43}.swatch[data-swatch=retro] i:nth-child(2){--c:#3ee68b}.swatch[data-swatch=retro] i:nth-child(3){--c:#b388ff}
-.swatch[data-swatch=modern]{border-radius:9px;background:linear-gradient(180deg,#1b212b,#11151c);box-shadow:inset 0 0 0 1px #2a3240}
-.swatch[data-swatch=modern] i{height:4px}
-.swatch[data-swatch=modern] i:nth-child(1){--c:#f4a07a}.swatch[data-swatch=modern] i:nth-child(2){--c:#6ea8ff}.swatch[data-swatch=modern] i:nth-child(3){--c:#5ee0b5}
-.swatch[data-swatch=sakura]{border-radius:12px;background:radial-gradient(circle at 92% 8%,#ffc9da 0 14%,transparent 40%),#fdf2f5;box-shadow:inset 0 0 0 1px #f0d0da}
-.swatch[data-swatch=sakura] i{--c:#e48aa6}
-.swatch[data-swatch=sakura]::after{content:"";position:absolute;right:9px;top:8px;width:9px;height:7px;border-radius:150% 0 150% 0;background:#f49ab5;transform:rotate(20deg)}
 .swatch[data-swatch=hud]{border-radius:0;background:linear-gradient(rgba(64,140,200,.16) 1px,transparent 1px) 0 0/100% 7px,#06101a;box-shadow:inset 0 0 0 1px #22476a;clip-path:polygon(0 0,calc(100% - 9px) 0,100% 9px,100% 100%,9px 100%,0 calc(100% - 9px))}
 .swatch[data-swatch=hud] i{border-radius:0;transform:skewX(-24deg);-webkit-mask:repeating-linear-gradient(90deg,#000 0 5px,transparent 5px 7px);mask:repeating-linear-gradient(90deg,#000 0 5px,transparent 5px 7px)}
 .swatch[data-swatch=hud] i:nth-child(1){--c:#ff8a3d}.swatch[data-swatch=hud] i:nth-child(2){--c:#2fd4ff}.swatch[data-swatch=hud] i:nth-child(3){--c:#3ef29b}
@@ -145,14 +138,14 @@ h1{margin:0;font:600 48px/1.04 var(--font-display);letter-spacing:-.03em;color:v
 .unknown-meter .meter-segment{background:transparent;outline:1px dashed var(--line-2);outline-offset:-1px}
 .provider-card[data-stale=true] .meter{opacity:.62}
 .provider-card[data-stale=true] .meter-fill{background:repeating-linear-gradient(135deg,var(--gauge) 0 3px,transparent 3px 6px)!important}
-/* Continuous bars (Neon, Modern, Sakura) draw one fill on the meter itself. */
-:is([data-theme=neon],[data-theme=modern],[data-theme=sakura]) .meter{gap:0;border-radius:999px;background:var(--track)}
-:is([data-theme=neon],[data-theme=modern],[data-theme=sakura]) .meter-segment{background:none;overflow:visible}
-:is([data-theme=neon],[data-theme=modern],[data-theme=sakura]) .meter-fill{display:none}
-:is([data-theme=neon],[data-theme=modern],[data-theme=sakura]) .meter::before{content:"";position:absolute;left:0;top:0;bottom:0;width:var(--value,0%);border-radius:inherit;background:linear-gradient(90deg,var(--gauge-2),var(--gauge))}
-:is([data-theme=neon],[data-theme=modern],[data-theme=sakura]) .unknown-meter{background:transparent;outline:1px dashed var(--line-2);outline-offset:-1px}
-:is([data-theme=neon],[data-theme=modern],[data-theme=sakura]) .unknown-meter .meter-segment{outline:0}
-:is([data-theme=neon],[data-theme=modern],[data-theme=sakura]) .provider-card[data-stale=true] .meter::before{background:repeating-linear-gradient(135deg,var(--gauge) 0 4px,transparent 4px 8px)!important;box-shadow:none!important}
+/* Neon draws one continuous fill on the meter itself. */
+[data-theme=neon] .meter{gap:0;border-radius:999px;background:var(--track)}
+[data-theme=neon] .meter-segment{background:none;overflow:visible}
+[data-theme=neon] .meter-fill{display:none}
+[data-theme=neon] .meter::before{content:"";position:absolute;left:0;top:0;bottom:0;width:var(--value,0%);border-radius:inherit;background:linear-gradient(90deg,var(--gauge-2),var(--gauge))}
+[data-theme=neon] .unknown-meter{background:transparent;outline:1px dashed var(--line-2);outline-offset:-1px}
+[data-theme=neon] .unknown-meter .meter-segment{outline:0}
+[data-theme=neon] .provider-card[data-stale=true] .meter::before{background:repeating-linear-gradient(135deg,var(--gauge) 0 4px,transparent 4px 8px)!important;box-shadow:none!important}
 
 .more-windows{grid-area:more;margin:2px 0 14px;font:500 12px/1.4 var(--font-label);color:var(--ink-2)}
 .more-windows summary{display:inline-flex;align-items:center;gap:9px;width:fit-content;min-height:28px;cursor:pointer;list-style:none;font-size:10px;font-weight:700;letter-spacing:.16em;text-transform:uppercase}
@@ -205,8 +198,8 @@ h1{margin:0;font:600 48px/1.04 var(--font-display);letter-spacing:-.03em;color:v
 #display-state,.quiet{margin:0 0 6px;font-size:12px;color:var(--ink-2)}
 .quiet{color:var(--ink-3)}
 
-:is([data-theme=neon],[data-theme=modern],[data-theme=sakura]) :is(.section-label,.level-label,.more-windows summary){text-transform:none;letter-spacing:.01em;font-size:12px;font-weight:600}
-:is([data-theme=neon],[data-theme=modern],[data-theme=sakura]) .level-label{font-family:var(--font-body);font-size:11px;font-weight:500;color:var(--ink-3)}
+[data-theme=neon] :is(.section-label,.level-label,.more-windows summary){text-transform:none;letter-spacing:.01em;font-size:12px;font-weight:600}
+[data-theme=neon] .level-label{font-family:var(--font-body);font-size:11px;font-weight:500;color:var(--ink-3)}
 
 /* ════════════════════════════════════════════════════════════════════
    Digital Terminal — phosphor console: one ruled window, header bar with
@@ -456,118 +449,7 @@ h1{margin:0;font:600 48px/1.04 var(--font-display);letter-spacing:-.03em;color:v
 [data-theme=retro] .help{font:400 20px/1.4 var(--font-body)}
 [data-theme=retro] #display-state,[data-theme=retro] .quiet{font-size:20px;line-height:1.1}
 
-/* ════════════════════════════════════════════════════════════════════
-   Modern Minimal — charcoal, quiet provider tints, generous numerals,
-   hairline timer column, slim continuous bars.
-   ════════════════════════════════════════════════════════════════════ */
-[data-theme=modern] body{background:radial-gradient(1100px 620px at 78% -12%,#1a2130 0%,transparent 62%),radial-gradient(900px 520px at -12% 34%,#141a24 0%,transparent 60%),var(--bg)}
-[data-theme=modern] .screen-head{align-items:flex-start;margin-bottom:34px}
-[data-theme=modern] h1{font:600 50px/1.02 var(--font-display);letter-spacing:-.035em}
-[data-theme=modern] .summary{align-self:center;gap:0;padding:6px;border:1px solid var(--line-2);border-radius:999px;background:rgba(255,255,255,.02)}
-[data-theme=modern] .summary>div{grid-auto-flow:column;align-items:baseline;gap:8px;padding:8px 16px}
-[data-theme=modern] .summary>div+div{border-left:1px solid var(--line-2)}
-[data-theme=modern] .summary dt{order:2;font:600 12px/1 var(--font-label);letter-spacing:0;text-transform:none;color:var(--ink-2)}
-[data-theme=modern] .summary dd{font:700 15px/1 var(--font-num)}
-[data-theme=modern] .provider-card{grid-template-columns:64px auto minmax(0,1fr) auto;grid-template-areas:"icon name tabs timer" "icon reading reading timer" "gauge gauge gauge timer" "more more more more" "foot foot foot foot";column-gap:24px;padding:28px 32px 0;border-color:color-mix(in srgb,var(--accent) 24%,var(--line));background:linear-gradient(135deg,color-mix(in srgb,var(--accent) 10%,transparent),transparent 46%),linear-gradient(180deg,rgba(255,255,255,.025),transparent 60%),var(--panel);box-shadow:inset 0 1px 0 rgba(255,255,255,.04),0 26px 50px -30px rgba(0,0,0,.8)}
-[data-theme=modern] .card-head{display:contents}
-[data-theme=modern] .provider-icon{grid-area:icon;align-self:start;width:64px;height:64px;border-radius:17px;background:color-mix(in srgb,var(--accent) 13%,#0f1319);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--accent) 24%,transparent)}
-[data-theme=modern] .provider-icon .glyph{width:32px;height:32px}
-[data-theme=modern] .provider-name{grid-area:name;flex-direction:row;align-items:baseline;gap:12px;align-self:end}
-[data-theme=modern] .provider-title{font:600 13px/1 var(--font-label);letter-spacing:.34em}
-[data-theme=modern] .company{font:600 9px/1 var(--font-label);letter-spacing:.24em}
-[data-theme=modern] .account-tabs{grid-area:tabs;align-self:end;justify-self:end;gap:0;margin:0 0 -6px;padding:3px;border:1px solid var(--line-2);border-radius:11px}
-[data-theme=modern] .account-tab{min-width:30px;min-height:26px;border:0;border-radius:8px;font-size:11px}
-[data-theme=modern] .account-tab[aria-pressed=true]{background:var(--ink);color:#0b0e13}
-[data-theme=modern] .reading{grid-area:reading;flex-direction:row;align-items:center;gap:18px;margin:10px 0 18px}
-[data-theme=modern] .reading-meta{order:2;flex-direction:column;align-items:flex-start;gap:6px}
-[data-theme=modern] .percentage{font:600 76px/1 var(--font-num);letter-spacing:-.05em}
-[data-theme=modern] .gauge{align-self:start;margin-bottom:24px}
-[data-theme=modern] .meter{height:9px}
-[data-theme=modern] .meter::before{background:linear-gradient(90deg,var(--gauge-2),var(--gauge))}
-[data-theme=modern] .timer{grid-area:timer;align-self:stretch;align-content:center;grid-template-columns:auto 1fr;gap:12px 12px;min-width:210px;margin:0 0 22px 8px;padding-left:34px;border-left-color:var(--line-2)}
-[data-theme=modern] .clock-mark{grid-row:2;grid-column:1}
-[data-theme=modern] .timer-label{grid-row:1;grid-column:1/-1;letter-spacing:.3em}
-[data-theme=modern] .timer-value{grid-row:2;grid-column:2;font:500 31px/1 var(--font-num)}
-[data-theme=modern] .card-foot{margin:0 -32px;padding:14px 32px 16px;border-top-color:color-mix(in srgb,var(--line) 70%,transparent)}
-[data-theme=modern] .stat-k{display:none}
-[data-theme=modern] .stat:not(.stat-status)+.stat:not(.stat-status)::before{content:"·";margin-right:11px;color:var(--ink-3)}
 
-/* ════════════════════════════════════════════════════════════════════
-   Sakura Blossom — blush paper, plum serif display, frosted cards, a
-   blossom branch with drifting petals, petal-patterned pink-ramp bars.
-   ════════════════════════════════════════════════════════════════════ */
-[data-theme=sakura] body{background:radial-gradient(900px 620px at 88% -8%,#ffe1ea 0%,transparent 62%),radial-gradient(760px 520px at -12% 108%,#f9d3df 0%,transparent 62%),linear-gradient(180deg,#fdf4f7,#fbecf1)}
-[data-theme=sakura] .branch{display:block;position:absolute;top:64px;right:-34px;width:min(600px,52vw)}
-[data-theme=sakura] .branch svg{display:block;width:100%;height:auto;filter:drop-shadow(0 6px 10px rgba(190,90,120,.12))}
-[data-theme=sakura] .bokeh{display:block;position:absolute;left:-90px;bottom:-90px;width:460px;height:360px;filter:blur(8px);opacity:.6}
-[data-theme=sakura] .bokeh i{position:absolute;border-radius:50%;background:radial-gradient(circle,#fff 0 16%,#f7bfd0 44%,transparent 70%)}
-[data-theme=sakura] .bokeh i:nth-child(1){left:40px;bottom:40px;width:170px;height:170px}
-[data-theme=sakura] .bokeh i:nth-child(2){left:180px;bottom:120px;width:110px;height:110px;opacity:.8}
-[data-theme=sakura] .bokeh i:nth-child(3){left:120px;bottom:-10px;width:130px;height:130px;opacity:.7}
-[data-theme=sakura] .bokeh i:nth-child(4){left:290px;bottom:40px;width:80px;height:80px;opacity:.6}
-[data-theme=sakura] .petals{display:block;position:absolute;inset:0}
-[data-theme=sakura] .petals i{position:absolute;left:var(--x);top:-4vh;width:var(--size);height:calc(var(--size)*.78);animation:fall var(--fall) linear var(--delay) infinite}
-[data-theme=sakura] .petals i::before{content:"";position:absolute;inset:0;border-radius:150% 0 150% 0;background:linear-gradient(135deg,#ffe9f0,#f4a2bb);box-shadow:inset -1px -1px 2px rgba(214,90,130,.25);opacity:.85;animation:sway var(--sway) ease-in-out var(--delay) infinite alternate}
-[data-theme=sakura] .brand{font:700 13px/1 var(--font-label);letter-spacing:.3em}
-[data-theme=sakura] .brandmark{border-radius:6px}
-[data-theme=sakura] .control{border-color:var(--line-2);background:rgba(255,255,255,.82);color:var(--ink);box-shadow:0 6px 16px -10px rgba(166,74,108,.4)}
-[data-theme=sakura] .connection{padding:8px 14px;border-radius:999px;background:rgba(255,255,255,.7)}
-[data-theme=sakura] .theme-button{border-radius:18px;border-color:rgba(255,255,255,.95);background:rgba(255,255,255,.9);box-shadow:0 8px 18px -14px rgba(166,74,108,.5)}
-[data-theme=sakura] .theme-button[aria-pressed=true]{border-color:#d9819f;box-shadow:0 0 0 1px #d9819f,0 10px 22px -14px rgba(166,74,108,.6)}
-[data-theme=sakura] .section-label{color:var(--ink-2)}
-[data-theme=sakura] .screen-head{align-items:flex-end;margin:22px 0 38px}
-[data-theme=sakura] .title-block{display:flex;flex-direction:column}
-[data-theme=sakura] h1{order:1;font:600 86px/.92 var(--font-display);letter-spacing:-.015em;color:var(--ink)}
-[data-theme=sakura] .title-block .eyebrow{order:2;margin:16px 0 0 4px;font:500 13px/1 var(--font-label);letter-spacing:.64em;color:var(--ink-2)}
-[data-theme=sakura] .intro-note{order:3;margin:16px 0 0 4px;font:500 14px/1.4 var(--font-label);letter-spacing:.12em;color:var(--ink-2)}
-[data-theme=sakura] .intro-note::after{content:"";display:block;width:96px;height:2px;margin-top:20px;background:linear-gradient(90deg,#e7899f,rgba(231,137,159,0))}
-[data-theme=sakura] .summary{flex-direction:column;align-items:flex-start;gap:9px;padding:6px 0 6px 24px;border-left:1px solid var(--line-2)}
-[data-theme=sakura] .summary>div{display:flex;flex-direction:row-reverse;justify-content:flex-end;align-items:baseline;gap:9px}
-[data-theme=sakura] .summary .summary-providers{display:flex}
-[data-theme=sakura] .summary .summary-clock{display:none}
-[data-theme=sakura] :is(.percentage,.timer-value,.summary dd,.window-percent,.window-timer,.gauge-value){font-variant-numeric:lining-nums tabular-nums}
-[data-theme=sakura] .summary dt{font:600 11px/1 var(--font-label);letter-spacing:.34em;color:var(--ink-2)}
-[data-theme=sakura] .summary dd{font:600 20px/1 var(--font-num);font-variant-numeric:lining-nums tabular-nums;color:var(--ink)}
-[data-theme=sakura] .provider-list{gap:20px}
-[data-theme=sakura] .provider-card{grid-template-columns:84px minmax(0,1fr) auto auto;grid-template-areas:"icon name reading timer" "icon tabs reading timer" "gauge gauge gauge gauge" "more more more more" "foot foot foot foot";column-gap:26px;padding:26px 32px 0;border:1px solid rgba(255,255,255,.95);border-radius:26px;background:linear-gradient(180deg,rgba(255,255,255,.86),rgba(255,246,249,.7));box-shadow:inset 0 1px 0 #fff,0 22px 44px -26px rgba(166,74,108,.42),0 2px 6px rgba(166,74,108,.06);backdrop-filter:blur(8px)}
-[data-theme=sakura] .card-head{display:contents}
-[data-theme=sakura] .provider-icon{grid-area:icon;width:84px;height:84px;border-radius:24px;background:linear-gradient(150deg,#fff,#fbe3eb);box-shadow:inset 0 0 0 1px rgba(255,255,255,.95),0 10px 20px -12px rgba(166,74,108,.45)}
-[data-theme=sakura] .provider-icon .glyph{width:42px;height:42px}
-[data-theme=sakura] .provider-name{grid-area:name;align-self:end;gap:10px}
-[data-theme=sakura] .provider-title{font:600 34px/.95 var(--font-display);letter-spacing:.07em;color:var(--ink)}
-[data-theme=sakura] .company{font:600 9px/1 var(--font-label);letter-spacing:.46em;color:var(--ink-2)}
-[data-theme=sakura] .account-tabs{grid-area:tabs;align-self:start;margin:12px 0 0;gap:6px}
-[data-theme=sakura] .account-tab{border-color:var(--line-2);background:rgba(255,255,255,.7);color:var(--ink-2)}
-[data-theme=sakura] .account-tab[aria-pressed=true]{background:var(--ink);border-color:var(--ink);color:#fff}
-[data-theme=sakura] .reading{grid-area:reading;align-items:center;gap:8px;margin:0;text-align:center}
-[data-theme=sakura] .reading-meta{order:2;flex-direction:column;align-items:center;gap:6px}
-[data-theme=sakura] .reading-label{font:600 9px/1 var(--font-label);letter-spacing:.42em}
-[data-theme=sakura] .level-label{font:600 9px/1 var(--font-label);letter-spacing:.24em;color:var(--ink-3)}
-[data-theme=sakura] .unknown-message{max-width:150px}
-[data-theme=sakura] .percentage{font:600 66px/.9 var(--font-num);letter-spacing:-.01em;font-variant-numeric:lining-nums tabular-nums;color:var(--ink)}
-[data-theme=sakura] .percent-sign{font-size:.56em}
-[data-theme=sakura] .timer{grid-area:timer;gap:6px 14px;min-width:200px;padding-left:28px;border-left-color:var(--line-2)}
-[data-theme=sakura] .clock-icon{width:50px;height:50px;padding:13px;border-radius:50%;background:#fbe1ea;color:#c2557a;stroke-width:1.6}
-[data-theme=sakura] .timer-label{font:600 9px/1 var(--font-label);letter-spacing:.34em;color:var(--ink-2)}
-[data-theme=sakura] .timer-value{font:600 32px/1 var(--font-num);letter-spacing:0;color:var(--ink)}
-[data-theme=sakura] .gauge{margin:24px 0 20px}
-[data-theme=sakura] .meter{height:18px;background:#f6e4ea;box-shadow:inset 0 1px 2px rgba(150,70,100,.16)}
-[data-theme=sakura] .meter::before{background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 36 18'%3E%3Cg fill='%23fff' opacity='.55'%3E%3Cpath d='M9 9c-1.6-.4-2.4-2.3-1.2-3.4.6-.5 1.2-.3 1.2.4.1-.7.7-.9 1.2-.4 1.2 1.1.4 3-1.2 3.4z'/%3E%3Cpath d='M9 9c.5 1.6-.9 3.2-2.4 2.6-.7-.3-.8-1-.2-1.3-.7.3-1.2-.2-1.1-.8.3-1.5 2.3-1.7 3.7-.5z'/%3E%3Cpath d='M9 9c1.4-1.2 3.4-1 3.7.5.1.6-.4 1.1-1.1.8.6.3.5 1-.2 1.3-1.5.6-2.9-1-2.4-2.6z'/%3E%3C/g%3E%3Ccircle cx='27' cy='6' r='1.4' fill='%23fff' opacity='.45'/%3E%3C/svg%3E") 0 50%/36px 18px repeat-x,linear-gradient(90deg,var(--gauge-2),var(--gauge));box-shadow:0 2px 6px -2px color-mix(in srgb,var(--gauge) 60%,transparent)}
-[data-theme=sakura] .window-detail .meter::before{background:linear-gradient(90deg,var(--gauge-2),var(--gauge))}
-[data-theme=sakura] .more-windows summary::before{border-color:var(--line-2);color:var(--ink-2)}
-[data-theme=sakura] .card-foot{margin:0 -32px;padding:14px 32px 16px;border-top-color:var(--line)}
-[data-theme=sakura] .stat-k{display:none}
-[data-theme=sakura] .stat:not(.stat-status)+.stat:not(.stat-status)::before{content:"";display:inline-block;width:9px;height:9px;margin-right:10px;vertical-align:-1px;background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 10'%3E%3Cg fill='%23eaa2b7'%3E%3Ccircle cx='5' cy='2.3' r='2'/%3E%3Ccircle cx='7.6' cy='4.2' r='2'/%3E%3Ccircle cx='6.6' cy='7.3' r='2'/%3E%3Ccircle cx='3.4' cy='7.3' r='2'/%3E%3Ccircle cx='2.4' cy='4.2' r='2'/%3E%3C/g%3E%3Ccircle cx='5' cy='5' r='1.2' fill='%23fff'/%3E%3C/svg%3E") center/contain no-repeat}
-[data-theme=sakura] .screen-foot{margin-top:34px}
-[data-theme=sakura] .footer-meta{justify-content:center;letter-spacing:.24em;text-transform:uppercase;font-size:10px;color:var(--ink-2)}
-[data-theme=sakura] .footer-meta::before,[data-theme=sakura] .footer-meta::after{content:"";flex:0 1 90px;height:1px;background:var(--line-2)}
-[data-theme=sakura] .legend{justify-content:center}
-[data-theme=sakura] .legend i{height:7px}
-[data-theme=sakura] .notice{border-style:solid;border-color:#e7a3b8;background:rgba(255,255,255,.75);color:var(--ink)}
-[data-theme=sakura] .clock-panel{border:1px solid rgba(255,255,255,.95);background:rgba(255,255,255,.82);box-shadow:0 22px 44px -26px rgba(166,74,108,.42);backdrop-filter:blur(8px)}
-[data-theme=sakura] .aside-head h2{font:600 30px/1 var(--font-display)}
-[data-theme=sakura] .device{background:linear-gradient(155deg,#ffffff,#f1e8e4 60%,#e2d6d1);box-shadow:inset 0 1px 0 #fff,inset 0 -3px 8px rgba(120,80,70,.18),0 22px 34px -20px rgba(120,60,80,.5)}
-[data-theme=sakura] .control.primary{background:var(--ink);border-color:var(--ink);color:#fff}
 
 /* ════════════════════════════════════════════════════════════════════
    Sci-Fi HUD — navy telemetry: cut-corner glowing frames, wide technical
@@ -661,7 +543,6 @@ h1{margin:0;font:600 48px/1.04 var(--font-display);letter-spacing:-.03em;color:v
 }
 @media (max-width:900px){
  .shell{padding:0 24px 48px}
- .themes{grid-template-columns:repeat(3,minmax(0,1fr))}
  .screen-head{flex-wrap:wrap;align-items:flex-start}
  [data-theme=hud] .provider-card{grid-template-columns:minmax(0,1fr) auto;grid-template-areas:"head head" "pct timer" "meta meta" "gauge gauge" "more more" "foot foot"}
  [data-theme=hud] .percentage{justify-self:start;margin-top:18px}
@@ -679,19 +560,11 @@ h1{margin:0;font:600 48px/1.04 var(--font-display);letter-spacing:-.03em;color:v
  [data-theme=retro] .provider-card[data-provider=grok] .provider-icon{box-shadow:inset 0 0 0 4px var(--accent),inset 0 0 0 8px var(--outline),inset 0 0 0 10px color-mix(in srgb,var(--accent) 28%,var(--outline)),inset 0 0 0 17px var(--outline),6px 6px 0 rgba(0,0,0,.35)}
  [data-theme=retro] .pixel-mascot{width:48px;height:48px}
  [data-theme=retro] .account-tabs{align-self:start;margin:4px 0 0}
- [data-theme=sakura] .provider-card{grid-template-columns:72px minmax(0,1fr) auto;grid-template-areas:"icon name reading" "icon tabs reading" "timer timer timer" "gauge gauge gauge" "more more more" "foot foot foot"}
- [data-theme=sakura] .provider-icon{width:72px;height:72px}
- [data-theme=sakura] .timer{justify-self:start;margin-top:18px;padding-left:0;border-left:0}
  [data-theme=neon] .provider-card{grid-template-columns:80px minmax(0,1fr) auto;grid-template-areas:"icon name timer" "icon tabs timer" "reading reading reading" "gauge gauge gauge" "more more more" "foot foot foot"}
  [data-theme=neon] .provider-icon{width:80px;height:80px;border-radius:20px}
  [data-theme=neon] .provider-icon .glyph{width:42px;height:42px}
  [data-theme=neon] .account-tabs{align-self:start;margin:10px 0 0}
  [data-theme=neon] .reading{margin-top:22px}
- [data-theme=modern] .provider-card{grid-template-columns:56px minmax(0,1fr) auto;grid-template-areas:"icon name timer" "icon tabs timer" "reading reading reading" "gauge gauge gauge" "more more more" "foot foot foot"}
- [data-theme=modern] .provider-icon{width:56px;height:56px}
- [data-theme=modern] .account-tabs{align-self:start;margin:10px 0 0}
- [data-theme=modern] .timer{margin:0}
- [data-theme=modern] .reading{margin-top:20px}
 }
 @media (max-width:640px){
  .shell{padding:0 16px 40px}
@@ -699,7 +572,7 @@ h1{margin:0;font:600 48px/1.04 var(--font-display);letter-spacing:-.03em;color:v
  .connection{order:3;width:100%;margin-left:0}
  .clock-toggle{margin-left:auto}
  .theme-section{margin-bottom:26px}
- .themes{gap:6px}
+ .themes{grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}
  .theme-button{padding:5px 5px 8px;font-size:10.5px}
  .swatch{height:30px;padding:0 7px;gap:3px}
  .swatch i{height:4px}
@@ -783,24 +656,6 @@ h1{margin:0;font:600 48px/1.04 var(--font-display);letter-spacing:-.03em;color:v
  [data-theme=retro] .timer-value{font-size:12px}
  [data-theme=retro] .meter{height:30px;padding:4px;gap:3px}
  [data-theme=retro] .card-foot{margin:4px -16px 0;padding:11px 16px 12px}
- [data-theme=modern] h1{font-size:38px}
- [data-theme=modern] .summary{border-radius:16px}
- [data-theme=modern] .percentage{font-size:52px}
- [data-theme=modern] .provider-title{font-size:12px;letter-spacing:.28em}
- [data-theme=modern] .provider-name{flex-direction:column;gap:6px}
- [data-theme=modern] .account-tabs{margin-left:auto}
- [data-theme=sakura] .branch{width:86vw;opacity:.55;top:-30px;right:-40px}
- [data-theme=sakura] h1{font-size:60px}
- [data-theme=sakura] .title-block .eyebrow{letter-spacing:.5em}
- [data-theme=sakura] .summary{padding-left:16px}
- [data-theme=sakura] .provider-card{border-radius:22px}
- [data-theme=sakura] .provider-icon{width:44px;height:44px;border-radius:14px}
- [data-theme=sakura] .provider-title{font-size:26px}
- [data-theme=sakura] .percentage{font-size:54px}
- [data-theme=sakura] .clock-icon{width:auto;height:auto;padding:0;background:none}
- [data-theme=sakura] .timer-value{font-size:24px}
- [data-theme=sakura] .gauge{margin:2px 0 16px}
- [data-theme=sakura] .card-foot{margin:0 -16px;padding:12px 16px 14px}
  [data-theme=hud] .screen-head{padding:20px 18px}
  [data-theme=hud] .screen-head::after{display:none}
  [data-theme=hud] h1{font-size:24px}
@@ -822,8 +677,6 @@ h1{margin:0;font:600 48px/1.04 var(--font-display);letter-spacing:-.03em;color:v
  .theme-button{font-size:10px}
  .summary{flex-wrap:wrap}
  [data-theme] .percentage{font-size:44px}
- [data-theme=sakura] h1{font-size:50px}
- [data-theme=sakura] .summary{border-left:0;padding-left:0}
  [data-theme=retro] .percentage{font-size:24px}
  [data-theme=retro] .provider-title{font-size:14px}
  [data-theme=hud] .summary>div{padding:0 10px}
@@ -834,9 +687,6 @@ h1{margin:0;font:600 48px/1.04 var(--font-display);letter-spacing:-.03em;color:v
 @keyframes sweep{to{transform:translateY(calc(100vh + 240px))}}
 @keyframes twinkle{50%{opacity:.2}}
 @keyframes beat{50%{transform:translateY(-1px)}}
-@keyframes fall{from{transform:translate3d(0,0,0)}to{transform:translate3d(var(--drift),112vh,0)}}
-@keyframes sway{from{transform:rotate(var(--turn)) translateX(-7px)}to{transform:rotate(calc(var(--turn) + 80deg)) translateX(7px)}}
 @media (prefers-reduced-motion:reduce){
  *,*::before,*::after{animation:none!important;transition:none!important}
- [data-theme=sakura] .petals i{top:calc(var(--x) * .8)}
 }

@@ -13,23 +13,23 @@ how much of each subscription window you have used, draws a 240×240 picture and
 it to a GeekMagic SmallTV-style desk clock through the clock's own photo page. The clock
 keeps its stock firmware and never receives a password, token or cookie.
 
-![Six clock faces rendered by TokenTV (sample data)](docs/images/clock-faces.png)
+![The five clock faces rendered by TokenTV (sample data)](docs/images/clock-faces.png)
 
 ## What you get
 
 - **On the clock:** one account per provider, its most-used quota window, the time until
   that window resets, and a ten-cell gauge where each cell is 10%. The gauge colour changes
   as you approach the limit.
-- **11 clock faces:** Digital, Neon, Pixel Retro, Modern, Sakura and Sci-Fi HUD, plus
-  Pixel, Clean, Arcade, Columns and Orbit. Pick one from the web page.
-- **A web dashboard** with six matching themes, every account (A/B/C…) and every reported
+- **Five clock faces:** Digital (seven-segment), Neon, Pixel Retro, Sci-Fi HUD and the
+  classic Pixel. Pick one from the web page.
+- **A web dashboard** with four matching themes, every account (A/B/C…) and every reported
   window: 5-hour, weekly or CLI budget.
 - **Several accounts per provider.** Each account keeps its own CLI login home, so a work
   and a personal Claude never mix.
 - **Honest states.** Old readings are marked OLD, failed logins say so, and missing data
   shows a dash, never a fake 0%.
 
-![The web dashboard in its six themes (sample data)](docs/images/web-themes.png)
+![The web dashboard in its four themes (sample data)](docs/images/web-themes.png)
 
 ## Hardware
 

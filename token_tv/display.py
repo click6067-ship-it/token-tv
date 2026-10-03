@@ -23,8 +23,7 @@ PROVIDER_INK = {'claude': '#d68e68', 'codex': '#a799e5', 'grok': '#cbd1d7'}
 ICON_PAPER = PROVIDER_INK['grok']
 FONT_MAIN = '/usr/share/fonts/truetype/dejavu/DejaVuSans'
 FONT_NUMBERS = '/usr/share/fonts/truetype/dejavu/DejaVuSansMono'
-STYLES = ('pixel', 'clean', 'arcade', 'columns', 'orbit',
-          'digital', 'neon', 'retro', 'modern', 'sakura', 'hud')
+STYLES = ('pixel', 'digital', 'neon', 'retro', 'hud')
 # Gauge-only levels; labels/percentages always use TEXT, logos retain provider ink.
 GAUGE_LEVELS = ((50, '#76a99a'), (80, '#93c9b9'), (90, '#d1b275'), (101, '#d8877e'))
 STATUS = {'loading': 'WAIT', 'auth_required': 'LOGIN', 'identity_mismatch': 'CHECK',
@@ -73,11 +72,6 @@ def time_left(reset):
     if minutes >= 1440:
         return str(minutes // 1440) + 'd ' + str(minutes % 1440 // 60) + 'h'
     return str(minutes // 60) + 'h ' + str(minutes % 60) + 'm'
-
-
-def right(draw, xy, text, face, color):
-    x, y = xy
-    draw.text((x - draw.textlength(text, font=face), y), text, font=face, fill=color)
 
 
 def mascot(image, provider, xy, pixel=False, size=40):
@@ -131,39 +125,6 @@ def account_label(row):
 
 def quota_period(value):
     return {'WEEK': 'WK', 'BUDGET': 'BUD'}.get(value['label'], value['label'])
-
-
-def render_clean(snapshot):
-    image = Image.new('RGB', (240, 240), BACKGROUND)
-    draw = ImageDraw.Draw(image)
-    for index, row in enumerate(overview_rows(snapshot)):
-        y = 6 + 78 * index
-        if index:
-            draw.line((14, y - 3, 226, y - 3), fill=RULE)
-        if row['provider'] == 'grok':
-            draw.ellipse((16, y + 12, 59, y + 55), fill=ICON_PAPER)
-        mascot(image, row['provider'], (14, y + 10))
-        label = row['alias']
-        # Product labels are provider + A/B/C, rather than personal names.
-        if not label.startswith(row['provider'].upper() + ' '):
-            label = row['provider'].upper() + ' A'
-        draw.text((68, y + 9), label, font=font(12, True), fill=TEXT)
-        value = primary_window(row)
-        if value is None:
-            right(draw, (226, y + 2), '--', font(26, mono=True), MUTED)
-            draw.text((68, y + 48), STATUS.get(row['status'], 'NO DATA'), font=font(10, mono=True), fill=MUTED)
-            for segment in range(10):
-                x = 68 + segment * 16
-                draw.rounded_rectangle((x, y + 36, x + 13, y + 39), radius=1, fill=TRACK)
-            continue
-        used = max(0, min(100, value['used_percent']))
-        old = row['status'] != 'ok'
-        right(draw, (226, y + 2), str(round(used)) + '%', font(26, mono=True), TEXT)
-        period = {'WEEK': 'WK', 'BUDGET': 'BUD'}.get(value['label'], value['label'])
-        draw.text((68, y + 48), period + (' OLD' if old else ' USED'), font=font(10, mono=True), fill=MUTED)
-        right(draw, (226, y + 48), time_left(value.get('resets_at')), font(11, mono=True), MUTED)
-        horizontal_gauge(draw, (68, y + 36), used, rounded=True)
-    return image
 
 
 # A code-native 5×7 alphabet keeps LCD text on a visible pixel grid.
@@ -259,86 +220,6 @@ def render_pixel(snapshot):
     return image
 
 
-def render_arcade(snapshot):
-    image = Image.new('RGB', (240, 240), BACKGROUND)
-    draw = ImageDraw.Draw(image)
-    for index, row in enumerate(overview_rows(snapshot)):
-        y = 4 + index * 80
-        if index:
-            for x in range(14, 227, 4):
-                draw.point((x, y - 4), fill=RULE)
-        if row['provider'] == 'grok':
-            draw.ellipse((11, y + 14, 54, y + 57), fill=ICON_PAPER)
-        mascot(image, row['provider'], (8, y + 12), pixel=True)
-        pixel_text(draw, (70, y + 5), account_label(row))
-        value = primary_window(row)
-        used = max(0, min(100, value['used_percent'])) if value else None
-        pixel_text(draw, (70, y + 23), '--' if used is None else str(round(used)) + '%', scale=3)
-        pixel_text(draw, (226, y + 5), quota_period(value) + (' OLD' if row['status'] != 'ok' else ' USED') if value else '', align='right')
-        pixel_text(draw, (226, y + 29), time_left(value.get('resets_at')).replace(' ', '') if value else STATUS.get(row['status'], 'NO DATA'), scale=2 if value else 1, align='right')
-        horizontal_gauge(draw, (14, y + 66), used, step=22, width=20)
-    return image
-
-
-def render_columns(snapshot):
-    image = Image.new('RGB', (240, 240), BACKGROUND)
-    draw = ImageDraw.Draw(image)
-    for index, row in enumerate(overview_rows(snapshot)):
-        center = 40 + index * 80
-        if index:
-            for y in range(9, 232, 4):
-                draw.point((index * 80, y), fill=RULE)
-        if row['provider'] == 'grok':
-            draw.ellipse((center - 21, 13, center + 21, 55), fill=ICON_PAPER)
-        mascot(image, row['provider'], (center - 24, 10), pixel=True)
-        label = account_label(row).split(' ', 1)
-        pixel_text(draw, (center - (len(label[0]) * 6 - 1) // 2, 63), label[0])
-        pixel_text(draw, (center - (len(label[1]) * 6 - 1) // 2, 75), label[1])
-        value = primary_window(row)
-        used = max(0, min(100, value['used_percent'])) if value else None
-        number = '--' if used is None else str(round(used)) + '%'
-        pixel_text(draw, (center - (len(number) * 6 - 1), 91), number, scale=2)
-        for segment in range(10):
-            y = 184 - segment * 8
-            draw.rectangle((center - 10, y, center + 9, y + 4), fill=TRACK)
-            height = round(max(0, min(1, used / 10 - segment)) * 5) if used is not None else 0
-            if height:
-                draw.rectangle((center - 10, y + 5 - height, center + 9, y + 4), fill=gauge_color(used, segment))
-        period = quota_period(value) + (' OLD' if row['status'] != 'ok' else ' USED') if value else STATUS.get(row['status'], 'NO DATA')
-        pixel_text(draw, (center - (len(period) * 6 - 1) // 2, 204), period)
-        reset = time_left(value.get('resets_at')).replace(' ', '') if value else '--'
-        pixel_text(draw, (center - (len(reset) * 6 - 1) // 2, 218), reset)
-    return image
-
-
-def render_orbit(snapshot):
-    image = Image.new('RGB', (240, 240), BACKGROUND)
-    draw = ImageDraw.Draw(image)
-    for index, row in enumerate(overview_rows(snapshot)):
-        y = 8 + index * 78
-        center = (46, y + 31)
-        if row['provider'] == 'grok':
-            draw.ellipse((center[0] - 17, center[1] - 17, center[0] + 17, center[1] + 17), fill=ICON_PAPER)
-        mascot(image, row['provider'], (center[0] - 24, center[1] - 24), pixel=True, size=30)
-        value = primary_window(row)
-        used = max(0, min(100, value['used_percent'])) if value else None
-        for segment in range(10):
-            angle = math.radians(-90 + segment * 36)
-            x = round(center[0] + 28 * math.cos(angle)) - 3
-            yy = round(center[1] + 28 * math.sin(angle)) - 3
-            draw.rectangle((x, yy, x + 5, yy + 5), fill=TRACK)
-            width = round(max(0, min(1, used / 10 - segment)) * 6) if used is not None else 0
-            if width:
-                draw.rectangle((x, yy, x + width - 1, yy + 5), fill=gauge_color(used, segment))
-        pixel_text(draw, (92, y + 4), account_label(row))
-        pixel_text(draw, (226, y + 4), 'OLD' if value and row['status'] != 'ok' else 'USED', align='right')
-        pixel_text(draw, (92, y + 22), '--' if used is None else str(round(used)) + '%', scale=3)
-        pixel_text(draw, (92, y + 54), quota_period(value) if value else STATUS.get(row['status'], 'NO DATA'))
-        if value:
-            pixel_text(draw, (226, y + 54), time_left(value.get('resets_at')).replace(' ', ''), align='right')
-    return image
-
-
 def render_page(snapshot, page=0, style='pixel'):
     # Keep the former second-frame URL usable while publishing only one LCD image.
     if page not in (0, 1):
@@ -346,8 +227,7 @@ def render_page(snapshot, page=0, style='pixel'):
     if style not in STYLES:
         raise ValueError('Unknown display style')
     from token_tv.themes import RENDERERS
-    renderer = {'pixel': render_pixel, 'clean': render_clean, 'arcade': render_arcade,
-                'columns': render_columns, 'orbit': render_orbit, **RENDERERS}[style]
+    renderer = {'pixel': render_pixel, **RENDERERS}[style]
     image = renderer(snapshot)
     buffer = io.BytesIO()
     image.save(buffer, format='JPEG', quality=92, subsampling=0)

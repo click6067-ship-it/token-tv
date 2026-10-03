@@ -64,29 +64,6 @@
   --radius-card: 0; --radius-control: 0;
 }
 
-/* Modern Minimal: charcoal, quiet tints, generous numerals. */
-:root[data-theme=modern] {
-  --bg: #0b0e13; --panel: #131820; --panel-2: #192029;
-  --ink: #f4f6f9; --ink-2: #98a2b1; --ink-3: #7a8493;
-  --line: #222934; --line-2: #2f3744;
-}
-
-/* Sakura Blossom: blush paper, plum ink, one pink ramp for the bands. */
-:root[data-theme=sakura] {
-  --font-display: 'Cormorant Garamond', Georgia, serif;
-  --font-num: 'Cormorant Garamond', Georgia, serif;
-  --bg: #fbeef2; --panel: #fffafc; --panel-2: #fff;
-  --ink: #4a2433; --ink-2: #7a5262; --ink-3: #8a6574;
-  --line: #f0d6df; --line-2: #e7c2cf; --track: #f5e3e9; --focus: #a83f63;
-  --claude: #cc6440; --claude-2: #cc6440;
-  --codex: #6b4fa0; --codex-2: #6b4fa0;
-  --grok: #34283a; --grok-2: #34283a;
-  --lvl-low: #f2b8c9; --lvl-medium: #e7899f; --lvl-high: #cf5679; --lvl-critical: #a3264b;
-  --lvl-low-2: #fbdde6; --lvl-medium-2: #f5bccb; --lvl-high-2: #ea98ae; --lvl-critical-2: #d65a80;
-  --radius-card: 26px; --radius-control: 999px;
-  color-scheme: light;
-}
-
 /* Sci-Fi HUD: navy telemetry, cut corners, wide technical type. */
 :root[data-theme=hud] {
   --font-body: 'Chakra Petch', 'Manrope', sans-serif;

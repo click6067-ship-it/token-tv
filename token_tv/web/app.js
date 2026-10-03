@@ -4,8 +4,6 @@ const THEMES = [
  {id:'digital', name:'Digital Terminal', eyebrow:'', title:'AI USAGE DASHBOARD', note:''},
  {id:'neon', name:'Neon Cyberpunk', eyebrow:'Today', title:'AI USAGE', note:''},
  {id:'retro', name:'Pixel Retro', eyebrow:'', title:'AI PROVIDERS', note:'USAGE DASHBOARD'},
- {id:'modern', name:'Modern Minimal', eyebrow:'AI providers', title:'Usage Overview', note:'Track your usage and reset times across providers.'},
- {id:'sakura', name:'Sakura Blossom', eyebrow:'Dashboard', title:'AI Usage', note:'Three minds. More possibilities.'},
  {id:'hud', name:'Sci-Fi HUD', eyebrow:'', title:'AI PROVIDER USAGE', note:'Real-time usage monitor'}
 ];
 const STATUS = {ok:'Connected', loading:'Loading', auth_required:'Login needed', identity_mismatch:'Check identity', quota_unavailable:'Quota unavailable', stale:'OLD · Previous value', rate_limited:'Retry later', error:'Fetch failed'};
@@ -114,37 +112,6 @@ function buildStarfield() {
  for (let i = 0; i < 140; i++) {const big = i % 17 === 0, r = svgNode('rect', {x:Math.floor(rnd() * 480), y:Math.floor(rnd() * 300), width:big ? 2 : 1, height:big ? 2 : 1, fill:['#ffffff', '#b9c8ff', '#ffe9a8'][i % 3]}); if (i % 4 === 0) r.setAttribute('class', 'twinkle'); r.style.animationDelay = (-rnd() * 4).toFixed(2) + 's'; s.append(r)}
  $('#starfield').append(s);
 }
-/* Sakura branch: tapered limbs, notched five-petal flowers and buds. */
-function buildBranch() {
- const s = svgNode('svg', {viewBox:'0 0 620 440', preserveAspectRatio:'xMaxYMin meet'});
- const defs = svgNode('defs', {}), g = svgNode('radialGradient', {id:'petal-fill', cx:'50%', cy:'100%', r:'105%'});
- for (const [o, c] of [['0', '#fffafc'], ['.5', '#ffd9e4'], ['1', '#f59bb7']]) g.append(svgNode('stop', {offset:o, 'stop-color':c}));
- defs.append(g); s.append(defs);
- const limb = (d, w, c) => s.append(svgNode('path', {d, fill:'none', stroke:c, 'stroke-width':w, 'stroke-linecap':'round'}));
- limb('M640 26C574 40 520 66 470 104', 15, '#5e3540'); limb('M470 104C420 142 372 170 314 196', 10, '#6c3d48'); limb('M314 196C268 217 236 236 196 266', 6, '#7a4752');
- limb('M470 104C486 150 482 196 500 246', 6, '#6c3d48'); limb('M500 246C506 270 520 290 536 304', 3.5, '#7a4752');
- limb('M396 152C372 120 344 100 312 82', 5, '#6c3d48'); limb('M560 52C566 84 586 102 610 116', 4, '#6c3d48'); limb('M260 220C246 196 226 186 202 182', 3, '#7a4752');
- const flower = (x, y, r, rot) => {
-  const f = svgNode('g', {transform:`translate(${x} ${y}) rotate(${rot}) scale(${r / 22})`});
-  for (let i = 0; i < 5; i++) f.append(svgNode('path', {d:'M0 0C-7-4-11-14-7-21C-4-25-1-24 0-21C1-24 4-25 7-21C11-14 7-4 0 0Z', fill:'url(#petal-fill)', stroke:'#f2a7bd', 'stroke-width':.6, transform:`rotate(${i * 72})`}));
-  for (let i = 0; i < 9; i++) {const a = i * 40 * Math.PI / 180, l = 6 + (i % 3); f.append(svgNode('path', {d:`M0 0L${(Math.cos(a) * l).toFixed(1)} ${(Math.sin(a) * l).toFixed(1)}`, stroke:'#d84a7a', 'stroke-width':.8})); f.append(svgNode('circle', {cx:(Math.cos(a) * l).toFixed(1), cy:(Math.sin(a) * l).toFixed(1), r:.9, fill:'#f7c25a'}))}
-  f.append(svgNode('circle', {r:2.6, fill:'#e0507f'}));
-  s.append(f);
- };
- const bud = (x, y, rot) => {const b = svgNode('g', {transform:`translate(${x} ${y}) rotate(${rot})`}); b.append(svgNode('ellipse', {cx:0, cy:-5, rx:3.6, ry:5.5, fill:'#f48fb1'}), svgNode('path', {d:'M-3.5-1 0 3 3.5-1 0 1Z', fill:'#7a4752'})); s.append(b)};
- for (const [x, y, r, rot] of [[590,44,23,10],[548,70,26,-14],[512,40,18,30],[468,112,25,4],[430,92,20,-30],[402,150,22,18],[356,170,24,-8],[318,124,19,26],[300,200,21,40],[262,214,18,-20],[228,244,20,12],[492,196,22,-12],[514,258,18,30],[544,300,15,-6],[600,112,17,22],[198,184,14,-24],[336,92,15,8]]) flower(x, y, r, rot);
- for (const [x, y, rot] of [[196,268,-140],[310,80,-60],[612,118,40],[538,306,150],[452,64,-20],[248,200,-80]]) bud(x, y, rot);
- $('#branch').append(s);
-}
-function buildPetals() {
- const rnd = seeded(9), box = $('#petals');
- for (let i = 0; i < 18; i++) {
-  const p = el('i');
-  p.style.cssText = `--x:${(rnd() * 100).toFixed(1)}vw;--drift:${(rnd() * 22 - 4).toFixed(1)}vw;--size:${(8 + rnd() * 9).toFixed(1)}px;--fall:${(14 + rnd() * 12).toFixed(1)}s;--sway:${(3 + rnd() * 3).toFixed(1)}s;--delay:${(-rnd() * 26).toFixed(1)}s;--turn:${Math.round(rnd() * 360)}deg`;
-  box.append(p);
- }
-}
-
 function resetTime(epoch) {if (!Number.isFinite(epoch) || epoch <= 0) return '—'; let m = Math.ceil((epoch - Date.now() / 1000) / 60); if (m <= 0) return 'Awaiting reset'; return m >= 1440 ? `${Math.floor(m / 1440)}d ${Math.floor(m % 1440 / 60)}h` : `${Math.floor(m / 60)}h ${pad(m % 60)}m`}
 function period(w) {if (!w) return 'QUOTA'; return w.label === 'BUDGET' ? 'CLI BUDGET' : w.label === 'WEEK' ? 'WEEKLY' : w.label === '5H' ? '5-HOUR' : String(w.label || 'QUOTA')}
 function level(v) {return v < 50 ? 'low' : v < 80 ? 'medium' : v < 90 ? 'high' : 'critical'}
@@ -159,7 +126,7 @@ function gauge(value, label) {
 function stat(key, value, cls) {const s = el('div', undefined, 'stat' + (cls ? ' ' + cls : '')); s.append(el('span', key, 'stat-k'), typeof value === 'string' ? el('span', value, 'stat-v') : value); return s}
 
 function setTheme(theme) {
- const config = THEMES.find(t => t.id === theme) || THEMES[3];
+ const config = THEMES.find(t => t.id === theme) || THEMES[0];
  document.documentElement.dataset.theme = config.id; savePreference('tokentv.theme', config.id);
  $('#eyebrow').textContent = config.eyebrow; $('#eyebrow').hidden = !config.eyebrow;
  $('#page-title').textContent = config.title;
@@ -171,7 +138,7 @@ for (const t of THEMES) {
  const sw = el('span', undefined, 'swatch'); sw.dataset.swatch = t.id; sw.setAttribute('aria-hidden', 'true'); sw.append(el('i'), el('i'), el('i'));
  b.append(sw, el('span', t.name, 'theme-name')); b.onclick = () => setTheme(t.id); $('#themes').append(b);
 }
-setTheme(readPreference('tokentv.theme', 'modern'));
+setTheme(readPreference('tokentv.theme', 'digital'));
 
 function providerCard(provider, accounts) {
  let a = accounts.find(x => x.key === accountChoices[provider]) || accounts[0];
@@ -272,5 +239,5 @@ $('#clock-style').onchange = e => {clockChoice = e.target.value; clockError = fa
 $('#apply').onclick = async () => {if (applying || !clockChoice) return; applying = true; clockError = false; paintClock(); try {const r = await fetch('/display/style', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({style:clockChoice})}); if (!r.ok) throw Error(); displayInfo = await r.json()} catch {clockError = true} finally {applying = false; paintClock(true)}};
 $('#frame').onerror = () => {$('#display-state').textContent = 'Clock preview unavailable. Reopen to retry.'};
 
-$('#mascot').append(retroMascot()); buildStarfield(); buildBranch(); buildPetals(); tick();
+$('#mascot').append(retroMascot()); buildStarfield(); tick();
 update(); refreshDisplay(); setInterval(update, 30000); setInterval(tick, 1000); setInterval(() => {if (!$('#clock-panel').hidden) refreshDisplay()}, 5000);

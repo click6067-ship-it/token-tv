@@ -15,7 +15,6 @@ ASSETS = {
     '/assets/orbitron.ttf': (WEB / 'orbitron.ttf', 'font/ttf'),
     '/assets/press-start-2p.ttf': (WEB / 'press-start-2p.ttf', 'font/ttf'),
     '/assets/oxanium.woff2': (WEB / 'oxanium.woff2', 'font/woff2'),
-    '/assets/cormorant-garamond.woff2': (WEB / 'cormorant-garamond.woff2', 'font/woff2'),
     '/assets/chakra-petch-500.woff2': (WEB / 'chakra-petch-500.woff2', 'font/woff2'),
     '/assets/chakra-petch-700.woff2': (WEB / 'chakra-petch-700.woff2', 'font/woff2'),
     '/assets/claude-pixel.png': (ROOT / 'assets' / 'claude-pixel.png', 'image/png'),
