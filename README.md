@@ -20,8 +20,8 @@ Claude · Codex · Grok — multiple accounts — no firmware flashing</p>
 ```bash
 git clone https://github.com/click6067-ship-it/token-tv && cd token-tv
 python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
-mkdir -p .runtime && cp config.example.json .runtime/config.json   # your accounts + "device_url" of the clock
-.venv/bin/python -m token_tv.live --config .runtime/config.json      # dashboard: http://127.0.0.1:8787
+mkdir -p .runtime && cp config.example.json .runtime/config.json  # add accounts + clock IP
+.venv/bin/python -m token_tv.live --config .runtime/config.json     # → localhost:8787
 ```
 
 <details>
