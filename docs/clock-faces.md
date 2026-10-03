@@ -66,21 +66,25 @@ the one you already have with `--config`), logged-in accounts (`token-tv connect
 `token-tv doctor --live`) and `device_url` set to your clock. Then:
 
 ```bash
-.venv/bin/token-tv run      # dashboard → Clock display → Themes
+.venv/bin/token-tv run      # dashboard → Gallery
 ```
 
-Your face is listed under **Themes** as **Local**. Press **Preview**, then the usual
+Your face is listed in the **Gallery** as **Local**. Press **Preview**, then the usual
 **Apply to clock**. It works without any pull request; nothing is downloaded from anyone else.
 Because the install is editable, later edits to your renderer show up after restarting `token-tv run`.
 
 ## 4. Share it (optional)
 
-Open a pull request with the *New clock face* template: id, name, author, license, a 240×240 preview
-rendered from sample data. After review the maintainer adds it to
-`token_tv/assets/theme-catalog.json` (with `added_at`, `min_version` and a `theme` issue for likes)
-in the next release. People with that release see it in **Themes**, sorted by **Popular** (👍 on the
-theme issue, refreshed by hand before releases) or **New**. Older installs show "update TokenTV"
-instead of downloading anything.
+There are two different ways, and only the second one puts a face in the Gallery.
+
+| | Share an image | Add it to the Gallery |
+| --- | --- | --- |
+| How | [Share a face](https://github.com/click6067-ship-it/token-tv/issues/new?template=share_a_face.md) issue: an image, optionally the prompt and your fork link | Pull request with the *New clock face* template: id, name, author, license, a 240×240 preview from sample data |
+| What happens | It is just shown in the issue. Nothing is added to the Gallery automatically | After review the maintainer adds it to `token_tv/assets/theme-catalog.json` (with `added_at`, `min_version` and a likes issue) in the next release |
+| Who sees it | People reading the issue | Everyone on that release, in the **Gallery**, sorted by **Popular** or **New** |
+
+Popular uses 👍 on each face's GitHub issue, counted by hand before releases (the Gallery shows when).
+It is not a live ranking. Older installs show "update TokenTV" instead of downloading anything.
 
 ## Rules every face keeps
 

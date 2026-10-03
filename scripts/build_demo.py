@@ -24,7 +24,7 @@ META = '''<meta name="description" content="Your AI limits, on a tiny desk clock
 <meta property="og:image" content="{site}/og.png">
 <meta property="og:url" content="{site}/">
 <meta name="twitter:card" content="summary_large_image">'''
-BAR = f'<div class="demo-bar">Live demo with sample data<a href="{REPO}">Get TokenTV on GitHub ★</a></div>'
+BAR = f'<div class="demo-bar">Live demo with sample data<a href="{REPO}">TokenTV on GitHub</a></div>'
 
 
 def build(out, site):

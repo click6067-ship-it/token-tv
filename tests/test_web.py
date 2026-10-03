@@ -68,4 +68,34 @@ class ThemesEndpointTests(unittest.TestCase):
         themes = json.loads((out / 'demo-themes.json').read_text())
         from token_tv.display import STYLES
         self.assertEqual({t['id'] for t in themes['themes'] if t['installed']}, set(STYLES))  # adding a face needs no test edit
-        self.assertIn('data-demo', (out / 'index.html').read_text())
+        html = (out / 'index.html').read_text()
+        self.assertIn('data-demo', html)
+        self.assertIn('id="gallery"', html)
+        self.assertNotIn('★', html)  # no star request in the demo bar
+
+
+class GalleryTests(unittest.TestCase):
+    def setUp(self):
+        from pathlib import Path
+        web = Path(__file__).resolve().parents[1] / 'token_tv' / 'web'
+        self.html = (web / 'index.html').read_text()
+        self.js = (web / 'app.js').read_text()
+
+    def test_dashboard_has_visible_gallery_with_neutral_links(self):
+        panel_start = self.html.index('id="clock-panel"')
+        panel_end = self.html.index('</aside>', panel_start)
+        gallery = self.html.index('id="gallery"')
+        self.assertFalse(panel_start < gallery < panel_end)  # visible, not hidden inside the clock panel
+        self.assertIn('href="#gallery"', self.html)  # direct entry from the top bar
+        self.assertIn('https://github.com/click6067-ship-it/token-tv/blob/main/docs/clock-faces.md', self.html)
+        self.assertIn('https://github.com/click6067-ship-it/token-tv/issues/new?template=share_a_face.md', self.html)
+        for label in ('Gallery', 'Make a face', 'Share a face'):
+            self.assertIn(label, self.html)
+        self.assertIn("'theme-thumb'", self.js)  # each card carries a real rendered thumbnail
+
+    def test_no_star_or_fork_request_in_dashboard(self):
+        for text in (self.html, self.js):
+            self.assertNotIn('Fork it', text)
+            self.assertNotRegex(text.lower(), r'\bstar\b|★')
+        self.assertIn('docs/setup.md', self.js)
+        self.assertNotIn('#quick-start', self.js)

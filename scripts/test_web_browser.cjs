@@ -30,19 +30,22 @@ async function themes_checks(page){
  const fixture={last_attempt_at:'2026-10-03T12:00:00Z',version:'0.1.0',themes:[t('digital','2026-10-01T00:00:00Z',8,'counted'),t('neon','2026-10-02T00:00:00Z',0,'counted'),t('retro','2026-10-03T00:00:00Z',null,'unavailable'),t('space',null,null,'local',{local:true,author:null,added_at:null,source_url:null}),t('vapor','2026-10-04T00:00:00Z',null,'not_open',{installed:false,needs_update:true,min_version:'0.3.0'})]};
  await page.route('**/themes',r=>r.fulfill({json:fixture}));await page.reload();await page.waitForSelector('[data-account]');
  let posts=0;page.on('request',r=>{if(r.method()==='POST')posts++});
- await page.locator('#clock-toggle').click();await page.waitForSelector('.theme-card');
+ await page.waitForSelector('#gallery .theme-card');assert.equal(await page.locator('#clock-panel').isHidden(),true);assert.equal(await page.locator('#gallery').isVisible(),true); // gallery is visible without opening the clock panel
  assert.deepEqual(await page.locator('.theme-card').evaluateAll(n=>n.map(x=>x.dataset.id)),['digital','neon','vapor','retro','space']);
+ for(const t of await page.locator('.theme-thumb').all())await t.scrollIntoViewIfNeeded();await page.waitForFunction(()=>[...document.querySelectorAll('.theme-thumb')].every(i=>i.complete&&i.naturalWidth===240));assert.equal(await page.locator('[data-id=vapor] .theme-thumb').count(),0);
  assert.match(await page.locator('[data-id=neon] .theme-likes').innerText(),/👍 0/);assert.match(await page.locator('[data-id=retro] .theme-likes').innerText(),/unavailable/);assert.match(await page.locator('[data-id=space]').innerText(),/Local/);
  assert.match(await page.locator('[data-id=vapor]').innerText(),/Needs v0.3.0/);assert.equal(await page.locator('[data-id=vapor] button').count(),0);
  await page.locator('[data-sort=new]').click();assert.deepEqual(await page.locator('.theme-card').evaluateAll(n=>n.map(x=>x.dataset.id)),['vapor','retro','neon','digital','space']);
- await page.locator('[data-id=neon] button').click();assert.equal(await page.locator('#clock-style').inputValue(),'neon');assert.equal(posts,0);
+ await page.locator('[data-id=neon] button').click();assert.equal(await page.locator('#clock-panel').isVisible(),true);assert.equal(await page.locator('#clock-style').inputValue(),'neon');assert.equal(posts,0);
+ await page.locator('[data-id=digital] button').click();assert.equal(await page.locator('#clock-style').inputValue(),'digital');assert.equal(await page.locator('#frame').evaluate(e=>{const r=e.getBoundingClientRect();return r.top>=0&&r.bottom<=innerHeight}),true);assert.equal(posts,0);
+ assert.equal(await page.locator('.gallery-links a',{hasText:'Share a face'}).getAttribute('href'),'https://github.com/click6067-ship-it/token-tv/issues/new?template=share_a_face.md');
  await page.unroute('**/themes');await page.locator('#close-clock').click();
 }
 async function demo_checks(browser,demo){
  const page=await browser.newPage({viewport:{width:375,height:900}});let posts=0;page.on('request',r=>{if(r.method()==='POST')posts++});
- await page.goto(demo);await page.locator('#clock-toggle').click();await page.waitForSelector('.theme-card');await page.locator('.theme-card button').first().click();
+ await page.goto(demo);await page.waitForSelector('#gallery .theme-card');for(const t of await page.locator('.theme-thumb').all())await t.scrollIntoViewIfNeeded();await page.waitForFunction(()=>[...document.querySelectorAll('.theme-thumb')].length===6&&[...document.querySelectorAll('.theme-thumb')].every(i=>i.complete&&i.naturalWidth===240));await page.locator('.theme-card button').first().click();
  await page.waitForFunction(()=>{const i=document.querySelector('#frame');return i.complete&&i.naturalWidth===240});
- assert.equal(await page.locator('#apply').isVisible(),false);assert.ok(await page.locator('.theme-actions a',{hasText:'Get'}).count()>0);assert.equal(posts,0);
+ assert.equal(await page.locator('#apply').isVisible(),false);assert.match(await page.locator('.theme-actions a',{hasText:'Get'}).first().getAttribute('href'),/docs\/setup\.md$/);assert.equal(posts,0);
  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);await page.screenshot({path:`${out}/demo-themes-375.png`,fullPage:true});await page.close();
 }
 (async()=>{const browser=await chromium.launch({headless:true,executablePath:process.env.CHROMIUM_EXECUTABLE});try{const page=await browser.newPage({viewport:{width:1440,height:1100}});const errors=[];page.on('pageerror',e=>errors.push(e.message));await page.goto(url);await page.waitForSelector('[data-account]');await theme_and_responsive_checks(page);await account_and_state_checks(page);await clock_independence_checks(page);await themes_checks(page);if(process.env.TOKEN_TV_DEMO_URL)await demo_checks(browser,process.env.TOKEN_TV_DEMO_URL);assert.deepEqual(errors,[]);fs.writeFileSync(`${out}/result.json`,JSON.stringify({themes,widths:[320,375,414,768,1440],accounts:7,clockUnchanged:true,pageErrors:errors,passed:true},null,2));console.log('PASS: four themes, five widths, seven accounts, stale/missing/offline states, clock independence and apply.');}finally{await browser.close()}})().catch(e=>{console.error(e);process.exitCode=1});

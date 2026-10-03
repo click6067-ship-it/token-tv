@@ -570,7 +570,7 @@ h1{margin:0;font:600 48px/1.04 var(--font-display);letter-spacing:-.03em;color:v
  .shell{padding:0 16px 40px}
  .topbar{flex-wrap:wrap;gap:10px 14px;min-height:0;padding:16px 0 14px}
  .connection{order:3;width:100%;margin-left:0}
- .clock-toggle{margin-left:auto}
+ .gallery-link{margin-left:auto}
  .theme-section{margin-bottom:26px}
  .themes{grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}
  .theme-button{padding:5px 5px 8px;font-size:10.5px}
@@ -697,9 +697,13 @@ h1{margin:0;font:600 48px/1.04 var(--font-display);letter-spacing:-.03em;color:v
 .demo-bar a:hover{border-color:var(--ink-3)}
 [data-theme=digital] .demo-bar{font-size:19px;font-weight:400;letter-spacing:.06em;text-transform:uppercase}
 [data-theme=retro] .demo-bar{font-size:19px;font-weight:400}
-.clock-themes{display:block;margin-top:22px;padding-top:18px;border-top:1px solid var(--line)}
-.clock-themes .themes-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:6px}
-.themes-head h3{margin:0;font:700 12px/1 var(--font-label);letter-spacing:.18em;text-transform:uppercase;color:var(--ink-2)}
+.gallery{margin:28px 0 0;padding:22px;border:1px solid var(--line);border-radius:var(--radius-card);background:var(--panel);scroll-margin-top:16px}
+.gallery .themes-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:6px}
+.themes-head h2{margin:0;font:700 13px/1 var(--font-label);letter-spacing:.18em;text-transform:uppercase;color:var(--ink-2)}
+.gallery .theme-list{grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:12px}
+.theme-thumb{display:block;width:100%;height:auto;aspect-ratio:1;margin-bottom:10px;border-radius:6px;background:#000;image-rendering:pixelated}
+.gallery-links{margin:14px 0 4px;font-size:13px}.gallery-links a{color:var(--ink-2)}
+.gallery-link{text-decoration:none}
 .theme-sort{display:flex;gap:4px}.theme-sort .control{min-height:28px;padding:4px 10px;font-size:12px}
 .theme-sort .control[aria-pressed=true]{border-color:var(--ink-2);color:var(--ink)}
 .theme-list{display:grid;gap:8px;margin:10px 0;padding:0;list-style:none}
@@ -710,5 +714,4 @@ h1{margin:0;font:600 48px/1.04 var(--font-display);letter-spacing:-.03em;color:v
 .theme-actions{display:flex;flex-wrap:wrap;align-items:center;gap:6px 12px;font-size:12px}
 .theme-actions .control{min-height:28px;padding:4px 12px;font-size:12px}
 .theme-actions a{color:var(--ink-2)}.theme-update{color:var(--ink-3)}
-.theme-fork{margin-top:4px}
 [data-demo] #apply{display:none}
