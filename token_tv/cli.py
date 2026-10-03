@@ -1,5 +1,6 @@
 """token-tv: set up, check, preview and run TokenTV.
 
+    token-tv start     find your signed-in CLIs, ask for the clock, run (the easy way)
     token-tv setup     write a credential-free config (never overwrites one)
     token-tv doctor    check CLIs and login files (--live asks each provider)
     token-tv demo      render every clock face with sample data
@@ -214,6 +215,59 @@ def demo(args):
     return 0
 
 
+def start(args):
+    """One command: find signed-in CLIs, confirm their emails, ask for the clock, then run."""
+    from token_tv.sources import logged_in_email
+    path = Path(args.config).expanduser()
+    interactive = not args.yes and sys.stdin.isatty()
+    if not path.exists():
+        accounts = []
+        for provider, (_, home, _, _) in PROVIDERS.items():
+            if not cli_path(provider) or login_state(provider, home) == 'no':
+                continue
+            email = logged_in_email(provider, home)
+            if not email:
+                continue
+            if interactive and not ask(f'Found {provider.title()} signed in as {email}. Use it? [Y/n]', 'y').lower().startswith('y'):
+                continue
+            accounts.append({'key': f'{provider}_a', 'alias': f'{provider.upper()} A', 'provider': provider,
+                             'email': email, 'source_home': home})
+            print(f'{provider.title()}: {email}')
+        if not accounts:
+            print('No signed-in Claude, Codex or Grok CLI found. Sign in to one (for example `claude`, then /login),\n'
+                  'or look around first with: token-tv demo', file=sys.stderr)
+            return 1
+        device = args.device_url
+        if device is None and interactive:
+            device = ask('Clock address shown on the clock screen, e.g. 192.168.0.50 (blank = dashboard only)')
+        if device and not device.startswith(('http://', 'https://')):
+            device = 'http://' + device
+        try:
+            device = device and device_address(device)
+        except ValueError as error:
+            print(error, file=sys.stderr)
+            return 1
+        config = {'poll_seconds': 300, 'accounts': accounts, 'display_style': 'digital'}
+        if device:
+            config['device_url'] = device
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with open(path, 'x') as handle:
+            json.dump(config, handle, indent=2)
+            handle.write('\n')
+        print(f'Saved {path} (emails and paths only, no secrets).')
+    if read_config(path) is None:
+        return 1
+    if not args.no_browser:
+        import threading
+        import webbrowser
+        threading.Timer(1.5, webbrowser.open, ['http://127.0.0.1:8787']).start()
+    print('Dashboard: http://127.0.0.1:8787  (Ctrl+C to stop)')
+    from token_tv import live
+    sys.argv = ['token-tv start', '--config', str(path), '--state-dir', str(path.parent / 'state')]
+    live.main()
+    return 0
+
+
 def passthrough(module, args, extra):
     sys.argv = [f'token-tv {args.command}', '--config', str(Path(args.config).expanduser()), *extra]
     if not {'-h', '--help'} & set(extra) and read_config(args.config) is None:
@@ -237,6 +291,10 @@ def main(argv=None):
                    help='give every account its own login home instead of reusing your existing CLI login')
     s.add_argument('--device-url', help='clock address, e.g. http://192.168.0.50')
     s.add_argument('--yes', action='store_true', help='do not ask; use only the flags given')
+    st = commands.add_parser('start', parents=[config], help='find your signed-in CLIs, ask for the clock, and run')
+    st.add_argument('--device-url', help='clock address, e.g. 192.168.0.50')
+    st.add_argument('--yes', action='store_true', help='accept every signed-in account without asking')
+    st.add_argument('--no-browser', action='store_true', help='do not open the dashboard in a browser')
     o = commands.add_parser('doctor', parents=[config], help='check CLIs and logins')
     o.add_argument('--live', action='store_true', help='ask each provider now and compare the email; the CLI may refresh an expired login; prints status only')
     d = commands.add_parser('demo', help='render every clock face with sample data')
@@ -263,7 +321,7 @@ def main(argv=None):
     if args.command is None:
         parser.print_help()
         return 0
-    return {'setup': setup, 'doctor': doctor, 'demo': demo}[args.command](args)
+    return {'setup': setup, 'doctor': doctor, 'demo': demo, 'start': start}[args.command](args)
 
 
 if __name__ == '__main__':

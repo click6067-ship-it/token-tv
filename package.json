@@ -1,0 +1,10 @@
+{
+  "name": "token-tv",
+  "version": "0.1.0",
+  "description": "Your Claude and Codex usage limits on a tiny Wi-Fi desk clock (launcher for the Python package)",
+  "license": "MIT",
+  "repository": "github:click6067-ship-it/token-tv",
+  "bin": { "token-tv": "bin/token-tv.js" },
+  "files": ["bin/", "token_tv/", "pyproject.toml", "README.md", "LICENSE"],
+  "engines": { "node": ">=18" }
+}

@@ -109,3 +109,15 @@ class DisplayStyleTests(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+class ConfiguredServicesOnlyTest(unittest.TestCase):
+    def test_only_services_with_accounts_get_a_row(self):
+        import time
+        from token_tv.display import STYLES, overview_rows, render_page
+        from token_tv.sample import H, snapshot
+        data = snapshot(time.time(), [('claude_a', 'CLAUDE A', 'claude', [('5H', 72, 2 * H)])])
+        self.assertEqual([r['provider'] for r in overview_rows(data)], ['claude'])  # no LOGIN rows for unused services
+        for style in STYLES:
+            self.assertTrue(render_page(data, style=style))  # every face copes with one row
+        self.assertEqual(len(overview_rows({'accounts': {}})), 3)  # empty config keeps the placeholders

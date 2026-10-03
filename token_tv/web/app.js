@@ -185,13 +185,14 @@ function providerCard(provider, accounts) {
  let when = el('span', '—', 'stat-v');
  if (checked) {const d = new Date(checked * 1000); when = el('time', d.toLocaleTimeString('en-GB', {hour:'2-digit', minute:'2-digit'}), 'stat-v'); when.dateTime = d.toISOString(); when.title = d.toLocaleString('en-GB')}
  const foot = el('div', undefined, 'card-foot');
- foot.append(stat('Account', a.alias || '—'), stat('Window', primary ? period(primary) : '—'), stat('Source', a.source === 'mini' ? 'Mini' : a.source ? 'Laptop link' : '—'), stat(stale ? 'Last good' : 'Checked', when), stat('Status', el('span', offline ? 'OFFLINE · Previous value' : STATUS[a.status] || 'Unknown', 'row-status stat-v'), 'stat-status'));
+ foot.append(stat('Account', a.alias || '—'), stat('Window', primary ? period(primary) : '—'), stat('Source', a.source === 'mini' ? 'This computer' : a.source ? 'Linked snapshot' : '—'), stat(stale ? 'Last good' : 'Checked', when), stat('Status', el('span', offline ? 'OFFLINE · Previous value' : STATUS[a.status] || 'Unknown', 'row-status stat-v'), 'stat-status'));
  card.append(foot); shell.append(card); return shell;
 }
 function renderAccounts() {
  if (!snapshot) return;
  const focused = document.activeElement?.dataset?.account, rows = Object.values(snapshot.accounts || {}), fragment = document.createDocumentFragment();
- for (const provider of PROVIDERS) fragment.append(providerCard(provider, rows.filter(a => a.provider === provider)));
+ const used = PROVIDERS.filter(p => rows.some(a => a.provider === p)); // only services that are set up
+ for (const provider of used.length ? used : PROVIDERS) fragment.append(providerCard(provider, rows.filter(a => a.provider === provider)));
  $('#providers').replaceChildren(fragment);
  const reporting = offline ? 0 : rows.filter(a => a.status === 'ok' && (a.windows || []).some(w => Number.isFinite(w.used_percent))).length;
  $('#account-count').textContent = pad(rows.length); $('#reporting-count').textContent = pad(reporting);
@@ -211,13 +212,13 @@ async function update() {
   const data = DEMO ? demoSnapshot(await r.json()) : await r.json(); if (!data.accounts || !Number.isFinite(data.updated_at)) throw Error();
   snapshot = data; offline = false;
   const staleCount = Object.values(data.accounts).filter(a => a.status === 'stale').length;
-  $('#connection').textContent = DEMO ? 'Demo · sample data' : staleCount ? `${staleCount} stale · Live server` : 'Live from Mini';
+  $('#connection').textContent = DEMO ? 'Demo · sample data' : staleCount ? `${staleCount} stale · Live server` : 'Live';
   $('#notice').hidden = !staleCount; $('#notice').textContent = staleCount + ' account' + (staleCount === 1 ? ' has' : 's have') + ' an older reading. Check the selected account’s source and last successful update.';
   $('#updated').textContent = data.updated_at ? 'Server checked ' + new Date(data.updated_at * 1000).toLocaleTimeString('en-GB') : 'Waiting for first reading';
   $('#signal').dataset.strength = staleCount ? '2' : '3';
  } catch {
   offline = true; $('#connection').textContent = 'Server offline'; $('#notice').hidden = false; $('#signal').dataset.strength = '0';
-  $('#notice').textContent = snapshot ? 'Connection lost. Showing the last received readings as OLD.' : 'Cannot reach Mini. Retry after the connection is restored.';
+  $('#notice').textContent = snapshot ? 'Connection lost. Showing the last received readings as OLD.' : 'Cannot reach TokenTV. Is token-tv still running?';
   if (!snapshot) $('#providers').replaceChildren(el('p', 'No usage data received.', 'loading'));
  } finally {polling = false; document.body.dataset.offline = String(offline); renderAccounts()}
 }

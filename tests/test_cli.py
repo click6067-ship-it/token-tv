@@ -192,3 +192,47 @@ class ConnectGuardTest(unittest.TestCase):
                 connect.main()
         login.assert_not_called()
         self.assertIn('Keychain', out.getvalue())
+
+
+class StartTest(unittest.TestCase):
+    def setUp(self):
+        self.config = Path(tempfile.mkdtemp()) / 'config.json'
+
+    def start(self, *extra):
+        from token_tv import live
+        with mock.patch.object(cli, 'cli_path', return_value='/usr/bin/x'), \
+                mock.patch.object(cli, 'login_state', side_effect=lambda p, h: 'yes' if p != 'grok' else 'no'), \
+                mock.patch('token_tv.sources.logged_in_email',
+                           side_effect=lambda p, h: {'claude': 'me@example.com', 'codex': None}[p]) as detect, \
+                mock.patch.object(live, 'main') as run:
+            code, out, err = run_cli('start', '--config', str(self.config), '--yes', '--no-browser', *extra)
+        return code, out, err, detect, run
+
+    def test_detects_signed_in_email_and_runs(self):
+        code, out, _, detect, run = self.start('--device-url', '192.168.0.50')
+        self.assertEqual(code, 0)
+        data = json.loads(self.config.read_text())
+        self.assertEqual([(a['provider'], a['email']) for a in data['accounts']], [('claude', 'me@example.com')])
+        self.assertEqual(data['device_url'], 'http://192.168.0.50')  # bare IP is accepted
+        run.assert_called_once()
+
+    def test_existing_config_skips_detection(self):
+        self.config.write_text(json.dumps({'accounts': [{'key': 'codex_a', 'alias': 'CODEX A', 'provider': 'codex',
+                                                         'email': 'b@example.com', 'source_home': '~/.codex'}]}))
+        code, _, _, detect, run = self.start()
+        self.assertEqual(code, 0)
+        detect.assert_not_called()
+        run.assert_called_once()
+
+    def test_nothing_signed_in_explains_next_step(self):
+        from token_tv import live
+        with mock.patch.object(cli, 'cli_path', return_value=None), mock.patch.object(live, 'main') as run:
+            code, _, err = run_cli('start', '--config', str(self.config), '--yes', '--no-browser')
+        self.assertEqual(code, 1)
+        self.assertIn('token-tv demo', err)
+        self.assertFalse(self.config.exists())
+        run.assert_not_called()
+
+
+def run_cli(*argv):
+    return run(*argv)

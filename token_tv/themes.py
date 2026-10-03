@@ -12,7 +12,7 @@ from pathlib import Path
 from PIL import Image, ImageDraw, ImageFilter, ImageFont
 
 from token_tv.display import (
-    STATUS, account_label, mascot, overview_rows, primary_window, quota_period, time_left,
+    STATUS, account_label, mascot, overview_rows, primary_window, quota_period, row_shift, time_left,
 )
 
 WEB = Path(__file__).with_name('web')
@@ -231,8 +231,9 @@ def render_digital(snapshot):
     for y in range(0, SIZE, 3):
         cv.back.line((0, y, SIZE, y), fill='#04130d')
     vt, seg = (lambda s: face('vt323.woff2', s)), (lambda s: face('dseg7-classic-bold.woff2', s))
-    for index, row in enumerate(overview_rows(snapshot)):
-        y = ROWS[index]
+    rows = overview_rows(snapshot)
+    for index, row in enumerate(rows):
+        y = ROWS[index] + row_shift(len(rows), ROWS[1] - ROWS[0])
         used, period, old, reset = reading(row)
         cv.back.rectangle((4, y, 235, y + ROW_H - 1), fill='#03100b', outline=line)
         cv.back.line((5, y + 25, 234, y + 25), fill='#0f3a2c')
@@ -264,8 +265,9 @@ def render_neon(snapshot):
         for x in range(4, SIZE, 8):
             cv.back.point((x, y), fill='#0e0b1c')
     orb, ox = (lambda s, w=700: face('orbitron.ttf', s, w)), (lambda s, w=800: face('oxanium.woff2', s, w))
-    for index, row in enumerate(overview_rows(snapshot)):
-        y = ROWS[index]
+    rows = overview_rows(snapshot)
+    for index, row in enumerate(rows):
+        y = ROWS[index] + row_shift(len(rows), ROWS[1] - ROWS[0])
         a, a2 = ACCENT['neon'][row['provider']]
         used, period, old, reset = reading(row)
         box = (5, y + 1, 234, y + ROW_H - 2)
@@ -351,8 +353,9 @@ def render_retro(snapshot):
         x, y = rnd.randrange(0, SIZE), rnd.randrange(0, SIZE)
         cv.back.point((x, y), fill=rnd.choice(('#ffffff', '#b9c8ff', '#ffe9a8')))
     title = lambda s: face('press-start-2p.ttf', s)
-    for index, row in enumerate(overview_rows(snapshot)):
-        y = ROWS[index]
+    rows = overview_rows(snapshot)
+    for index, row in enumerate(rows):
+        y = ROWS[index] + row_shift(len(rows), ROWS[1] - ROWS[0])
         a, a2 = ACCENT['retro'][row['provider']]
         used, period, old, reset = reading(row)
         pixel_scene(cv, row['provider'], y)
@@ -385,8 +388,9 @@ def render_hud(snapshot):
         cv.back.line((g, 0, g, SIZE), fill=color)
         cv.back.line((0, g, SIZE, g), fill=color)
     chakra = lambda s, bold=True: face('chakra-petch-700.woff2' if bold else 'chakra-petch-500.woff2', s)
-    for index, row in enumerate(overview_rows(snapshot)):
-        y = ROWS[index]
+    rows = overview_rows(snapshot)
+    for index, row in enumerate(rows):
+        y = ROWS[index] + row_shift(len(rows), ROWS[1] - ROWS[0])
         a, a2 = ACCENT['hud'][row['provider']]
         used, period, old, reset = reading(row)
         cut = 10

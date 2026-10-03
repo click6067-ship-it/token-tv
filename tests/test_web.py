@@ -66,5 +66,6 @@ class ThemesEndpointTests(unittest.TestCase):
         out = Path(tempfile.mkdtemp()) / 'site'
         module.build(out, 'https://example.com')
         themes = json.loads((out / 'demo-themes.json').read_text())
-        self.assertEqual(len(themes['themes']), 6)
+        from token_tv.display import STYLES
+        self.assertEqual({t['id'] for t in themes['themes'] if t['installed']}, set(STYLES))  # adding a face needs no test edit
         self.assertIn('data-demo', (out / 'index.html').read_text())

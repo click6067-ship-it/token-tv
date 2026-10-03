@@ -95,14 +95,14 @@ def ease(p):
     return p * p * (3 - 2 * p)
 
 
-def schedule(rnd):
+def schedule(rnd, bots=3):
     """Two or three events at irregular, non-overlapping times inside the loop."""
     events, start = [], rnd.uniform(0.6, 2.5)
     for kind in rnd.sample(EVENTS, rnd.choice((2, 3))):
         duration = {'dash': 1.6, 'hop': 0.9, 'spin': 0.9, 'sparkle': 1.3, 'shooting_star': 1.0, 'huddle': 2.2}[kind]
         if start + duration > 9.6:
             break
-        events.append({'kind': kind, 'start': start, 'end': start + duration, 'bot': rnd.randrange(3),
+        events.append({'kind': kind, 'start': start, 'end': start + duration, 'bot': rnd.randrange(bots),
                        'y': rnd.uniform(20, 120), 'angles': [rnd.uniform(0, 2 * math.pi) for _ in range(6)]})
         start += duration + rnd.uniform(0.9, 3.2)
     return events
@@ -127,8 +127,8 @@ def positions(t, paths, events):
         elif event['kind'] == 'hop':
             points[event['bot']][1] -= 15 * abs(math.sin(2 * math.pi * p))
     for _ in range(10):  # a bubble and its tag form one box; resolve box overlaps
-        for a in range(3):
-            for b in range(a + 1, 3):
+        for a in range(len(points)):
+            for b in range(a + 1, len(points)):
                 dx, dy = points[b][0] - points[a][0], points[b][1] - points[a][1]
                 ox, oy = BOX[0] - abs(dx), BOX[1] - abs(dy)
                 if ox > 0 and oy > 0:
@@ -177,8 +177,9 @@ def render_frames(snapshot, now=None):
     rows = readings(snapshot)
     rnd = random.Random(seed_for(rows, now))
     paths = [(rnd.uniform(60, 82), rnd.uniform(24, 40), rnd.choice((1, 2)), 1,
-              rnd.uniform(0, 6.3), rnd.uniform(0, 6.3), 120, cy) for cy in (54, 110, 160)]
-    events = schedule(rnd)
+              rnd.uniform(0, 6.3), rnd.uniform(0, 6.3), 120, cy)
+             for cy in {1: (106,), 2: (76, 136)}.get(len(rows), (54, 110, 160))]
+    events = schedule(rnd, len(rows))
     sky, twinkles = backdrop()
     frames = []
     for f in range(FRAMES):
@@ -195,7 +196,7 @@ def render_frames(snapshot, now=None):
                 for k, color in enumerate((STARS[2], STARS[1], STARS[0])):
                     draw.line((hx - 7 * k, hy - 1.7 * k, hx - 7 * (k + 1), hy - 1.7 * (k + 1)), fill=color)
         points = positions(t, paths, events)
-        order = sorted(range(3), key=lambda i: points[i][1])
+        order = sorted(range(len(rows)), key=lambda i: points[i][1])
         for i in order:
             provider, used, old = rows[i]
             x, y = round(points[i][0]), round(points[i][1])

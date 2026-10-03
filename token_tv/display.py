@@ -46,7 +46,9 @@ def font(size, bold=False, mono=False):
 def overview_rows(snapshot):
     """Select one visible account per provider, in configured order, without merging quotas."""
     rows = []
-    for provider in PROVIDERS:
+    # Show only the services this person set up; with no accounts at all, keep every placeholder row.
+    present = [p for p in PROVIDERS if any(row['provider'] == p for row in snapshot['accounts'].values())]
+    for provider in present or PROVIDERS:
         accounts = [dict(row, key=key) for key, row in snapshot['accounts'].items()
                     if row['provider'] == provider]
         available = [row for row in accounts if row['status'] == 'ok' and row['windows']]
@@ -54,7 +56,12 @@ def overview_rows(snapshot):
         rows.append((available or previous or accounts or [
             {'key': provider, 'provider': provider, 'alias': provider.upper() + ' A',
              'status': 'auth_required', 'windows': []}])[0])
-    return rows
+    return rows[:3]  # every clock face is laid out for at most three rows
+
+
+def row_shift(count, pitch):
+    """Vertical offset that centres `count` rows on a screen laid out for three."""
+    return (3 - count) * pitch // 2
 
 
 def pages(snapshot):
@@ -191,8 +198,9 @@ def pixel_text(draw, xy, text, scale=1, color=TEXT, align='left'):
 def render_pixel(snapshot):
     image = Image.new('RGB', (240, 240), BACKGROUND)
     draw = ImageDraw.Draw(image)
-    for index, row in enumerate(overview_rows(snapshot)):
-        y = 8 + index * 78
+    rows = overview_rows(snapshot)
+    for index, row in enumerate(rows):
+        y = 8 + index * 78 + row_shift(len(rows), 78)
         if index:
             for x in range(14, 227, 4):
                 draw.point((x, y - 6), fill=RULE)

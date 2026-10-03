@@ -4,6 +4,7 @@ import json
 import os
 import queue
 import re
+import shutil
 import subprocess
 import sys
 import threading
@@ -15,6 +16,11 @@ from urllib.request import Request, urlopen
 
 from token_tv.usage import normalize_claude, normalize_codex, normalize_grok, timestamp, window
 from token_tv.display import STYLES
+
+
+def exe(name):
+    """Full path of a CLI. On Windows npm installs `claude`/`codex` as .cmd shims that a bare name can't start."""
+    return shutil.which(name) or name
 
 
 class SourceError(Exception):
@@ -165,7 +171,7 @@ def claude_payload(account):
             raise
         # The CLI owns refresh/rotation. No manual refresh-token writes.
         env = scoped_env("claude", root)
-        subprocess.run(["claude", "-p", "Reply only OK.", "--tools", "",
+        subprocess.run([exe("claude"), "-p", "Reply only OK.", "--tools", "",
                         "--no-session-persistence", "--max-turns", "1"],
                        env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
                        timeout=60)
@@ -192,7 +198,7 @@ def codex_payload(account):
     if not (Path(account["source_home"]).expanduser() / "auth.json").is_file():
         raise SourceError("auth_required")
     env = scoped_env("codex", Path(account["source_home"]).expanduser())
-    rpc = RPC(["codex", "app-server"], env)
+    rpc = RPC([exe("codex"), "app-server"], env)
     try:
         rpc.call("initialize", {"clientInfo": {"name": "token_tv", "title": "TokenTV", "version": "0.1.0"}, "capabilities": {}})
         rpc.process.stdin.write('{"method":"initialized","params":{}}\n')
@@ -213,7 +219,7 @@ def grok_payload(account):
         raise SourceError("auth_required")
     env = scoped_env("grok", root)
     command = os.environ.get("TOKEN_TV_GROK_BIN", "grok")
-    rpc = RPC([command, "agent", "--no-leader", "stdio"], env)
+    rpc = RPC([exe(command), "agent", "--no-leader", "stdio"], env)
     try:
         rpc.call("initialize", {"protocolVersion": 1, "clientCapabilities": {
             "fs": {"readTextFile": False, "writeTextFile": False}, "terminal": False}})
@@ -225,6 +231,32 @@ def grok_payload(account):
             return rpc.call("x.ai/billing", timeout=20)
     finally:
         rpc.close()
+
+
+def logged_in_email(provider, home):
+    """The email of the account already signed in to this CLI home, or None. Prints nothing secret."""
+    root = Path(home).expanduser()
+    try:
+        if provider == "claude":
+            headers = {"Authorization": "Bearer " + claude_token(root), "Accept": "application/json",
+                       "User-Agent": "claude-code/2.1.287", "anthropic-beta": "oauth-2025-04-20"}
+            return email_from_profile(json_get("https://api.anthropic.com/api/oauth/profile", headers))
+        if provider == "codex":
+            if not (root / "auth.json").is_file():
+                return None
+            rpc = RPC([exe("codex"), "app-server"], scoped_env("codex", root))
+            try:
+                rpc.call("initialize", {"clientInfo": {"name": "token_tv", "title": "TokenTV", "version": "0.1.0"},
+                                        "capabilities": {}})
+                rpc.process.stdin.write('{"method":"initialized","params":{}}\n')
+                rpc.process.stdin.flush()
+                identity = rpc.call("account/read", {"refreshToken": True}).get("account") or {}
+                return identity.get("email") if identity.get("type") == "chatgpt" else None
+            finally:
+                rpc.close()
+        return grok_identity({"source_home": str(root)})
+    except (SourceError, OSError, ValueError, KeyError, TypeError, HTTPError, subprocess.SubprocessError):
+        return None
 
 
 def grok_identity(account):

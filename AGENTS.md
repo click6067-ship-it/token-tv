@@ -10,6 +10,28 @@ token-tv demo --out token-tv-demo     # every face from sample data
 python3 -B -m unittest discover -s tests
 ```
 
+## Set up TokenTV for the user
+
+When the user says "Set up TokenTV for me":
+
+1. Install: `python3 -m venv .venv && .venv/bin/pip install -e .` (Windows: `.venv\Scripts\pip install -e .`),
+   or with Node only: `npx github:click6067-ship-it/token-tv demo`.
+2. Ask the user for the clock's IP address (shown on the clock's screen).
+3. Run `.venv/bin/token-tv start --device-url <ip>`. It finds the Claude, Codex and Grok CLIs that are already
+   signed in, reads each account's email through the official login, asks the user to confirm, saves the
+   config and opens the dashboard at http://127.0.0.1:8787. The user then presses Clock display → Apply.
+4. If it says nothing is signed in, tell the user to sign in to the CLI they use (e.g. `claude`, then /login)
+   and run step 3 again. A second account of the same service: `.venv/bin/token-tv connect --account <key>`.
+
+Verified on Linux with one SD_PRO clock. Mac and Windows hosts are untested; report what fails.
+
+## Change how things look
+
+- Clock faces: `docs/clock-faces.md` (one Python function per face, sample data, `token-tv demo`).
+- Web dashboard: themes are listed in `THEMES` in `token_tv/web/app.js` and styled with
+  `[data-theme=<id>]` rules in `token_tv/web/style.css`. Copy an existing theme's rules to start.
+- More services: `docs/adding-a-provider.md`.
+
 ## Rules
 
 - Never read, print or copy credential files (`.credentials.json`, `auth.json`, Keychain items) or

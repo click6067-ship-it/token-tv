@@ -1,11 +1,11 @@
-"""Sign in to one account's Mini-local CLI home, without changing defaults."""
+"""Sign in to one account's own CLI home, without changing defaults."""
 import argparse
 import os
 import subprocess
 import sys
 from pathlib import Path
 
-from token_tv.sources import fetch_account, load_config, scoped_env
+from token_tv.sources import exe, fetch_account, load_config, scoped_env
 
 # provider: (everyday CLI home, file present after login)
 DEFAULT_HOMES = {"claude": ("~/.claude", ".credentials.json"), "codex": ("~/.codex", "auth.json"),
@@ -15,10 +15,10 @@ DEFAULT_HOMES = {"claude": ("~/.claude", ".credentials.json"), "codex": ("~/.cod
 def login_command(account, browser=False):
     provider = account["provider"]
     if provider == "claude":
-        return ["claude", "auth", "login", "--claudeai", "--email", account["email"]]
+        return [exe("claude"), "auth", "login", "--claudeai", "--email", account["email"]]
     if provider == "codex":
-        return ["codex", "login"] if browser else ["codex", "login", "--device-auth"]
-    return [os.environ.get("TOKEN_TV_GROK_BIN", "grok"), "login", "--device-auth"]
+        return [exe("codex"), "login"] if browser else [exe("codex"), "login", "--device-auth"]
+    return [exe(os.environ.get("TOKEN_TV_GROK_BIN", "grok")), "login", "--device-auth"]
 
 
 def main():
@@ -41,7 +41,7 @@ def main():
             parser.error("Choose one of the listed accounts")
     account = next((a for a in accounts if a["key"] == key), None)
     if account is None or not account.get("source_home"):
-        parser.error("An account with a Mini-local CLI home is required")
+        parser.error("An account with its own CLI home (source_home) is required")
     root = Path(account["source_home"]).expanduser()
     default, marker = DEFAULT_HOMES[account["provider"]]
     keychain = account["provider"] == "claude" and sys.platform == "darwin"  # Claude Code on macOS keeps it there
@@ -65,7 +65,7 @@ def main():
     print("Verification: " + row["status"], flush=True)
     if row["status"] not in ("ok", "quota_unavailable") or not row["identity_verified"]:
         raise SystemExit(1)
-    print("Account verified. The running Mini display will use this login on its next poll.", flush=True)
+    print("Account verified. A running TokenTV picks up this login on its next poll.", flush=True)
 
 
 if __name__ == "__main__":
