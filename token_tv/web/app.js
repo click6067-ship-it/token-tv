@@ -15,6 +15,8 @@ const readPreference = (k, f) => {try {return JSON.parse(localStorage.getItem(k)
 const savePreference = (k, v) => {try {localStorage.setItem(k, JSON.stringify(v))} catch {/* Private browsing may disallow storage. */}};
 let accountChoices = readPreference('tokentv.accounts', {});
 if (!accountChoices || typeof accountChoices !== 'object' || Array.isArray(accountChoices)) accountChoices = {};
+// The static demo (scripts/build_demo.py) serves sample data and pre-rendered clock frames.
+const DEMO = document.documentElement.hasAttribute('data-demo');
 let snapshot = null, offline = false, polling = false, displayInfo = null, clockChoice = null, applying = false, clockError = false;
 const el = (tag, text, cls) => {const n = document.createElement(tag); if (text !== undefined) n.textContent = text; if (cls) n.className = cls; return n};
 function svgNode(tag, attrs) {const n = document.createElementNS(svgNS, tag); for (const [k, v] of Object.entries(attrs)) n.setAttribute(k, v); return n}
@@ -196,14 +198,20 @@ function renderAccounts() {
  $('#foot-reporting').textContent = `${reporting} / ${rows.length} reporting`;
  if (focused) {const b = [...document.querySelectorAll('[data-account]')].find(b => b.dataset.account === focused); b?.focus({preventScroll:true})}
 }
+/* Demo data stores resets as seconds from now so the timers stay plausible on any day. */
+function demoSnapshot(data) {
+ const now = Date.now() / 1000;
+ for (const a of Object.values(data.accounts)) {a.fetched_at = a.last_success_at = now; for (const w of a.windows) w.resets_at = now + w.resets_in}
+ return {...data, updated_at: now};
+}
 async function update() {
  if (polling) return; polling = true;
  try {
-  const r = await fetch('/snapshot', {cache:'no-store'}); if (!r.ok) throw Error();
-  const data = await r.json(); if (!data.accounts || !Number.isFinite(data.updated_at)) throw Error();
+  const r = await fetch(DEMO ? '/demo-snapshot.json' : '/snapshot', {cache:'no-store'}); if (!r.ok) throw Error();
+  const data = DEMO ? demoSnapshot(await r.json()) : await r.json(); if (!data.accounts || !Number.isFinite(data.updated_at)) throw Error();
   snapshot = data; offline = false;
   const staleCount = Object.values(data.accounts).filter(a => a.status === 'stale').length;
-  $('#connection').textContent = staleCount ? `${staleCount} stale · Live server` : 'Live from Mini';
+  $('#connection').textContent = DEMO ? 'Demo · sample data' : staleCount ? `${staleCount} stale · Live server` : 'Live from Mini';
   $('#notice').hidden = !staleCount; $('#notice').textContent = staleCount + ' account' + (staleCount === 1 ? ' has' : 's have') + ' an older reading. Check the selected account’s source and last successful update.';
   $('#updated').textContent = data.updated_at ? 'Server checked ' + new Date(data.updated_at * 1000).toLocaleTimeString('en-GB') : 'Waiting for first reading';
   $('#signal').dataset.strength = staleCount ? '2' : '3';
@@ -227,14 +235,14 @@ $('#clock-toggle').onclick = () => showClock($('#clock-panel').hidden); $('#clos
 let lastImageStyle = null, lastImageAt = 0;
 function paintClock(forceImage = false) {
  const style = clockChoice || displayInfo?.style;
- $('#clock-style').disabled = applying || !displayInfo; $('#apply').disabled = applying || !displayInfo || (style === displayInfo.style && displayInfo.status !== 'error' && !clockError);
+ $('#clock-style').disabled = applying || !displayInfo; $('#apply').disabled = DEMO || applying || !displayInfo || (style === displayInfo.style && displayInfo.status !== 'error' && !clockError);
  $('#apply').textContent = applying ? 'Sending image…' : 'Apply to clock'; $('#apply').dataset.state = applying ? 'loading' : clockError || displayInfo?.status === 'error' ? 'error' : displayInfo?.status === 'ok' ? 'success' : 'default';
- $('#display-state').textContent = clockError ? 'Could not apply. Please retry.' : !displayInfo ? 'Clock status unavailable' : style !== displayInfo.style ? 'Preview only · Apply to send' : displayInfo.status === 'queued' ? 'Sending image…' : displayInfo.status === 'error' ? 'Clock upload failed. Please retry.' : displayInfo.status === 'preview_only' ? 'Preview only · No clock connected' : 'Image sent · ' + styleName(displayInfo.applied_style);
- if (style && !$('#clock-panel').hidden && (forceImage || style !== lastImageStyle || Date.now() - lastImageAt > 30000)) {lastImageStyle = style; lastImageAt = Date.now(); $('#frame').src = '/frame/0.jpg?style=' + encodeURIComponent(style) + '&t=' + lastImageAt; $('#frame').alt = styleName(style) + ' live clock preview'}
+ $('#display-state').textContent = DEMO ? 'Demo · install TokenTV to drive a real clock' : clockError ? 'Could not apply. Please retry.' : !displayInfo ? 'Clock status unavailable' : style !== displayInfo.style ? 'Preview only · Apply to send' : displayInfo.status === 'queued' ? 'Sending image…' : displayInfo.status === 'error' ? 'Clock upload failed. Please retry.' : displayInfo.status === 'preview_only' ? 'Preview only · No clock connected' : 'Image sent · ' + styleName(displayInfo.applied_style);
+ if (style && !$('#clock-panel').hidden && (forceImage || style !== lastImageStyle || Date.now() - lastImageAt > 30000)) {lastImageStyle = style; lastImageAt = Date.now(); $('#frame').src = DEMO ? `/frames/${encodeURIComponent(style)}.jpg` : '/frame/0.jpg?style=' + encodeURIComponent(style) + '&t=' + lastImageAt; $('#frame').alt = styleName(style) + ' live clock preview'}
 }
 const styleName = s => s === 'retro' ? 'Pixel Retro' : s === 'hud' ? 'Sci-Fi HUD' : s ? s[0].toUpperCase() + s.slice(1) : 'Unknown';
 let displayPolling = false;
-async function refreshDisplay(forceImage = false) {if (displayPolling) return; displayPolling = true; try {const r = await fetch('/display', {cache:'no-store'}); if (!r.ok) throw Error(); const data = await r.json(); const dirty = displayInfo && clockChoice !== displayInfo.style; displayInfo = data; if (!clockChoice || !dirty) clockChoice = data.style; const select = $('#clock-style'); if (!select.options.length) for (const s of data.styles) {const o = el('option', styleName(s)); o.value = s; select.append(o)} select.value = clockChoice; paintClock(forceImage)} catch {$('#display-state').textContent = 'Clock status unavailable'} finally {displayPolling = false}}
+async function refreshDisplay(forceImage = false) {if (displayPolling) return; displayPolling = true; try {const r = await fetch(DEMO ? '/demo-display.json' : '/display', {cache:'no-store'}); if (!r.ok) throw Error(); const data = await r.json(); const dirty = displayInfo && clockChoice !== displayInfo.style; displayInfo = data; if (!clockChoice || !dirty) clockChoice = data.style; const select = $('#clock-style'); if (!select.options.length) for (const s of data.styles) {const o = el('option', styleName(s)); o.value = s; select.append(o)} select.value = clockChoice; paintClock(forceImage)} catch {$('#display-state').textContent = 'Clock status unavailable'} finally {displayPolling = false}}
 $('#clock-style').onchange = e => {clockChoice = e.target.value; clockError = false; paintClock(true)};
 $('#apply').onclick = async () => {if (applying || !clockChoice) return; applying = true; clockError = false; paintClock(); try {const r = await fetch('/display/style', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({style:clockChoice})}); if (!r.ok) throw Error(); displayInfo = await r.json()} catch {clockError = true} finally {applying = false; paintClock(true)}};
 $('#frame').onerror = () => {$('#display-state').textContent = 'Clock preview unavailable. Reopen to retry.'};

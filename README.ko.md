@@ -1,6 +1,8 @@
 # TokenTV
 
-[English README](README.md)
+[English README](README.md) · [▶ 라이브 데모](https://token-tv.vercel.app)
+
+![실제 시계에 띄운 Digital, Pixel Retro, Sci-Fi HUD 화면](docs/images/real-clock.jpg)
 
 여러 AI 계정의 사용량을 240×240 책상 시계와 브라우저에서 확인합니다.
 계정별 인증 홈을 분리하고, 실제 조회 실패와 오래된 값을 표시합니다.
