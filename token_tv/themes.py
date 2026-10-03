@@ -144,6 +144,43 @@ def glyph(provider, size, color, stroke=None):
     return image.resize((size, size), Image.Resampling.LANCZOS)
 
 
+@functools.lru_cache(maxsize=None)
+def spark_mark(size, color):
+    """Our own drawing of a spark (twelve tapered rays of uneven length); not an official logo file."""
+    s = size * 4
+    c = s / 2
+    image = Image.new('RGBA', (s, s), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(image)
+    reach = (.50, .40, .47, .36, .50, .41, .46, .37, .49, .39, .47, .38)
+    for i, r in enumerate(reach):
+        a = math.radians(i * 30 + (5 if i % 2 else -3) - 90)
+        tip = (c + math.cos(a) * s * r, c + math.sin(a) * s * r)
+        side, w = a + math.pi / 2, s * .075
+        draw.polygon([(c + math.cos(side) * w, c + math.sin(side) * w), tip,
+                      (c - math.cos(side) * w, c - math.sin(side) * w)], fill=color)
+        draw.ellipse((tip[0] - s * .03, tip[1] - s * .03, tip[0] + s * .03, tip[1] + s * .03), fill=color)
+    draw.ellipse((c - s * .12, c - s * .12, c + s * .12, c + s * .12), fill=color)
+    return image.resize((size, size), Image.Resampling.LANCZOS)
+
+
+@functools.lru_cache(maxsize=None)
+def prompt_cloud_mark(size, color):
+    """Our own drawing of a rounded cloud with a '>_' prompt cut out; not an official logo file."""
+    s = size * 4
+    image = Image.new('RGBA', (s, s), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(image)
+    for box in ((s * .02, s * .30, s * .56, s * .92), (s * .20, s * .06, s * .82, s * .66), (s * .44, s * .30, s * .98, s * .92)):
+        draw.ellipse(box, fill=color)
+    draw.rounded_rectangle((s * .14, s * .50, s * .86, s * .92), radius=s * .2, fill=color)
+    cut = Image.new('L', (s, s), 0)
+    cd = ImageDraw.Draw(cut)
+    w, cx, cy = round(s * .09), s * .27, s * .52
+    cd.line((cx, cy - s * .13, cx + s * .14, cy, cx, cy + s * .13), fill=255, width=w, joint='curve')
+    cd.line((cx + s * .24, cy + s * .15, cx + s * .48, cy + s * .15), fill=255, width=w)
+    image.putalpha(Image.composite(Image.new('L', (s, s), 0), image.getchannel('A'), cut))
+    return image.resize((size, size), Image.Resampling.LANCZOS)
+
+
 def clock_mark(cv, center, r, color, width=1):
     x, y = center
     cv.draw.ellipse((x - r, y - r, x + r, y + r), outline=color, width=width)
@@ -237,7 +274,12 @@ def render_digital(snapshot):
         used, period, old, reset = reading(row)
         cv.back.rectangle((4, y, 235, y + ROW_H - 1), fill='#03100b', outline=line)
         cv.back.line((5, y + 25, 234, y + 25), fill='#0f3a2c')
-        cv.ink.alpha_composite(glyph(row['provider'], 15, mint), (11, y + 6))
+        if row['provider'] == 'claude':
+            cv.ink.alpha_composite(spark_mark(17, '#f08c64'), (10, y + 5))
+        elif row['provider'] == 'codex':
+            cv.ink.alpha_composite(prompt_cloud_mark(17, '#8296ff'), (10, y + 5))
+        else:
+            cv.ink.alpha_composite(glyph(row['provider'], 15, mint), (11, y + 6))
         cv.text((31, y + 3), account_label(row) + ' >', vt(22), mint, glow=(61, 252, 176, 90))
         cv.text((229, y + 4), period + (' OLD' if old else ''), vt(20), amber if old else dim, anchor='ra')
         if used is None:
