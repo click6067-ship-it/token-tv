@@ -2,9 +2,14 @@
 import argparse
 import os
 import subprocess
+import sys
 from pathlib import Path
 
 from token_tv.sources import fetch_account, load_config, scoped_env
+
+# provider: (everyday CLI home, file present after login)
+DEFAULT_HOMES = {"claude": ("~/.claude", ".credentials.json"), "codex": ("~/.codex", "auth.json"),
+                 "grok": ("~/.grok", "auth.json")}
 
 
 def login_command(account, browser=False):
@@ -38,6 +43,16 @@ def main():
     if account is None or not account.get("source_home"):
         parser.error("An account with a Mini-local CLI home is required")
     root = Path(account["source_home"]).expanduser()
+    default, marker = DEFAULT_HOMES[account["provider"]]
+    keychain = account["provider"] == "claude" and sys.platform == "darwin"  # Claude Code on macOS keeps it there
+    if root == Path(default).expanduser() and ((root / marker).is_file() or keychain):
+        state = "may already be signed in (macOS keeps it in the Keychain)" if keychain else "it is already signed in"
+        print(f"{account['alias']} reuses your everyday {account['provider']} login in {default}; {state}.\n"
+              "Logging in again replaces that login for every tool that uses it. To keep it,\n"
+              "just run token-tv doctor --live. For a separate login, point source_home elsewhere.", flush=True)
+        if not sys.stdin.isatty() or input("Type REPLACE to log in again anyway: ").strip() != "REPLACE":
+            print("Kept the existing login.", flush=True)
+            return
     root.mkdir(parents=True, exist_ok=True)
     os.chmod(root, 0o700)
     print("Sign in as " + account["email"] + ". Enter login codes here, not in chat.", flush=True)

@@ -10,6 +10,7 @@ from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
 from token_tv.device import FILES, PhotoDisplay
+from token_tv.catalog import payload as theme_payload
 from token_tv.display import STYLES, render_page
 from token_tv.web_assets import HTML, ASSETS, asset
 from token_tv.sources import load_config
@@ -86,6 +87,8 @@ def handler(store, preferences=None):
                     return
                 body = render_page(snapshot, int(path[7]), style)
                 content_type = "image/gif" if body[:4] == b"GIF8" else "image/jpeg"
+            elif path == '/themes':
+                body = json.dumps(theme_payload()).encode()
             elif path == '/display':
                 body = json.dumps(display).encode()
             elif path == "/health":

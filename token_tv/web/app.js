@@ -243,9 +243,42 @@ function paintClock(forceImage = false) {
 const styleName = s => s === 'retro' ? 'Pixel Retro' : s === 'hud' ? 'Sci-Fi HUD' : s ? s[0].toUpperCase() + s.slice(1) : 'Unknown';
 let displayPolling = false;
 async function refreshDisplay(forceImage = false) {if (displayPolling) return; displayPolling = true; try {const r = await fetch(DEMO ? '/demo-display.json' : '/display', {cache:'no-store'}); if (!r.ok) throw Error(); const data = await r.json(); const dirty = displayInfo && clockChoice !== displayInfo.style; displayInfo = data; if (!clockChoice || !dirty) clockChoice = data.style; const select = $('#clock-style'); if (!select.options.length) for (const s of data.styles) {const o = el('option', styleName(s)); o.value = s; select.append(o)} select.value = clockChoice; paintClock(forceImage)} catch {$('#display-state').textContent = 'Clock status unavailable'} finally {displayPolling = false}}
-$('#clock-style').onchange = e => {clockChoice = e.target.value; clockError = false; paintClock(true)};
+$('#clock-style').onchange = e => {clockChoice = e.target.value; clockError = false; paintClock(true); paintThemes()};
 $('#apply').onclick = async () => {if (applying || !clockChoice) return; applying = true; clockError = false; paintClock(); try {const r = await fetch('/display/style', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({style:clockChoice})}); if (!r.ok) throw Error(); displayInfo = await r.json()} catch {clockError = true} finally {applying = false; paintClock(true)}};
+let themeData = null, themeSort = 'popular';
+const REPO_URL = 'https://github.com/click6067-ship-it/token-tv';
+const day = s => new Date(s).toLocaleDateString();
+const likeText = t => ({counted: `👍 ${t.likes} · counted ${day(t.likes_counted_at)}`, stale: `👍 ${t.likes} · last counted ${t.likes_counted_at ? day(t.likes_counted_at) : 'at an unknown time'}`, unavailable: 'Likes unavailable', not_open: 'Likes not open yet', local: 'Your local face'})[t.likes_state] || 'Likes unavailable';
+function sortThemes(list, mode) {
+ const added = t => t.added_at ? -Date.parse(t.added_at) : Infinity;
+ const fresh = [...list].sort((a, b) => added(a) - added(b) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+ return mode === 'new' ? fresh : [...fresh.filter(t => t.likes !== null).sort((a, b) => b.likes - a.likes), ...fresh.filter(t => t.likes === null)];
+}
+function paintThemes() {
+ const list = $('#theme-list'); list.replaceChildren();
+ document.querySelectorAll('.theme-sort button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.sort === themeSort)));
+ if (!themeData) return;
+ $('#likes-as-of').textContent = themeData.last_attempt_at ? 'Last likes refresh: ' + day(themeData.last_attempt_at) : 'Likes not counted yet';
+ for (const t of sortThemes(themeData.themes, themeSort)) {
+  const item = el('li', undefined, 'theme-card'); item.dataset.id = t.id;
+  const head = el('div', undefined, 'theme-title'); head.append(el('strong', t.name), el('span', t.local ? 'Local' : 'by ' + t.author, 'theme-author')); item.append(head);
+  item.append(el('p', likeText(t), 'theme-likes'));
+  const actions = el('div', undefined, 'theme-actions');
+  if (t.installed && !t.needs_update) {
+   const preview = el('button', clockChoice === t.id ? 'Previewing' : 'Preview', 'control'); preview.type = 'button';
+   preview.onclick = () => {clockChoice = t.id; clockError = false; $('#clock-style').value = t.id; paintClock(true); paintThemes()};
+   actions.append(preview);
+  } else actions.append(el('span', `Needs v${t.min_version} · update TokenTV`, 'theme-update'));
+  const link = (text, href) => {const a = el('a', text); a.href = href; a.rel = 'noopener'; a.target = '_blank'; actions.append(a)};
+  if (DEMO) link('Get', REPO_URL + '#quick-start');
+  if (t.like_url) link('Like on GitHub', t.like_url);
+  if (t.source_url) link('Source', t.source_url);
+  item.append(actions); list.append(item);
+ }
+}
+async function loadThemes() {try {const r = await fetch(DEMO ? '/demo-themes.json' : '/themes', {cache:'no-store'}); if (!r.ok) throw Error(); themeData = await r.json(); paintThemes()} catch {$('#likes-as-of').textContent = 'Themes unavailable · your clock styles still work'}}
+document.querySelectorAll('.theme-sort button').forEach(b => {b.onclick = () => {themeSort = b.dataset.sort; paintThemes()}});
 $('#frame').onerror = () => {$('#display-state').textContent = 'Clock preview unavailable. Reopen to retry.'};
 
 $('#mascot').append(retroMascot()); buildStarfield(); tick();
-update(); refreshDisplay(); setInterval(update, 30000); setInterval(tick, 1000); setInterval(() => {if (!$('#clock-panel').hidden) refreshDisplay()}, 5000);
+update(); refreshDisplay(); loadThemes(); setInterval(update, 30000); setInterval(tick, 1000); setInterval(() => {if (!$('#clock-panel').hidden) refreshDisplay()}, 5000);

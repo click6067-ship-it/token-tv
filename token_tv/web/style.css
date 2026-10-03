@@ -697,3 +697,18 @@ h1{margin:0;font:600 48px/1.04 var(--font-display);letter-spacing:-.03em;color:v
 .demo-bar a:hover{border-color:var(--ink-3)}
 [data-theme=digital] .demo-bar{font-size:19px;font-weight:400;letter-spacing:.06em;text-transform:uppercase}
 [data-theme=retro] .demo-bar{font-size:19px;font-weight:400}
+.clock-themes{display:block;margin-top:22px;padding-top:18px;border-top:1px solid var(--line)}
+.clock-themes .themes-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:6px}
+.themes-head h3{margin:0;font:700 12px/1 var(--font-label);letter-spacing:.18em;text-transform:uppercase;color:var(--ink-2)}
+.theme-sort{display:flex;gap:4px}.theme-sort .control{min-height:28px;padding:4px 10px;font-size:12px}
+.theme-sort .control[aria-pressed=true]{border-color:var(--ink-2);color:var(--ink)}
+.theme-list{display:grid;gap:8px;margin:10px 0;padding:0;list-style:none}
+.theme-card{padding:10px 12px;border:1px solid var(--line);border-radius:10px}
+.theme-title{display:flex;align-items:baseline;justify-content:space-between;gap:8px}
+.theme-author{font-size:12px;color:var(--ink-3)}
+.theme-likes{margin:4px 0 8px;font-size:12px;color:var(--ink-2)}
+.theme-actions{display:flex;flex-wrap:wrap;align-items:center;gap:6px 12px;font-size:12px}
+.theme-actions .control{min-height:28px;padding:4px 12px;font-size:12px}
+.theme-actions a{color:var(--ink-2)}.theme-update{color:var(--ink-3)}
+.theme-fork{margin-top:4px}
+[data-demo] #apply{display:none}

@@ -1,0 +1,36 @@
+{
+  "schema_version": 1,
+  "last_attempt_at": "2026-10-03T14:32:40Z",
+  "counts": {
+    "1": {
+      "count": 0,
+      "status": "fresh",
+      "fetched_at": "2026-10-03T14:32:40Z"
+    },
+    "2": {
+      "count": 0,
+      "status": "fresh",
+      "fetched_at": "2026-10-03T14:32:40Z"
+    },
+    "3": {
+      "count": 0,
+      "status": "fresh",
+      "fetched_at": "2026-10-03T14:32:40Z"
+    },
+    "4": {
+      "count": 0,
+      "status": "fresh",
+      "fetched_at": "2026-10-03T14:32:40Z"
+    },
+    "5": {
+      "count": 0,
+      "status": "fresh",
+      "fetched_at": "2026-10-03T14:32:40Z"
+    },
+    "6": {
+      "count": 0,
+      "status": "fresh",
+      "fetched_at": "2026-10-03T14:32:40Z"
+    }
+  }
+}

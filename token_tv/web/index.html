@@ -63,6 +63,12 @@
       <button class="control primary" id="apply" type="button" disabled>Apply to clock</button>
       <p id="display-state" role="status">Loading clock status</p>
       <p class="quiet">240 × 240 · The web appearance is separate from your clock style.</p>
+      <section class="clock-themes" aria-labelledby="themes-title">
+        <div class="themes-head"><h3 id="themes-title">Themes</h3><div class="theme-sort" role="group" aria-label="Sort themes"><button type="button" class="control" data-sort="popular" aria-pressed="true">Popular</button><button type="button" class="control" data-sort="new" aria-pressed="false">New</button></div></div>
+        <p class="quiet" id="likes-as-of">Loading themes</p>
+        <ul id="theme-list" class="theme-list"></ul>
+        <p class="quiet theme-fork">Start with a working face. <a href="https://github.com/click6067-ship-it/token-tv/blob/main/docs/clock-faces.md">Fork it, make it yours</a>.</p>
+      </section>
     </aside>
   </div>
   <details class="help"><summary>How to read this display</summary><p>Percentages show <strong>used quota</strong>. The main gauge shows the selected account’s highest reported window; other windows open below it. Timers belong to that same window. A previous value is marked OLD and is not a current reading.</p><p>Grok CLI budget is a billing limit, not the Grok web conversation limit. If a provider does not report quota, it stays unknown. Laptop-linked accounts need the laptop online.</p></details>

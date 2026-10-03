@@ -35,3 +35,36 @@ class WebAssetTests(unittest.TestCase):
             server.shutdown()
             server.server_close()
             thread.join()
+
+
+class ThemesEndpointTests(unittest.TestCase):
+    def test_themes_endpoint_lists_installed_styles(self):
+        import json
+        from token_tv.display import STYLES
+        server = ThreadingHTTPServer(('127.0.0.1', 0), handler(UsageStore([])))
+        thread = threading.Thread(target=server.serve_forever)
+        thread.start()
+        try:
+            with urlopen(f'http://127.0.0.1:{server.server_port}/themes') as response:
+                data = json.load(response)
+            self.assertEqual({t['id'] for t in data['themes'] if t['installed']}, set(STYLES))
+            self.assertIn('last_attempt_at', data)
+        finally:
+            server.shutdown()
+            server.server_close()
+            thread.join()
+
+    def test_demo_build_writes_themes_without_apply(self):
+        import importlib.util
+        import json
+        import tempfile
+        from pathlib import Path
+        root = Path(__file__).resolve().parents[1]
+        spec = importlib.util.spec_from_file_location('build_demo', root / 'scripts' / 'build_demo.py')
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        out = Path(tempfile.mkdtemp()) / 'site'
+        module.build(out, 'https://example.com')
+        themes = json.loads((out / 'demo-themes.json').read_text())
+        self.assertEqual(len(themes['themes']), 6)
+        self.assertIn('data-demo', (out / 'index.html').read_text())

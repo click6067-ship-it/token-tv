@@ -258,37 +258,37 @@ def render_digital(snapshot):
 
 
 def render_neon(snapshot):
-    cv = Canvas('#05040c')
+    """Neon tubes: a bright core line over a wide halo; the number glows in the provider colour."""
+    cv = Canvas('#04030a')
     for y in range(4, SIZE, 8):
         for x in range(4, SIZE, 8):
-            cv.back.point((x, y), fill='#120f24')
+            cv.back.point((x, y), fill='#0e0b1c')
     orb, ox = (lambda s, w=700: face('orbitron.ttf', s, w)), (lambda s, w=800: face('oxanium.woff2', s, w))
     for index, row in enumerate(overview_rows(snapshot)):
         y = ROWS[index]
         a, a2 = ACCENT['neon'][row['provider']]
         used, period, old, reset = reading(row)
-        cv.back.rounded_rectangle((4, y, 235, y + ROW_H - 1), radius=13, fill=mix('#0b0918', a, .07))
-        cv.draw.rounded_rectangle((4, y, 235, y + ROW_H - 1), radius=13, outline=mix(a, a2, .3), width=1)
-        cv.glow.rounded_rectangle((4, y, 235, y + ROW_H - 1), radius=13, outline=rgb(a) + (200,), width=2)
-        cv.draw.rounded_rectangle((11, y + 9, 46, y + 44), radius=9, fill=mix('#0b0918', a, .18), outline=a)
-        cv.glow.rounded_rectangle((11, y + 9, 46, y + 44), radius=9, outline=rgb(a) + (220,), width=2)
-        mark = glyph(row['provider'], 22, mix(a, '#ffffff', .25))
-        cv.ink.alpha_composite(mark, (18, y + 16))
-        cv.bloom.alpha_composite(glyph(row['provider'], 22, a), (18, y + 16))
-        cv.text((55, y + 8), account_label(row), orb(11), '#ffffff')
-        cv.text((55, y + 51), period + (' OLD' if old else ''), orb(7, 600), '#ff5d8f' if old else '#aaa4cc', anchor='ls')
+        box = (5, y + 1, 234, y + ROW_H - 2)
+        cv.back.rounded_rectangle(box, radius=12, fill=mix('#06050e', a, .05))
+        cv.glow.rounded_rectangle(box, radius=12, outline=rgb(a) + (255,), width=3)
+        cv.draw.rounded_rectangle(box, radius=12, outline=mix(a, '#ffffff', .45), width=1)
+        cv.ink.alpha_composite(glyph(row['provider'], 24, mix(a, '#ffffff', .35)), (14, y + 10))
+        cv.bloom.alpha_composite(glyph(row['provider'], 24, a, stroke=4), (14, y + 10))
+        cv.text((46, y + 9), account_label(row), orb(11), '#ffffff')
+        cv.text((228, y + 9), period + (' OLD' if old else ''), orb(10), '#ff5d8f' if old else mix(a, '#ffffff', .2),
+                glow=rgb(a) + (160,), anchor='ra')
         number = number_text(used)
-        cv.text((54, y + 19), number, ox(29), '#ffffff', glow=rgb(a) + (255,))
+        cv.text((45, y + 22), number, ox(33), '#ffffff')
+        cv.glow.text((45, y + 22), number, font=ox(33), fill=rgb(a) + (255,), stroke_width=2, stroke_fill=rgb(a) + (255,))
         if used is not None:
-            x = 54 + cv.draw.textlength(number, font=ox(29)) + 2
-            cv.text((x, y + 31), '%', ox(15, 700), '#ffffff')
-        cv.text((229, y + 12), 'RESETS IN', orb(7, 600), '#aaa4cc', anchor='ra')
-        cv.text((229, y + 24), reset, ox(16, 700), '#ffffff', glow=rgb(a) + (150,), anchor='ra')
-        ring = 229 - cv.draw.textlength(reset, font=ox(16, 700)) - 13
-        clock_mark(cv, (ring, y + 33), 7, a, 1)
-        cv.glow.ellipse((ring - 8, y + 25, ring + 8, y + 41), outline=rgb(a) + (200,), width=2)
-        gauge(cv, (12, y + 60, 228, y + 66), used, band('neon', used or 0), gap=3, shape='round', radius=3,
-              track='#1a1730', empty='#4a4170', stale=old, glow=True)
+            x = 45 + cv.draw.textlength(number, font=ox(33)) + 2
+            cv.text((x, y + 36), '%', ox(16, 700), mix(a, '#ffffff', .6))
+        cv.text((228, y + 31), reset, ox(17, 700), '#ffffff', glow=rgb(a) + (170,), anchor='ra')
+        ring = 228 - cv.draw.textlength(reset, font=ox(17, 700)) - 12
+        clock_mark(cv, (ring, y + 40), 7, mix(a, '#ffffff', .3), 1)
+        cv.glow.ellipse((ring - 8, y + 32, ring + 8, y + 48), outline=rgb(a) + (220,), width=2)
+        gauge(cv, (14, y + 59, 226, y + 66), used, band('neon', used or 0), gap=3, shape='round', radius=3,
+              track='#15122a', empty='#4a4170', stale=old, glow=True)
     return cv.finish(blur=3)
 
 

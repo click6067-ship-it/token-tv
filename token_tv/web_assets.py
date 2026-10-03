@@ -7,7 +7,7 @@ HTML = (WEB / 'index.html').read_text()
 ASSETS = {
     '/assets/style.css': (WEB / 'style.css', 'text/css; charset=utf-8'),
     '/assets/app.js': (WEB / 'app.js', 'text/javascript; charset=utf-8'),
-    '/assets/tokens.css': (ROOT.parent / 'tokens.css', 'text/css; charset=utf-8'),
+    '/assets/tokens.css': (WEB / 'tokens.css', 'text/css; charset=utf-8'),
     '/assets/manrope.ttf': (WEB / 'manrope.ttf', 'font/ttf'),
     '/assets/vt323.woff2': (WEB / 'vt323.woff2', 'font/woff2'),
     '/assets/dseg7-classic-bold.woff2': (WEB / 'dseg7-classic-bold.woff2', 'font/woff2'),

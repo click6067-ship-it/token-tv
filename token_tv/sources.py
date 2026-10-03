@@ -1,11 +1,14 @@
 """Use credentials in their owning CLI homes; export only approved fields."""
+import hashlib
 import json
 import os
 import queue
 import re
 import subprocess
+import sys
 import threading
 import time
+import unicodedata
 from pathlib import Path
 from urllib.error import HTTPError
 from urllib.request import Request, urlopen
@@ -126,9 +129,32 @@ def json_get(url, headers=None):
         return json.load(response)
 
 
+def keychain_services(root):
+    """macOS Keychain item names Claude Code uses for a CLI home (read from Claude Code 2.1.281)."""
+    home = str(root)
+    services = ["Claude Code-credentials-" + hashlib.sha256(unicodedata.normalize("NFC", home).encode()).hexdigest()[:8]]
+    if root == Path("~/.claude").expanduser():
+        services.append("Claude Code-credentials")
+    return services
+
+
+def claude_token(root):
+    """Access token from the CLI home's file, or on macOS from the login Keychain (read only)."""
+    path = root / ".credentials.json"
+    if path.is_file() or sys.platform != "darwin":
+        return json.loads(path.read_text())["claudeAiOauth"]["accessToken"]
+    user = os.environ.get("USER") or "claude-code-user"
+    for service in keychain_services(root):
+        result = subprocess.run(["security", "find-generic-password", "-a", user, "-w", "-s", service],
+                                stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True, timeout=10)
+        if result.returncode == 0 and result.stdout.strip():
+            return json.loads(result.stdout)["claudeAiOauth"]["accessToken"]
+    raise SourceError("auth_required")
+
+
 def claude_payload(account):
     root = Path(account["source_home"]).expanduser()
-    token = json.loads((root / ".credentials.json").read_text())["claudeAiOauth"]["accessToken"]
+    token = claude_token(root)
     headers = {"Authorization": "Bearer " + token, "Accept": "application/json",
                "User-Agent": "claude-code/2.1.287", "anthropic-beta": "oauth-2025-04-20"}
     try:
@@ -143,7 +169,7 @@ def claude_payload(account):
                         "--no-session-persistence", "--max-turns", "1"],
                        env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
                        timeout=60)
-        token = json.loads((root / ".credentials.json").read_text())["claudeAiOauth"]["accessToken"]
+        token = claude_token(root)
         headers["Authorization"] = "Bearer " + token
         profile = json_get("https://api.anthropic.com/api/oauth/profile", headers)
         usage = json_get("https://api.anthropic.com/api/oauth/usage", headers)

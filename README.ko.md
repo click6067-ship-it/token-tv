@@ -4,21 +4,36 @@
 
 ![실제 시계에 띄운 Digital, Pixel Retro, Sci-Fi HUD 화면](docs/images/real-clock.jpg)
 
-여러 AI 계정의 사용량을 240×240 책상 시계와 브라우저에서 확인합니다.
-계정별 인증 홈을 분리하고, 실제 조회 실패와 오래된 값을 표시합니다.
+**AI 사용 한도를 작은 책상 시계에.** Claude와 Codex 사용량을 여러 계정으로, 시계 펌웨어를 바꾸지 않고 보여줍니다.
+Grok은 CLI 예산 정보를 보여주는 실험적 기능입니다. 제작자의 시계는 할인가 약 6,000원(약 $5)에 샀으며 가격과 배송비는 다를 수 있습니다. 켜 두는 컴퓨터(호스트)가 필요합니다.
+
+240×240 책상 시계와 브라우저에서 확인하며, 계정별 인증 홈을 분리하고 실제 조회 실패와 오래된 값을 표시합니다.
 
 ## 실행
 
-Python 3.10+와 Pillow가 필요합니다.
+Python 3.10+와 사용할 공급자의 공식 CLI(`claude`, `codex`, `grok`)가 필요합니다.
 
 ```bash
-python3 -m venv .venv
-.venv/bin/pip install -r requirements.txt
-mkdir -p .runtime
-cp config.example.json .runtime/config.json
-# 이메일과 해당 계정의 공식 CLI 인증 홈을 지정합니다.
-.venv/bin/python -m token_tv.live --config .runtime/config.json
+pipx install git+https://github.com/click6067-ship-it/token-tv
+token-tv demo     # 로그인 없이 샘플 데이터로 모든 시계 화면을 렌더
+token-tv setup         # 공급자당 최대 3계정 이메일과 시계 IP만 묻고, 기존 설정은 덮어쓰지 않음
+token-tv doctor --live # 지금 각 공급자에 조회해 빠진 CLI·로그인과 해결 명령을 안내
+token-tv run      # 대시보드 http://127.0.0.1:8787 + 시계 전송
 ```
+
+설정 파일은 `~/.config/token-tv/config.json`이며 모든 명령이 `--config`를 받습니다.
+A 계정은 평소 쓰던 로그인(`~/.claude` 등)을 재사용할 수 있고, B·C 계정은
+`~/.config/token-tv/homes/` 아래 별도 로그인 폴더를 씁니다. `token-tv connect --account codex_b`로
+별도 계정에 로그인하며, 평소 로그인 위에 다시 로그인하려면 REPLACE를 입력해야 합니다.
+`doctor`는 로그인 파일 존재만 보고, `doctor --live`는 실제 조회(만료 시 CLI 갱신 가능)를 하되
+계정별 상태만 출력합니다. 기여 방법은 [CONTRIBUTING.md](CONTRIBUTING.md)와
+[시계 화면 만들기](docs/clock-faces.md)를 봅니다.
+아직 PyPI에 올리지 않았으므로 `uvx token-tv`는 동작하지 않습니다. 설치 없이 실행하려면
+`uvx --from git+https://github.com/click6067-ship-it/token-tv token-tv demo`를 씁니다.
+클론에서는 `pip install .`로 같은 명령을 설치합니다.
+
+macOS(실기기 미검증): Claude Code가 로그인을 Keychain에 두므로, CLI 홈에
+`.credentials.json`이 없으면 `security`로 읽기 전용 조회합니다. 이메일 대조는 그대로 합니다.
 
 브라우저: `http://127.0.0.1:8787/`. `/snapshot`과 `/snapshot/<key>`는 JSON,
 `/frame/0.jpg`는 시계와 같은 240×240 JPEG이며 `/frame/1.jpg`는 호환 별칭입니다.
@@ -77,20 +92,30 @@ Grok이 한도 수치를 제공하지 않으면 `quota_unavailable`로 표시합
 이 과정은 도구를 끈 짧은 확인 응답 하나를 요청하므로 구독 사용량을 소량 소비할 수 있습니다.
 인증 파일의 토큰을 직접 수정하거나 다른 머신으로 복사하지 않습니다.
 
+## 내 디자인 만들기
+
+**동작하는 화면에서 시작하세요. 포크해서 바꾸고, 보여 주세요.** 시계 화면은 240×240을 그리는
+Python 함수 하나입니다. [docs/clock-faces.md](docs/clock-faces.md)를 따라 시계나 로그인 없이 샘플 데이터로
+만들 수 있습니다. 내 포크에서 바로 실행되고, 대시보드 **Themes** 목록에 *Local*로 나타나 시계에 적용할 수 있습니다.
+
+다른 사람과 나누려면 *New clock face* 템플릿으로 PR을 보내 주세요. 공유된 화면은 다음 릴리스부터
+**Themes**에서 **Popular**(테마별 GitHub 이슈의 👍) 또는 **New** 순으로 보입니다. 좋아요는 릴리스 전에
+수동으로 집계하며, 목록에 집계 시각이 표시됩니다.
+
 ## 시계 연결
 
 확인된 경로는 SD_PRO 웹 UI의 `/theme/list`, `/photo/list`, `/photo/upload`입니다.
 설정에 `"device_url": "http://<clock-ip>"`를 추가하면 사진 테마를 사용합니다.
 기기 펌웨어를 바꾸지 않습니다. 기존 사진 파일은 보존하고 선택 상태만 변경합니다.
-원래 테마와 사진 선택 상태는 `.runtime/display-original.json`에 저장됩니다.
+원래 테마와 사진 선택 상태는 설정 폴더의 `state/display-original.json`에 저장됩니다.
 
 복원 전 데몬을 정지한 뒤 실행합니다.
 
 ```bash
-python3 -m token_tv.live --config .runtime/config.json --restore-display
+token-tv run --restore-display
 ```
 
-사진 API가 없는 다른 펌웨어는 아직 실기기로 검증하지 않았습니다.
+사진 API가 없는 다른 펌웨어는 아직 실기기로 검증하지 않았습니다. 확인된 범위와 내 시계 확인 방법은 [docs/hardware-compatibility.md](docs/hardware-compatibility.md)에 있습니다.
 
 ## 다른 머신의 기존 인증 사용
 
@@ -105,7 +130,7 @@ Mini의 해당 계정에 로그인하면 다음 5분 조회부터 노트북 의�
 
 ```bash
 # Mini의 프로젝트 디렉터리에서 계정을 선택합니다.
-python3 -m token_tv.connect --config .runtime/config.json
+token-tv connect
 ```
 
 인증번호는 로그인 터미널 또는 공식 브라우저 화면에 입력합니다. 제품의 HTTP API는
@@ -140,7 +165,7 @@ quota is shown as a dash, old readings carry an OLD label, and disconnected web
 sessions retain their last readings with an offline notice. Grok CLI budget is
 not the Grok web conversation quota.
 
-Web files live in `token_tv/web/`; `tokens.css` defines appearance colors and fonts.
+Web files live in `token_tv/web/`; `token_tv/web/tokens.css` defines appearance colors and fonts.
 `token_tv/web_assets.py` allowlists public files. The bundled fonts (Manrope, Orbitron,
 Oxanium, Press Start 2P, Jersey 10, VT323, DSEG7 Classic, Chakra Petch) are served locally with their SIL Open Font License notices; the dashboard makes
 no external font requests, and the clock renderer reuses the same files.
