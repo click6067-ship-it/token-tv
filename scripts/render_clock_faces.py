@@ -1,6 +1,6 @@
 """Render docs/images/clock-faces.png: all six clock faces from the real renderers.
 
-Each face gets its own synthetic accounts so the sheet shows a spread of usage:
+Every face shows the same synthetic accounts (25 / 72 / 94 %) so they compare at a glance:
     python3 scripts/render_clock_faces.py
 """
 import io
@@ -21,14 +21,11 @@ def rows(claude, codex, grok):
             for p, (k, w, used, reset) in zip(('claude', 'codex', 'grok'), (claude, codex, grok))]
 
 
-FACES = [
-    ('digital', 'Digital', rows(('A', 'WEEK', 86, 3 * D), ('A', '5H', 34, 2 * H + 12 * 60), ('B', 'BUDGET', 94, D + H))),
-    ('neon', 'Neon', rows(('B', '5H', 52, 3 * H + 41 * 60), ('B', 'WEEK', 91, D + 4 * H), ('A', 'BUDGET', 18, 12 * D + 3 * H))),
-    ('retro', 'Pixel Retro', rows(('C', 'WEEK', 73, 2 * D + 6 * H), ('A', '5H', 8, 4 * H + 51 * 60), ('B', 'BUDGET', 61, 6 * D + 2 * H))),
-    ('hud', 'Sci-Fi HUD', rows(('A', '5H', 97, 38 * 60), ('B', 'WEEK', 45, 5 * D + 11 * H), ('A', 'BUDGET', 82, 2 * D + 9 * H))),
-    ('pixel', 'Pixel', rows(('B', 'WEEK', 27, 6 * D + H), ('A', '5H', 66, H + 5 * 60), ('B', 'BUDGET', 88, 3 * D + 14 * H))),
-    ('space', 'Space (animated)', rows(('A', 'WEEK', 86, 3 * D), ('A', '5H', 34, 2 * H), ('B', 'BUDGET', 61, 6 * D))),
-]
+# The same sample on every face so they compare at a glance: low, busy and near the limit.
+SAMPLE_ROWS = rows(('A', '5H', 25, 3 * H + 41 * 60), ('A', 'WEEK', 72, 2 * D + 6 * H), ('A', 'BUDGET', 94, 12 * D + 3 * H))
+FACES = [(style, title, SAMPLE_ROWS) for style, title in (
+    ('digital', 'Digital'), ('neon', 'Neon'), ('retro', 'Pixel Retro'),
+    ('hud', 'Sci-Fi HUD'), ('pixel', 'Pixel'), ('space', 'Space (animated)'))]
 TILE, GAP, MARGIN, CAPTION = 480, 36, 38, 62
 
 
