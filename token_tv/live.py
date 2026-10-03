@@ -85,7 +85,7 @@ def handler(store, preferences=None):
                     self.send_error(400, 'Unknown display style')
                     return
                 body = render_page(snapshot, int(path[7]), style)
-                content_type = "image/jpeg"
+                content_type = "image/gif" if body[:4] == b"GIF8" else "image/jpeg"
             elif path == '/display':
                 body = json.dumps(display).encode()
             elif path == "/health":
@@ -160,10 +160,11 @@ def main():
     interval = max(60, int(config.get("poll_seconds", 300)))
     stopping = threading.Event()
     original = None
-    activated = False
+    active_file = None
+    last_upload = None
 
     def cycle(refresh=True):
-        nonlocal original, activated
+        nonlocal original, active_file, last_upload
         if refresh:
             store.refresh()
         snapshot = store.snapshot()
@@ -177,14 +178,17 @@ def main():
                     if not backup_path.is_file():
                         write_json(backup_path, original)
                 phase = "upload"
-                for page, name in enumerate(FILES):
-                    jpeg = render_page(snapshot, page, style)
-                    (state_dir / name).write_bytes(jpeg)
-                    receipts.append(dict(device.upload(name, jpeg), sha256=hashlib.sha256(jpeg).hexdigest()))
-                if not activated:
+                image = render_page(snapshot, 0, style)
+                name = FILES[1] if image[:4] == b"GIF8" else FILES[0]
+                digest = hashlib.sha256(image).hexdigest()
+                if (name, digest) != last_upload:  # identical frames are not rewritten to flash
+                    (state_dir / name).write_bytes(image)
+                    receipts.append(dict(device.upload(name, image), sha256=digest))
+                    last_upload = (name, digest)
+                if active_file != name:
                     phase = "activate"
-                    device.activate(original)
-                    activated = True
+                    device.activate(original, name)
+                    active_file = name
                 write_json(state_dir / "display-receipt.json", {"at": int(time.time()), "style": style, "uploads": receipts})
                 preferences.delivered(style, True)
             except (OSError, ValueError, KeyError) as error:

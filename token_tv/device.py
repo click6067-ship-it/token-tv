@@ -5,7 +5,9 @@ from urllib.parse import quote, urlencode, urlparse
 from urllib.request import Request, urlopen
 
 
-FILES = ("tokentv.jpg",)
+FILES = ("tokentv.jpg", "tokentv.gif")
+# The album page accepts GIFs up to 240×240; keep both well under the free space.
+LIMITS = {"tokentv.jpg": (60000, "image/jpeg"), "tokentv.gif": (400000, "image/gif")}
 LEGACY_FILES = ("tokentv-c.jpg", "tokentv-m.jpg")
 
 
@@ -32,28 +34,28 @@ class PhotoDisplay:
                 "files": [{"name": f["name"], "enabled": f["enabled"]} for f in photos["files"]],
                 "photo_interval": photos["interval"]}
 
-    def upload(self, name, jpeg):
-        if name not in FILES or len(jpeg) > 60000:
+    def upload(self, name, image):
+        limit, mime = LIMITS.get(name, (0, ""))
+        if not image or len(image) > limit:
             raise ValueError("Unexpected display image")
         boundary = "TokenTV" + uuid.uuid4().hex
         body = (f'--{boundary}\r\nContent-Disposition: form-data; name="file"; filename="{name}"\r\n'
-                'Content-Type: image/jpeg\r\n\r\n').encode() + jpeg + f"\r\n--{boundary}--\r\n".encode()
+                f'Content-Type: {mime}\r\n\r\n').encode() + image + f"\r\n--{boundary}--\r\n".encode()
         status, _ = self.request("/photo/upload", body,
                                  {"Content-Type": "multipart/form-data; boundary=" + boundary})
-        return {"file": name, "status": status, "bytes": len(jpeg)}
+        return {"file": name, "status": status, "bytes": len(image)}
 
     def toggle(self, category, key, value, enabled):
         self.request("/" + category + "/toggle?" + urlencode({key: value, "state": int(enabled)}, quote_via=quote))
 
-    def activate(self, original):
-        # Select our files first, then select the photo theme; retain old files.
+    def activate(self, original, name=FILES[0]):
+        # Show only our current file, then select the photo theme; retain old files.
         current = self.capture()
         enabled = {f['name']: f['enabled'] for f in current['files']}
-        for name in FILES:
-            if not enabled.get(name):
-                self.toggle("photo", "name", name, True)
+        if not enabled.get(name):
+            self.toggle("photo", "name", name, True)
         for f in current['files']:
-            if f["name"] not in FILES and f['enabled']:
+            if f["name"] != name and f['enabled']:
                 self.toggle("photo", "name", f["name"], False)
         if current['photo_interval'] != 10:
             self.request("/photo/interval?val=10")

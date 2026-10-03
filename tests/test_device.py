@@ -52,13 +52,23 @@ class DisplayTests(unittest.TestCase):
             display.upload("tokentv.jpg", b"EXACT-JPEG")
             display.activate(original)
             self.assertEqual([p["name"] for p in photos["files"] if p["enabled"]], ["tokentv.jpg"])
+            # Switching to the animated face shows only the GIF; switching back restores the JPEG.
+            photos["files"].append({"name": "tokentv.gif", "enabled": False})
+            display.upload("tokentv.gif", b"GIF89a-EXACT")
+            display.activate(original, "tokentv.gif")
+            self.assertEqual([p["name"] for p in photos["files"] if p["enabled"]], ["tokentv.gif"])
+            display.activate(original, "tokentv.jpg")
+            self.assertEqual([p["name"] for p in photos["files"] if p["enabled"]], ["tokentv.jpg"])
+            with self.assertRaises(ValueError):
+                display.upload("other.gif", b"GIF89a")
             display.restore(original)
             self.assertEqual([p["name"] for p in photos["files"] if p["enabled"]], ["original.jpg", "space man.gif"])
             uploads = [c for c in calls if c[0] == "POST"]
-            self.assertEqual(len(uploads), 1)
+            self.assertEqual(len(uploads), 2)
             self.assertEqual(uploads[0][1], "/photo/upload")
             self.assertIn(b'name="file"; filename="tokentv.jpg"', uploads[0][2])
             self.assertIn(b"\r\n\r\nEXACT-JPEG\r\n", uploads[0][2])
+            self.assertIn(b'filename="tokentv.gif"\r\nContent-Type: image/gif', uploads[1][2])
             paths = [c[1] for c in calls]
             self.assertIn("/theme/toggle?id=2&state=1", paths)
             self.assertIn("/theme/toggle?id=0&state=0", paths)

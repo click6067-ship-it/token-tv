@@ -11,6 +11,8 @@ Claude · Codex · Grok — multiple accounts — no firmware flashing</p>
 
 <p align="center"><img src="docs/images/real-clock.jpg" alt="TokenTV on a real $5 clock: Digital, Pixel Retro and Sci-Fi HUD faces"></p>
 
+<p align="center"><img src="docs/images/space.gif" width="480" alt="Space face: the Claude, Codex and Grok bots drift in glass helmets, each with its usage"></p>
+
 <p align="center"><a href="https://token-tv.vercel.app"><img src="docs/images/web-demo.png" alt="Web dashboard in four themes. Click to open the live demo"></a></p>
 
 <p align="center"><img src="docs/images/how-it-works.png" alt="Your CLI logins → TokenTV on your computer → a picture over Wi-Fi → the $5 clock"></p>
@@ -25,13 +27,14 @@ mkdir -p .runtime && cp config.example.json .runtime/config.json  # add accounts
 ```
 
 <details>
-<summary><b>All five clock faces</b></summary>
+<summary><b>All six clock faces</b></summary>
 
 <br>
 
-![Digital, Neon, Pixel Retro, Sci-Fi HUD and Pixel faces (sample data)](docs/images/clock-faces.png)
+![Digital, Neon, Pixel Retro, Sci-Fi HUD, Pixel and the animated Space face (sample data)](docs/images/clock-faces.png)
 
-Pick one under **Clock display** in the dashboard, then press **Apply to clock**.
+Pick one under **Clock display** in the dashboard, then press **Apply to clock**. Space is an animated
+GIF that the stock photo album plays; it is re-sent only when a number changes or every 30 minutes.
 </details>
 
 <details>

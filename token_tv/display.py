@@ -23,7 +23,7 @@ PROVIDER_INK = {'claude': '#d68e68', 'codex': '#a799e5', 'grok': '#cbd1d7'}
 ICON_PAPER = PROVIDER_INK['grok']
 FONT_MAIN = '/usr/share/fonts/truetype/dejavu/DejaVuSans'
 FONT_NUMBERS = '/usr/share/fonts/truetype/dejavu/DejaVuSansMono'
-STYLES = ('pixel', 'digital', 'neon', 'retro', 'hud')
+STYLES = ('pixel', 'digital', 'neon', 'retro', 'hud', 'space')
 # Gauge-only levels; labels/percentages always use TEXT, logos retain provider ink.
 GAUGE_LEVELS = ((50, '#76a99a'), (80, '#93c9b9'), (90, '#d1b275'), (101, '#d8877e'))
 STATUS = {'loading': 'WAIT', 'auth_required': 'LOGIN', 'identity_mismatch': 'CHECK',
@@ -226,6 +226,9 @@ def render_page(snapshot, page=0, style='pixel'):
         raise IndexError('Unknown frame')
     if style not in STYLES:
         raise ValueError('Unknown display style')
+    if style == 'space':  # animated: returns GIF bytes
+        from token_tv.space import render_space
+        return render_space(snapshot)
     from token_tv.themes import RENDERERS
     renderer = {'pixel': render_pixel, **RENDERERS}[style]
     image = renderer(snapshot)

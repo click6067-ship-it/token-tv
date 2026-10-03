@@ -67,13 +67,17 @@ def build(out, site):
     for notice in WEB.glob('*-LICENSE.txt'):
         shutil.copy2(notice, assets / notice.name)
     (out / 'demo-snapshot.json').write_text(json.dumps(snapshot(), separators=(',', ':')))
-    display = {'style': 'digital', 'applied_style': 'digital', 'status': 'preview_only', 'styles': list(STYLES)}
-    (out / 'demo-display.json').write_text(json.dumps(display))
     frames = out / 'frames'
     frames.mkdir()
     rendered = snapshot(time.time())
+    paths = {}
     for style in STYLES:
-        (frames / f'{style}.jpg').write_bytes(render_page(rendered, style=style))
+        image = render_page(rendered, style=style)
+        name = f"{style}.{'gif' if image[:4] == b'GIF8' else 'jpg'}"  # Space is animated
+        (frames / name).write_bytes(image)
+        paths[style] = f'/frames/{name}'
+    display = {'style': 'digital', 'applied_style': 'digital', 'status': 'preview_only', 'styles': list(STYLES), 'frames': paths}
+    (out / 'demo-display.json').write_text(json.dumps(display))
     shutil.copy2(ROOT / 'docs' / 'images' / 'social-preview.png', out / 'og.png')
     return sorted(str(p.relative_to(out)) for p in out.rglob('*') if p.is_file() and '.vercel' not in p.parts)
 

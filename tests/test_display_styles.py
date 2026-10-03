@@ -78,8 +78,14 @@ class DisplayStyleTests(unittest.TestCase):
         for frame in frames:
             image = Image.open(io.BytesIO(frame))
             self.assertEqual(image.size, (240, 240))
-            self.assertEqual(image.format, 'JPEG')
-            self.assertLess(len(frame), 60000)
+            if frame[:4] == b'GIF8':  # the animated Space face
+                self.assertEqual(image.format, 'GIF')
+                self.assertGreater(image.n_frames, 1)
+                self.assertLess(len(frame), 400000)
+            else:
+                self.assertEqual(image.format, 'JPEG')
+                self.assertLess(len(frame), 60000)
+        self.assertEqual(sum(f[:4] == b'GIF8' for f in frames[:len(STYLES)]), 1)
         with self.assertRaises(ValueError):
             render_page(sample, style='unknown')
 
