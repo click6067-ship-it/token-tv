@@ -98,3 +98,7 @@ It is not a live ranking. Older installs show "update TokenTV" instead of downlo
 - **One picture, 240×240, JPEG.** `render_page` saves the image; animated faces return GIF
   bytes like `token_tv/space.py`.
 - Fonts must be in `token_tv/web/` with their license file next to them.
+
+## Worked example
+
+[Pixel → Game Boy](../examples/gameboy/README.md) includes the render function, the same sample data before and after, and an old/missing-data check. It was made with Claude Code and runs without a clock or account.
