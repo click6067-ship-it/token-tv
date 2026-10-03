@@ -12,10 +12,11 @@ from pathlib import Path
 from PIL import Image, ImageDraw, ImageFilter, ImageFont
 
 from token_tv.display import (
-    STATUS, account_label, mascot, overview_rows, primary_window, quota_period, row_shift, time_left,
+    PROVIDER_INK, STATUS, account_label, mascot, overview_rows, primary_window, quota_period, row_shift, time_left,
 )
 
 WEB = Path(__file__).with_name('web')
+ASSET_DIR = Path(__file__).with_name('assets')
 SIZE = 240
 ROWS = (3, 82, 161)
 ROW_H = 76
@@ -142,6 +143,46 @@ def glyph(provider, size, color, stroke=None):
         draw.ellipse((c - r, c - r, c + r, c + r), outline=color, width=width)
         draw.polygon([(s * 0.1, s * 0.9), (s * 0.86, s * 0.12), (s * 0.9, s * 0.1), (s * 0.16, s * 0.9)], fill=color)
     return image.resize((size, size), Image.Resampling.LANCZOS)
+
+
+@functools.lru_cache(maxsize=None)
+def bot_sprite(provider, box_w, box_h, tint=None, detail=(4, 7, 10)):
+    """The provider's bundled pixel bot, trimmed and scaled with hard edges to fit a box.
+
+    With `tint`, the body becomes that one colour and the details (eyes, prompt) a dark ink, so the
+    bot keeps its face in single-colour styles such as Neon and HUD.
+    """
+    with Image.open(ASSET_DIR / f'{provider}-pixel.png') as source:
+        sprite = source.convert('RGBA')
+    sprite = sprite.crop(sprite.getbbox())
+    if tint is not None:
+        lum = [sum(p[:3]) / 3 for p in sprite.getdata() if p[3] > 128]
+        body = sorted(lum)[len(lum) // 2]
+        ink, mark = rgb(tint), rgb(detail)
+        sprite.putdata([(0, 0, 0, 0) if p[3] <= 128 else
+                        (mark if abs(sum(p[:3]) / 3 - body) > 60 else ink) + (255,) for p in sprite.getdata()])
+    scale = min(box_w / sprite.width, box_h / sprite.height)
+    size = (max(1, round(sprite.width * scale)), max(1, round(sprite.height * scale)))
+    return sprite.resize(size, Image.Resampling.NEAREST)
+
+
+def scanlined(sprite, keep=150):
+    """Dim every other row of a sprite, like a projected hologram."""
+    out = sprite.copy()
+    alpha = out.getchannel('A')
+    draw = ImageDraw.Draw(alpha)
+    for yy in range(1, out.height, 2):
+        row = [alpha.getpixel((xx, yy)) for xx in range(out.width)]
+        for xx, v in enumerate(row):
+            if v:
+                draw.point((xx, yy), fill=keep)
+    out.putalpha(alpha)
+    return out
+
+def place_bot(layer, sprite, box):
+    """Centre a sprite inside an (x, y, w, h) box."""
+    x, y, w, h = box
+    layer.alpha_composite(sprite, (x + (w - sprite.width) // 2, y + (h - sprite.height) // 2))
 
 
 @functools.lru_cache(maxsize=None)
@@ -274,13 +315,10 @@ def render_digital(snapshot):
         used, period, old, reset = reading(row)
         cv.back.rectangle((4, y, 235, y + ROW_H - 1), fill='#03100b', outline=line)
         cv.back.line((5, y + 25, 234, y + 25), fill='#0f3a2c')
-        if row['provider'] == 'claude':
-            cv.ink.alpha_composite(spark_mark(17, '#f08c64'), (10, y + 5))
-        elif row['provider'] == 'codex':
-            cv.ink.alpha_composite(prompt_cloud_mark(17, '#8296ff'), (10, y + 5))
-        else:
-            cv.ink.alpha_composite(glyph(row['provider'], 15, mint), (11, y + 6))
-        cv.text((31, y + 3), account_label(row) + ' >', vt(22), mint, glow=(61, 252, 176, 90))
+        # LCD: the bot lit in the same mint phosphor as the text, dark eyes, soft glow; no brand colours.
+        place_bot(cv.ink, bot_sprite(row['provider'], 24, 17, mint, '#03100b'), (9, y + 4, 24, 17))
+        place_bot(cv.bloom, bot_sprite(row['provider'], 24, 17, (61, 252, 176), '#03100b'), (9, y + 4, 24, 17))
+        cv.text((38, y + 3), account_label(row) + ' >', vt(22), mint, glow=(61, 252, 176, 90))
         cv.text((229, y + 4), period + (' OLD' if old else ''), vt(20), amber if old else dim, anchor='ra')
         if used is None:
             cv.text((11, y + 31), '-- NO DATA', vt(26), dim)
@@ -316,8 +354,9 @@ def render_neon(snapshot):
         cv.back.rounded_rectangle(box, radius=12, fill=mix('#06050e', a, .05))
         cv.glow.rounded_rectangle(box, radius=12, outline=rgb(a) + (255,), width=3)
         cv.draw.rounded_rectangle(box, radius=12, outline=mix(a, '#ffffff', .45), width=1)
-        cv.ink.alpha_composite(glyph(row['provider'], 24, mix(a, '#ffffff', .35)), (14, y + 10))
-        cv.bloom.alpha_composite(glyph(row['provider'], 24, a, stroke=4), (14, y + 10))
+        # Neon: each row is already lit in its provider colour, so the bot takes that same colour with a halo.
+        place_bot(cv.ink, bot_sprite(row['provider'], 26, 26, mix(a, '#ffffff', .35)), (12, y + 9, 26, 26))
+        place_bot(cv.bloom, bot_sprite(row['provider'], 26, 26, a), (12, y + 9, 26, 26))
         cv.text((46, y + 9), account_label(row), orb(11), '#ffffff')
         cv.text((228, y + 9), period + (' OLD' if old else ''), orb(10), '#ff5d8f' if old else mix(a, '#ffffff', .2),
                 glow=rgb(a) + (160,), anchor='ra')
@@ -444,8 +483,9 @@ def render_hud(snapshot):
         cv.draw.line((8, y + 4, 16, y + 4), fill=a, width=2)
         cv.draw.line((231, y + ROW_H - 5, 231, y + ROW_H - 13), fill=a, width=2)
         cv.draw.line((231, y + ROW_H - 5, 223, y + ROW_H - 5), fill=a, width=2)
-        cv.ink.alpha_composite(glyph(row['provider'], 19, a), (12, y + 8))
-        cv.bloom.alpha_composite(glyph(row['provider'], 19, a), (12, y + 8))
+        # HUD: the row's accent colour as a hologram: solid bot with every other line dimmed.
+        place_bot(cv.ink, scanlined(bot_sprite(row['provider'], 21, 19, a)), (11, y + 8, 21, 19))
+        place_bot(cv.bloom, bot_sprite(row['provider'], 21, 19, a), (11, y + 8, 21, 19))
         cv.text((38, y + 8), account_label(row), chakra(14), '#ffffff')
         cv.text((228, y + 9), period + (' OLD' if old else ''), chakra(10, False), '#ff4d6a' if old else '#8fadc6', anchor='ra')
         number = number_text(used)
