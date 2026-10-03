@@ -1,0 +1,34 @@
+{
+  "poll_seconds": 300,
+  "accounts": [
+    {
+      "key": "claude_a",
+      "alias": "CLAUDE A",
+      "provider": "claude",
+      "email": "your-claude-email@example.com",
+      "source_home": "~/.claude"
+    },
+    {
+      "key": "codex_a",
+      "alias": "CODEX A",
+      "provider": "codex",
+      "email": "your-chatgpt-email@example.com",
+      "source_home": "~/.codex"
+    },
+    {
+      "key": "codex_b",
+      "alias": "CODEX B",
+      "provider": "codex",
+      "email": "your-second-chatgpt-email@example.com",
+      "source_home": "~/.codex-account-b"
+    },
+    {
+      "key": "grok_a",
+      "alias": "GROK A",
+      "provider": "grok",
+      "email": "your-grok-email@example.com",
+      "source_home": "~/.grok"
+    }
+  ],
+  "display_style": "pixel"
+}

@@ -1,0 +1,102 @@
+/* TokenTV appearance tokens — one block per web theme.
+ * Roles: ink = neutral text and numerals for every provider; claude/codex/grok mark
+ * identity only; lvl-* are the four used-quota bands (<50, 50–79, 80–89, 90–100).
+ * Each band is a gradient: lvl-*-2 starts the fill, lvl-* is its tip and legend colour. */
+:root {
+  --font-body: 'Manrope', system-ui, sans-serif;
+  --font-display: var(--font-body);
+  --font-num: var(--font-display);
+  --font-label: var(--font-body);
+  --bg: #0c0f14; --panel: #141922; --panel-2: #1a202b;
+  --ink: #f4f6f9; --ink-2: #9ba5b3; --ink-3: #7a8493;
+  --line: #232a35; --line-2: #313a48; --track: #232a35; --focus: #cfe0ff;
+  --claude: #f4a07a; --claude-2: #f4a07a;
+  --codex: #6ea8ff; --codex-2: #6ea8ff;
+  --grok: #5ee0b5; --grok-2: #5ee0b5;
+  --lvl-low: #6ee7b7; --lvl-medium: #79c0ff; --lvl-high: #f6c453; --lvl-critical: #f7768e;
+  --lvl-low-2: #22c4a6; --lvl-medium-2: #2f8cff; --lvl-high-2: #f08a24; --lvl-critical-2: #e8455f;
+  --radius-card: 22px; --radius-control: 10px;
+  color-scheme: dark;
+}
+
+/* Digital Terminal: single-weight phosphor console, amber timers. */
+:root[data-theme=digital] {
+  --font-body: 'VT323', 'DejaVu Sans Mono', monospace;
+  --font-num: 'DSEG7 Classic', 'VT323', monospace;
+  --bg: #020906; --panel: #03100b; --panel-2: #04140e;
+  --ink: #7dffd0; --ink-2: #4dbb92; --ink-3: #3a9a77;
+  --line: #164a37; --line-2: #22694f; --track: #0a2a1e; --focus: #c8ffe9;
+  --amber: #ffcf5a;
+  --claude: #7dffd0; --codex: #7dffd0; --grok: #7dffd0;
+  --lvl-low: #3dfcb0; --lvl-medium: #c3f562; --lvl-high: #ff9d45; --lvl-critical: #ff5a6a;
+  --lvl-low-2: #13b884; --lvl-medium-2: #6fd13a; --lvl-high-2: #ff6a2b; --lvl-critical-2: #e8243f;
+  --radius-card: 0; --radius-control: 0;
+}
+
+/* Neon Cyberpunk: black glass, white-hot numerals, provider bloom. */
+:root[data-theme=neon] {
+  --font-display: 'Orbitron', 'Manrope', sans-serif;
+  --font-num: 'Oxanium', 'Orbitron', sans-serif;
+  --bg: #05040c; --panel: #0b0918; --panel-2: #120f26;
+  --ink: #f7f5ff; --ink-2: #aaa4cc; --ink-3: #8580ad;
+  --line: #262143; --line-2: #3a325f; --track: #17142c; --focus: #f0d9ff;
+  --claude: #ff8a2b; --claude-2: #ffd23f;
+  --codex: #22d3ee; --codex-2: #4f7bff;
+  --grok: #d946ef; --grok-2: #8b5cf6;
+  --lvl-low: #2cf5b0; --lvl-medium: #38d6ff; --lvl-high: #ffc23d; --lvl-critical: #ff3d81;
+  --lvl-low-2: #00b894; --lvl-medium-2: #1f7bff; --lvl-high-2: #ff8a1f; --lvl-critical-2: #ff2a4a;
+  --radius-card: 26px; --radius-control: 999px;
+}
+
+/* Pixel Retro: 8-bit night, cream type, HP-bar bands. */
+:root[data-theme=retro] {
+  --font-body: 'Jersey 10', 'DejaVu Sans Mono', monospace;
+  --font-display: 'Press Start 2P', 'Jersey 10', monospace;
+  --bg: #0a0f2c; --panel: #141d52; --panel-2: #1b2766;
+  --ink: #fff3d6; --ink-2: #a9bdf0; --ink-3: #7286c6;
+  --line: #2c3c8c; --line-2: #4a64c8; --track: #0d1440; --focus: #ffe38a;
+  --outline: #0a0d26;
+  --claude: #ff9f43; --claude-2: #ffcf6b;
+  --codex: #3ee68b; --codex-2: #9bffc8;
+  --grok: #b388ff; --grok-2: #e0d0ff;
+  --lvl-low: #5ee06a; --lvl-medium: #d3e84a; --lvl-high: #ffab3d; --lvl-critical: #ff5a5f;
+  --lvl-low-2: #2aa84a; --lvl-medium-2: #8fc93a; --lvl-high-2: #ff7a1f; --lvl-critical-2: #d62b3c;
+  --radius-card: 0; --radius-control: 0;
+}
+
+/* Modern Minimal: charcoal, quiet tints, generous numerals. */
+:root[data-theme=modern] {
+  --bg: #0b0e13; --panel: #131820; --panel-2: #192029;
+  --ink: #f4f6f9; --ink-2: #98a2b1; --ink-3: #7a8493;
+  --line: #222934; --line-2: #2f3744;
+}
+
+/* Sakura Blossom: blush paper, plum ink, one pink ramp for the bands. */
+:root[data-theme=sakura] {
+  --font-display: 'Cormorant Garamond', Georgia, serif;
+  --font-num: 'Cormorant Garamond', Georgia, serif;
+  --bg: #fbeef2; --panel: #fffafc; --panel-2: #fff;
+  --ink: #4a2433; --ink-2: #7a5262; --ink-3: #8a6574;
+  --line: #f0d6df; --line-2: #e7c2cf; --track: #f5e3e9; --focus: #a83f63;
+  --claude: #cc6440; --claude-2: #cc6440;
+  --codex: #6b4fa0; --codex-2: #6b4fa0;
+  --grok: #34283a; --grok-2: #34283a;
+  --lvl-low: #f2b8c9; --lvl-medium: #e7899f; --lvl-high: #cf5679; --lvl-critical: #a3264b;
+  --lvl-low-2: #fbdde6; --lvl-medium-2: #f5bccb; --lvl-high-2: #ea98ae; --lvl-critical-2: #d65a80;
+  --radius-card: 26px; --radius-control: 999px;
+  color-scheme: light;
+}
+
+/* Sci-Fi HUD: navy telemetry, cut corners, wide technical type. */
+:root[data-theme=hud] {
+  --font-body: 'Chakra Petch', 'Manrope', sans-serif;
+  --bg: #03080e; --panel: #06101a; --panel-2: #0a1824;
+  --ink: #e9f4ff; --ink-2: #8fadc6; --ink-3: #6c8aa5;
+  --line: #142c44; --line-2: #22476a; --track: #0c1c2b; --focus: #9fe8ff;
+  --claude: #ff8a3d; --claude-2: #ffb47a;
+  --codex: #2fd4ff; --codex-2: #8be9ff;
+  --grok: #3ef29b; --grok-2: #9dffcb;
+  --lvl-low: #35e0a0; --lvl-medium: #3cc4ff; --lvl-high: #ffb23f; --lvl-critical: #ff4d6a;
+  --lvl-low-2: #14a874; --lvl-medium-2: #1a7dff; --lvl-high-2: #ff7a1a; --lvl-critical-2: #e01e3c;
+  --radius-card: 0; --radius-control: 0;
+}

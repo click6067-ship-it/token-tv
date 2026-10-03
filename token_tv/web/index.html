@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en" data-theme="modern">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="dark light">
+<title>TokenTV · AI usage</title>
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="/assets/style.css">
+<script src="/assets/app.js" defer></script>
+</head>
+<body>
+<a class="skip" href="#providers">Skip to usage</a>
+<div class="backdrop" aria-hidden="true">
+  <div class="atmosphere"></div>
+  <div class="glow glow-a"></div><div class="glow glow-b"></div><div class="glow glow-c"></div>
+  <div class="starfield" id="starfield"></div>
+  <div class="branch" id="branch"></div>
+  <div class="bokeh"><i></i><i></i><i></i><i></i></div>
+  <div class="petals" id="petals"></div>
+  <div class="sweep"></div>
+</div>
+<div class="shell">
+  <header class="topbar">
+    <a class="brand" href="/" aria-label="TokenTV home"><span class="brandmark" aria-hidden="true"></span><span class="brand-word">TOKEN<b>TV</b></span></a>
+    <div class="connection"><span class="status-dot" aria-hidden="true"></span><span id="connection">Connecting</span></div>
+    <button id="clock-toggle" class="control clock-toggle" type="button" aria-expanded="false" aria-controls="clock-panel">Clock display</button>
+  </header>
+  <nav class="theme-section" aria-label="Dashboard appearance">
+    <span class="section-label">Appearance</span>
+    <div id="themes" class="themes" role="group" aria-label="Web theme"></div>
+  </nav>
+  <div class="workspace">
+    <main class="screen" id="dashboard">
+      <header class="screen-head">
+        <div class="title-block">
+          <p class="eyebrow" id="eyebrow">AI providers</p>
+          <h1 id="page-title">Usage Overview</h1>
+          <p class="intro-note" id="intro-note">Track your usage and reset times across providers.</p>
+        </div>
+        <div class="mascot" id="mascot" aria-hidden="true"></div>
+        <dl class="summary">
+          <div class="summary-accounts"><dt>Accounts</dt><dd id="account-count">—</dd></div>
+          <div class="summary-reporting"><dt>Reporting</dt><dd id="reporting-count">—</dd></div>
+          <div class="summary-providers"><dt>Providers</dt><dd>3</dd></div>
+          <div class="summary-clock"><dt>Today</dt><dd id="local-time"><span class="zone" id="clock-zone">Local</span><span class="date-iso"></span><span class="date-long"></span><span class="time"></span></dd></div>
+        </dl>
+      </header>
+      <div id="notice" class="notice" role="status" hidden></div>
+      <section class="provider-list" id="providers" aria-label="Provider usage"><p class="loading">Loading your accounts…</p></section>
+      <footer class="screen-foot">
+        <div class="footer-meta">
+          <span id="foot-reporting">— reporting</span>
+          <span id="updated">Waiting for data</span>
+          <span>Refreshes every 5 min</span>
+          <span class="signal" id="signal" data-strength="0" aria-hidden="true"><i></i><i></i><i></i></span>
+        </div>
+        <div class="legend" aria-label="Used quota levels"><span class="section-label">Used quota</span><span><i data-level="low"></i>0–49%</span><span><i data-level="medium"></i>50–79%</span><span><i data-level="high"></i>80–89%</span><span><i data-level="critical"></i>90–100%</span></div>
+      </footer>
+    </main>
+    <aside id="clock-panel" class="clock-panel" aria-label="Physical clock" hidden>
+      <div class="aside-head"><div><p class="eyebrow">Physical display</p><h2>Your clock</h2></div><button class="control icon-control" id="close-clock" type="button" aria-label="Close clock panel">×</button></div>
+      <div class="device"><div class="lcd"><img id="frame" width="240" height="240" alt="Live clock preview"></div></div>
+      <label for="clock-style">Clock style</label>
+      <select id="clock-style" class="control"></select>
+      <button class="control primary" id="apply" type="button" disabled>Apply to clock</button>
+      <p id="display-state" role="status">Loading clock status</p>
+      <p class="quiet">240 × 240 · The web appearance is separate from your clock style.</p>
+    </aside>
+  </div>
+  <details class="help"><summary>How to read this display</summary><p>Percentages show <strong>used quota</strong>. The main gauge shows the selected account’s highest reported window; other windows open below it. Timers belong to that same window. A previous value is marked OLD and is not a current reading.</p><p>Grok CLI budget is a billing limit, not the Grok web conversation limit. If a provider does not report quota, it stays unknown. Laptop-linked accounts need the laptop online.</p></details>
+</div>
+</body>
+</html>
