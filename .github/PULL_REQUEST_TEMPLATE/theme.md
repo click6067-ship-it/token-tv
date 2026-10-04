@@ -2,7 +2,7 @@
 
 - **id** (lowercase, used in `STYLES`):
 - **name**:
-- **author** (GitHub handle shown in the Themes list):
+- **author** (GitHub handle shown in the Gallery):
 - **license** of any font or image you added:
 - **source / inspiration** (link, or "original"):
 

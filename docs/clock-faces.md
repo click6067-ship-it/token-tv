@@ -5,11 +5,13 @@ The clock only ever receives that picture.
 
 ## 1. Try a face without touching the code
 
-Save this as `my_face.py` in the repository root and run `python3 my_face.py`.
+First set up the repository once, as in the [Game Boy example](../examples/gameboy#run-it-no-clock-no-login-no-fork)
+(clone, then `.venv` with `pip install -e .`). Commands on this page then use `.venv/bin/python` for `python3`.
+Save this as `my_face.py` in the repository root and run `.venv/bin/python my_face.py`.
 It draws one line per provider with the same helpers the built-in faces use, from sample data.
 
 ```python
-"""A tiny clock face: one line per provider. Run: python3 my_face.py"""
+"""A tiny clock face: one line per provider. Run: .venv/bin/python my_face.py"""
 import time
 
 from token_tv.display import account_label, overview_rows
@@ -79,7 +81,7 @@ There are two different ways, and only the second one puts a face in the Gallery
 
 | | Share an image | Add it to the Gallery |
 | --- | --- | --- |
-| How | [Share a face](https://github.com/click6067-ship-it/token-tv/issues/new?template=share_a_face.md) issue: an image, optionally the prompt and your fork link | Pull request with the *New clock face* template: id, name, author, license, a 240×240 preview from sample data |
+| How | [Share a face](https://github.com/click6067-ship-it/token-tv/issues/new?template=share_a_face.md) issue: an image, optionally the prompt and your fork link | A normal pull request with the [New clock face checklist](../.github/PULL_REQUEST_TEMPLATE/theme.md) copied in: id, name, author, license, a 240×240 preview from sample data |
 | What happens | It is just shown in the issue. Nothing is added to the Gallery automatically | After review the maintainer adds it to `token_tv/assets/theme-catalog.json` (with `added_at`, `min_version` and a likes issue) in the next release |
 | Who sees it | People reading the issue | Everyone on that release, in the **Gallery**, sorted by **Popular** or **New** |
 

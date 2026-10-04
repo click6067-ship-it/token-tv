@@ -28,7 +28,8 @@ gives the same `token-tv` command.
 ![Digital, Neon, Pixel Retro, Sci-Fi HUD, Pixel and the animated Space face (sample data)](images/clock-faces.png)
 
 Pick one under **Clock display** in the dashboard, then press **Apply to clock**. Space is an animated
-GIF that the stock photo album plays; it is re-sent only when a number changes or every 30 minutes.
+GIF that the stock photo album plays. A picture is uploaded again only when the rendered image differs
+from the last upload, for example a new percentage or the Space animation that changes every 30 minutes.
 </details>
 
 ## Make it yours
@@ -37,11 +38,12 @@ GIF that the stock photo album plays; it is re-sent only when a number changes o
 [Game Boy example](../examples/gameboy) and ask your AI to change it. A face is one Python function
 that draws 240×240 pixels; [docs/clock-faces.md](clock-faces.md) walks through it with sample data.
 Copying the example or forking does not register it: after you add it to `RENDERERS` and
-`STYLES` as the guide shows, it appears in the dashboard's **Themes** list as *Local*. Keep your
+`STYLES` as the guide shows, it appears in the dashboard's **Gallery** as *Local*. Keep your
 copy locally, or fork if you want your version on GitHub.
 
-Want others to use it? Open a pull request with the *New clock face* template. Shared faces appear in
-**Themes** for everyone on the next release, sorted by **Popular** (👍 on each theme's GitHub issue)
+Want others to use it? Open a normal pull request and copy in the
+[New clock face checklist](../.github/PULL_REQUEST_TEMPLATE/theme.md). Shared faces appear in the
+**Gallery** for everyone on the next release, sorted by **Popular** (👍 on each theme's GitHub issue)
 or **New**. Likes are counted by hand before releases, so the list says when they were counted.
 
 <details>
