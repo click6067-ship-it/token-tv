@@ -9,7 +9,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
-from token_tv.device import FILES, PhotoDisplay
+from token_tv.device import FILES, open_display
 from token_tv.catalog import payload as theme_payload
 from token_tv.display import STYLES, render_page
 from token_tv.web_assets import HTML, ASSETS, asset
@@ -150,7 +150,7 @@ def main():
     if config.get("font"):
         os.environ["TOKEN_TV_FONT"] = config["font"]
     state_dir = Path(args.state_dir)
-    device = PhotoDisplay(config["device_url"]) if config.get("device_url") else None
+    device = open_display(config["device_url"]) if config.get("device_url") else None
     backup_path = state_dir / "display-original.json"
     if args.restore_display:
         if not device or not backup_path.is_file():
