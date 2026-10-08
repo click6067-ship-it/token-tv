@@ -1,4 +1,4 @@
-"""Confirmed SD_PRO photo API. Never flash or delete existing photographs."""
+"""Confirmed SD_PRO photo API, plus the SmallTV-Ultra image API. Never flash or delete existing photographs."""
 import json
 import uuid
 from urllib.parse import quote, urlencode, urlparse
@@ -79,3 +79,50 @@ class PhotoDisplay:
             for t in original["themes"]:
                 if t["enabled"] == enabled:
                     self.toggle("theme", "id", t["id"], enabled)
+
+
+class UltraDisplay(PhotoDisplay):
+    """SmallTV-Ultra (Ultra-V9) image API, read from the clock's own image.html and settings.html."""
+    PHOTO_THEME = 3
+
+    def capture(self):
+        _, raw = self.request("/app.json")
+        theme = json.loads(raw)["theme"]
+        _, raw = self.request("/album.json")
+        album = json.loads(raw)
+        return {"model": "ultra", "theme": theme, "autoplay": album["autoplay"], "i_i": album["i_i"]}
+
+    def upload(self, name, image):
+        limit, mime = LIMITS.get(name, (0, ""))
+        if not image or len(image) > limit:
+            raise ValueError("Unexpected display image")
+        boundary = "TokenTV" + uuid.uuid4().hex
+        body = (f'--{boundary}\r\nContent-Disposition: form-data; name="file"; filename="{name}"\r\n'
+                f'Content-Type: {mime}\r\n\r\n').encode() + image + f"\r\n--{boundary}--\r\n".encode()
+        status, _ = self.request("/doUpload?dir=/image/", body,
+                                 {"Content-Type": "multipart/form-data; boundary=" + boundary})
+        return {"file": name, "status": status, "bytes": len(image)}
+
+    def activate(self, original, name=FILES[0]):
+        # Stop the slideshow so the user's own photos never rotate in, show ours, select the album theme.
+        current = self.capture()
+        if current["autoplay"]:
+            self.request(f"/set?i_i={current['i_i']}&autoplay=0")
+        self.request("/set?img=" + quote("/image/" + name, safe=""))
+        if current["theme"] != self.PHOTO_THEME:
+            self.request(f"/set?theme={self.PHOTO_THEME}")
+
+    def restore(self, original):
+        self.request(f"/set?i_i={int(original['i_i'])}&autoplay={int(original['autoplay'])}")
+        self.request(f"/set?theme={int(original['theme'])}")
+
+
+def open_display(base_url):
+    display = PhotoDisplay(base_url)
+    try:
+        _, raw = display.request("/v.json")
+        if "Ultra" in json.loads(raw).get("m", ""):
+            return UltraDisplay(base_url)
+    except (OSError, ValueError, AttributeError):
+        pass  # ponytail: model checked once at start; an Ultra offline at launch falls back to SD_PRO until restart
+    return display
