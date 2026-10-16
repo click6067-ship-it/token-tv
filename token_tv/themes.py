@@ -12,7 +12,7 @@ from pathlib import Path
 from PIL import Image, ImageDraw, ImageFilter, ImageFont
 
 from token_tv.display import (
-    PROVIDER_INK, account_label, mascot, overview_rows, reading, row_shift,
+    PROVIDER_INK, account_label, mascot, overview_rows, quota_period, reading, row_shift, time_left,
 )
 
 WEB = Path(__file__).with_name('web')
@@ -454,6 +454,63 @@ def render_retro(snapshot):
     return cv.finish()
 
 
+def render_dual(snapshot):
+    """Pixel Retro cards with both the 5-hour and the weekly window per account, not just the more used one."""
+    outline_ink, cream, dim, old_ink = '#0a0d26', '#fff3d6', '#b9d2ff', '#ff9a9a'
+    ground = {'claude': '#371428', 'codex': '#05201a', 'grok': '#120c33'}
+    cv = Canvas('#0a0f2c')
+    rnd = random.Random(5)
+    for _ in range(70):
+        cv.back.point((rnd.randrange(0, SIZE), rnd.randrange(0, SIZE)), fill=rnd.choice(('#ffffff', '#b9c8ff', '#ffe9a8')))
+    title = lambda s: face('press-start-2p.ttf', s)
+    rows = overview_rows(snapshot)
+    compact = len(rows) == 3  # three services: no mascot, smaller cards
+    card_h, gap = (76, 4) if compact else (116, 4)
+    top = (SIZE - len(rows) * card_h - (len(rows) - 1) * gap) // 2
+    for index, row in enumerate(rows):
+        y = top + index * (card_h + gap)
+        a, _ = ACCENT['retro'][row['provider']]
+        cv.back.rectangle((6, y + 2, 233, y + card_h - 3), fill=ground[row['provider']])
+        pixel_scene(cv, row['provider'], y)
+        cv.back.rectangle((4, y, 235, y + card_h - 1), outline=outline_ink, width=2)
+        cv.back.rectangle((6, y + 2, 233, y + card_h - 3), outline=a, width=2)
+        for cx, cy in ((4, y), (234, y), (4, y + card_h - 2), (234, y + card_h - 2)):
+            cv.back.rectangle((cx, cy, cx + 1, cy + 1), fill='#0a0f2c')
+        if compact:
+            label_xy, first, pitch = (12, y + 6), y + 17, 27
+        else:
+            cv.draw.rectangle((11, y + 8, 50, y + 47), fill=outline_ink, outline=a, width=2)
+            if row['provider'] == 'grok':
+                cv.draw.rectangle((16, y + 13, 45, y + 42), fill='#d9ccff')
+            mascot(cv.ink, row['provider'], (7, y + 4), pixel=True, size=32)
+            label_xy, first, pitch = (57, y + 12), y + 51, 32
+        cv.text(label_xy, account_label(row), title(8), cream, stroke_width=1, stroke_fill=outline_ink)
+        # The windows the service reports, 5-hour first, then weekly, then any other (a Grok budget); at most two.
+        order = {'5H': 0, 'WEEK': 1}
+        lines = sorted(row['windows'], key=lambda w: order.get(w['label'], 2))[:2]
+        old = row['status'] != 'ok'
+        if not lines:  # LOGIN, WAIT, NO DATA ...: say why, and keep two empty lines
+            cv.text((229, label_xy[1]), reading(row)[1], title(8), old_ink, anchor='ra', stroke_width=1, stroke_fill=outline_ink)
+            lines = [None, None]
+        for k, w in enumerate(lines):
+            used = max(0, min(100, w['used_percent'])) if w else None
+            reset = time_left(w.get('resets_at')).upper() if w else '--'
+            by = first + k * pitch
+            name = quota_period(w) if w else ('5H', 'WK')[k]
+            cv.text((12, by + 5), name, title(8), dim, stroke_width=1, stroke_fill=outline_ink)
+            x = max(38, 12 + round(cv.draw.textlength(name, font=title(8))) + 10)
+            cv.text((x, by), number_text(used) + ('%' if used is not None else ''), title(16), cream,
+                    stroke_width=2, stroke_fill=outline_ink)
+            cv.text((229, by + 5), ('OLD ' if old and w else '') + reset, title(8), old_ink if old and w else cream,
+                    anchor='ra', stroke_width=1, stroke_fill=outline_ink)
+            bar_h = 8 if compact else 11
+            cv.draw.rectangle((10, by + 18, 229, by + 18 + bar_h), fill=outline_ink)
+            cv.draw.rectangle((11, by + 19, 228, by + 17 + bar_h), outline='#3a4fb0')
+            gauge(cv, (14, by + 21, 225, by + 15 + bar_h), used, band('retro', used or 0), gap=2, track='#19235f',
+                  empty='#3a4ea8', stale=old and w is not None, shade=True, stepped=True)
+    return cv.finish()
+
+
 def render_hud(snapshot):
     cv = Canvas('#03080e')
     for g in range(0, SIZE, 12):
@@ -528,4 +585,4 @@ def render_gameboy(data):
 
 
 
-RENDERERS = {'digital': render_digital, 'neon': render_neon, 'retro': render_retro, 'hud': render_hud, 'gameboy': render_gameboy}
+RENDERERS = {'dual': render_dual, 'digital': render_digital, 'neon': render_neon, 'retro': render_retro, 'hud': render_hud, 'gameboy': render_gameboy}
