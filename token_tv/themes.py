@@ -477,7 +477,7 @@ def render_dual(snapshot):
         for cx, cy in ((4, y), (234, y), (4, y + card_h - 2), (234, y + card_h - 2)):
             cv.back.rectangle((cx, cy, cx + 1, cy + 1), fill='#0a0f2c')
         if compact:
-            label_xy, first, pitch = (12, y + 6), y + 17, 27
+            label_xy, first, pitch = (12, y + 6), y + 16, 28
         else:
             cv.draw.rectangle((11, y + 8, 50, y + 47), fill=outline_ink, outline=a, width=2)
             if row['provider'] == 'grok':
@@ -485,16 +485,16 @@ def render_dual(snapshot):
             mascot(cv.ink, row['provider'], (7, y + 4), pixel=True, size=32)
             label_xy, first, pitch = (57, y + 12), y + 51, 32
         cv.text(label_xy, account_label(row), title(8), cream, stroke_width=1, stroke_fill=outline_ink)
-        # The windows the service reports, 5-hour first, then weekly, then any other (a Grok budget); at most two.
-        order = {'5H': 0, 'WEEK': 1}
-        lines = sorted(row['windows'], key=lambda w: order.get(w['label'], 2))[:2]
+        # Always two lines: the 5-hour window (or the service's only other window, e.g. a Grok budget), then the
+        # weekly one. A window the service did not report is a dash and an empty bar, never a guess.
+        windows = {w['label']: w for w in row['windows']}
+        short = windows.get('5H') or next((w for w in row['windows'] if w['label'] != 'WEEK'), None)
         old = row['status'] != 'ok'
-        if not lines:  # LOGIN, WAIT, NO DATA ...: say why, and keep two empty lines
+        if not row['windows']:  # LOGIN, WAIT, NO DATA ...: say why both lines are empty
             cv.text((229, label_xy[1]), reading(row)[1], title(8), old_ink, anchor='ra', stroke_width=1, stroke_fill=outline_ink)
-            lines = [None, None]
-        for k, w in enumerate(lines):
+        for k, w in enumerate((short, windows.get('WEEK'))):
             used = max(0, min(100, w['used_percent'])) if w else None
-            reset = time_left(w.get('resets_at')).upper() if w else '--'
+            reset = time_left(w.get('resets_at')).upper() if w else ''
             by = first + k * pitch
             name = quota_period(w) if w else ('5H', 'WK')[k]
             cv.text((12, by + 5), name, title(8), dim, stroke_width=1, stroke_fill=outline_ink)
@@ -503,10 +503,10 @@ def render_dual(snapshot):
                     stroke_width=2, stroke_fill=outline_ink)
             cv.text((229, by + 5), ('OLD ' if old and w else '') + reset, title(8), old_ink if old and w else cream,
                     anchor='ra', stroke_width=1, stroke_fill=outline_ink)
-            bar_h = 8 if compact else 11
-            cv.draw.rectangle((10, by + 18, 229, by + 18 + bar_h), fill=outline_ink)
-            cv.draw.rectangle((11, by + 19, 228, by + 17 + bar_h), outline='#3a4fb0')
-            gauge(cv, (14, by + 21, 225, by + 15 + bar_h), used, band('retro', used or 0), gap=2, track='#19235f',
+            bar_top, bar_h = (by + 17, 8) if compact else (by + 18, 11)
+            cv.draw.rectangle((10, bar_top, 229, bar_top + bar_h), fill=outline_ink)
+            cv.draw.rectangle((11, bar_top + 1, 228, bar_top + bar_h - 1), outline='#3a4fb0')
+            gauge(cv, (14, bar_top + 3, 225, bar_top + bar_h - 3), used, band('retro', used or 0), gap=2, track='#19235f',
                   empty='#3a4ea8', stale=old and w is not None, shade=True, stepped=True)
     return cv.finish()
 
