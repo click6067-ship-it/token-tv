@@ -8,7 +8,7 @@ not "probably fine".
 | Clock | Firmware web UI | What TokenTV uses | Checked |
 | --- | --- | --- | --- |
 | The author's 240×240 GeekMagic SmallTV-style Wi-Fi clock (receipt: ₩5,650 on a Korean AliExpress discount; prices vary by region) | Stock firmware with the **SD_PRO** web UI and a photo album | `/theme/list`, `/photo/list`, `/photo/upload`, photo theme id `2` | One unit, Linux host |
-| GeekMagic **SmallTV-Ultra** | Stock firmware `Ultra-V9.0.54` (`/v.json` reports `SmallTV-Ultra`) | `/app.json`, `/album.json`, `/doUpload?dir=/image/`, `/set?img=`, Photo Album theme `3` | The contributor's unit, running this release's code: photos and a display receipt in [#7](https://github.com/click6067-ship-it/token-tv/pull/7). The author has no Ultra |
+| GeekMagic **SmallTV-Ultra** | Stock firmware `Ultra-V9.0.54` (`/v.json` reports `SmallTV-Ultra`) | `/app.json`, `/album.json`, `/doUpload?dir=/image/`, `/set?img=`, Photo Album theme `3` | The contributor's unit, running this release's code: photos and a display receipt in [#7](https://github.com/click6067-ship-it/token-tv/pull/7). A second unit on a Raspberry Pi 4 (Linux aarch64), static and animated (GIF) faces: [#10](https://github.com/click6067-ship-it/token-tv/pull/10). The author has no Ultra |
 
 TokenTV never flashes firmware and never deletes your photos. It uploads one picture, switches the
 clock to its photo theme, and `token-tv run --restore-display` puts the original theme back.
@@ -18,11 +18,16 @@ the theme and autoplay back, but there is no known way to read which photo was s
 TokenTV's picture can stay in the album. Delete `tokentv.jpg` / `tokentv.gif` on the clock's image page
 if you want them gone.
 
+A new SmallTV-Ultra has no `/app.json` (it answers 404) until its theme is changed for the first time.
+TokenTV then records that there was no saved theme, switches to the Photo Album as usual, and on restore
+puts autoplay back but leaves the theme alone. Pick a theme on the clock's settings page afterwards if you
+want a different one.
+
 ## Not verified
 
 - Other GeekMagic models, SmallTV Pro, and clones that look the same. A similar case is not evidence
   of the same firmware.
-- SmallTV-Ultra on firmware other than `Ultra-V9.0.54`, and animated (GIF) faces on the Ultra.
+- SmallTV-Ultra on firmware other than `Ultra-V9.0.54`.
 - Firmware without the photo album page or with different photo API paths.
 - macOS and Windows hosts.
 
