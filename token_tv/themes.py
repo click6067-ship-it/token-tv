@@ -12,7 +12,7 @@ from pathlib import Path
 from PIL import Image, ImageDraw, ImageFilter, ImageFont
 
 from token_tv.display import (
-    PROVIDER_INK, account_label, mascot, overview_rows, reading, row_shift,
+    PROVIDER_INK, account_label, mascot, overview_rows, quota_period, reading, row_shift, time_left,
 )
 
 WEB = Path(__file__).with_name('web')
@@ -454,6 +454,71 @@ def render_retro(snapshot):
     return cv.finish()
 
 
+def retro_dual_windows(row):
+    """The 5-hour and the weekly window, None where missing. A window of another length (Codex `WINDOW`,
+    a Grok budget) fills whichever is empty, so a reported value is never dropped."""
+    by_label = {w['label']: w for w in row['windows']}
+    rest = iter([w for w in row['windows'] if w['label'] not in ('5H', 'WEEK')])
+    return by_label.get('5H') or next(rest, None), by_label.get('WEEK') or next(rest, None)
+
+
+def render_retro_dual(snapshot):
+    """Pixel Retro cards with both the 5-hour and the weekly window per account, not just the more used one."""
+    outline_ink, cream, dim, old_ink = '#0a0d26', '#fff3d6', '#b9d2ff', '#ff9a9a'
+    ground = {'claude': '#371428', 'codex': '#05201a', 'grok': '#120c33'}
+    cv = Canvas('#0a0f2c')
+    rnd = random.Random(5)
+    for _ in range(70):
+        cv.back.point((rnd.randrange(0, SIZE), rnd.randrange(0, SIZE)), fill=rnd.choice(('#ffffff', '#b9c8ff', '#ffe9a8')))
+    title = lambda s: face('press-start-2p.ttf', s)
+    rows = overview_rows(snapshot)
+    # One or two services get tall cards with the mascot; three get compact cards without it.
+    #       card height, label (x, dy), first line dy, line pitch, bar dy, bar height
+    full = 116, (57, 12), 50, 31, 18, 11
+    compact = 76, (12, 6), 16, 28, 17, 8
+    with_mascot = len(rows) < 3
+    card_h, (label_x, label_dy), first, pitch, bar_dy, bar_h = full if with_mascot else compact
+    gap = 4
+    top = (SIZE - len(rows) * card_h - (len(rows) - 1) * gap) // 2
+    for index, row in enumerate(rows):
+        y = top + index * (card_h + gap)
+        a, _ = ACCENT['retro'][row['provider']]
+        cv.back.rectangle((6, y + 2, 233, y + card_h - 3), fill=ground[row['provider']])
+        pixel_scene(cv, row['provider'], y)
+        cv.back.rectangle((4, y, 235, y + card_h - 1), outline=outline_ink, width=2)
+        cv.back.rectangle((6, y + 2, 233, y + card_h - 3), outline=a, width=2)
+        for cx, cy in ((4, y), (234, y), (4, y + card_h - 2), (234, y + card_h - 2)):
+            cv.back.rectangle((cx, cy, cx + 1, cy + 1), fill='#0a0f2c')
+        if with_mascot:
+            cv.draw.rectangle((11, y + 8, 50, y + 47), fill=outline_ink, outline=a, width=2)
+            if row['provider'] == 'grok':
+                cv.draw.rectangle((16, y + 13, 45, y + 42), fill='#d9ccff')
+            mascot(cv.ink, row['provider'], (7, y + 4), pixel=True, size=32)
+        cv.text((label_x, y + label_dy), account_label(row), title(8), cream, stroke_width=1, stroke_fill=outline_ink)
+        if not row['windows']:  # LOGIN, WAIT, NO DATA ...: say why both lines are empty
+            cv.text((229, y + label_dy), reading(row)[1], title(8), old_ink, anchor='ra', stroke_width=1, stroke_fill=outline_ink)
+        old = row['status'] != 'ok'
+        for k, (default_name, w) in enumerate(zip(('5H', 'WK'), retro_dual_windows(row))):
+            # A window nobody reported: a dash, no reset time and an empty bar.
+            name, used, number, right, right_ink, stale = default_name, None, '--', '', cream, False
+            if w:
+                used = max(0, min(100, w['used_percent']))
+                name, number, right = quota_period(w), number_text(used) + '%', time_left(w.get('resets_at')).upper()
+                if old:
+                    right, right_ink, stale = 'OLD ' + right, old_ink, True
+            by = y + first + k * pitch
+            cv.text((12, by + 5), name, title(8), dim, stroke_width=1, stroke_fill=outline_ink)
+            number_x = max(38, 12 + round(cv.draw.textlength(name, font=title(8))) + 10)  # clear of a long name
+            cv.text((number_x, by), number, title(16), cream, stroke_width=2, stroke_fill=outline_ink)
+            cv.text((229, by + 5), right, title(8), right_ink, anchor='ra', stroke_width=1, stroke_fill=outline_ink)
+            bar_top = by + bar_dy
+            cv.draw.rectangle((10, bar_top, 229, bar_top + bar_h), fill=outline_ink)
+            cv.draw.rectangle((11, bar_top + 1, 228, bar_top + bar_h - 1), outline='#3a4fb0')
+            gauge(cv, (14, bar_top + 3, 225, bar_top + bar_h - 3), used, band('retro', used or 0), gap=2, track='#19235f',
+                  empty='#3a4ea8', stale=stale, shade=True, stepped=True)
+    return cv.finish()
+
+
 def render_hud(snapshot):
     cv = Canvas('#03080e')
     for g in range(0, SIZE, 12):
@@ -528,4 +593,4 @@ def render_gameboy(data):
 
 
 
-RENDERERS = {'digital': render_digital, 'neon': render_neon, 'retro': render_retro, 'hud': render_hud, 'gameboy': render_gameboy}
+RENDERERS = {'digital': render_digital, 'neon': render_neon, 'retro': render_retro, 'hud': render_hud, 'gameboy': render_gameboy, 'retro-dual': render_retro_dual}
