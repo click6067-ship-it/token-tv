@@ -454,7 +454,7 @@ def render_retro(snapshot):
     return cv.finish()
 
 
-def render_dual(snapshot):
+def render_retro_dual(snapshot):
     """Pixel Retro cards with both the 5-hour and the weekly window per account, not just the more used one."""
     outline_ink, cream, dim, old_ink = '#0a0d26', '#fff3d6', '#b9d2ff', '#ff9a9a'
     ground = {'claude': '#371428', 'codex': '#05201a', 'grok': '#120c33'}
@@ -483,16 +483,18 @@ def render_dual(snapshot):
             if row['provider'] == 'grok':
                 cv.draw.rectangle((16, y + 13, 45, y + 42), fill='#d9ccff')
             mascot(cv.ink, row['provider'], (7, y + 4), pixel=True, size=32)
-            label_xy, first, pitch = (57, y + 12), y + 51, 32
+            label_xy, first, pitch = (57, y + 12), y + 50, 31
         cv.text(label_xy, account_label(row), title(8), cream, stroke_width=1, stroke_fill=outline_ink)
-        # Always two lines: the 5-hour window (or the service's only other window, e.g. a Grok budget), then the
-        # weekly one. A window the service did not report is a dash and an empty bar, never a guess.
+        # Always a 5-hour and a weekly line. A window of another length (Codex `WINDOW`, a Grok budget) fills
+        # whichever line is empty, so a reported value is never dropped; a line nobody reported is a dash.
         windows = {w['label']: w for w in row['windows']}
-        short = windows.get('5H') or next((w for w in row['windows'] if w['label'] != 'WEEK'), None)
+        rest = [w for w in row['windows'] if w['label'] not in ('5H', 'WEEK')]
+        short = windows.get('5H') or (rest.pop(0) if rest else None)
+        long = windows.get('WEEK') or (rest.pop(0) if rest else None)
         old = row['status'] != 'ok'
         if not row['windows']:  # LOGIN, WAIT, NO DATA ...: say why both lines are empty
             cv.text((229, label_xy[1]), reading(row)[1], title(8), old_ink, anchor='ra', stroke_width=1, stroke_fill=outline_ink)
-        for k, w in enumerate((short, windows.get('WEEK'))):
+        for k, w in enumerate((short, long)):
             used = max(0, min(100, w['used_percent'])) if w else None
             reset = time_left(w.get('resets_at')).upper() if w else ''
             by = first + k * pitch
@@ -585,4 +587,4 @@ def render_gameboy(data):
 
 
 
-RENDERERS = {'dual': render_dual, 'digital': render_digital, 'neon': render_neon, 'retro': render_retro, 'hud': render_hud, 'gameboy': render_gameboy}
+RENDERERS = {'digital': render_digital, 'neon': render_neon, 'retro': render_retro, 'hud': render_hud, 'gameboy': render_gameboy, 'retro-dual': render_retro_dual}

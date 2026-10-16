@@ -23,7 +23,7 @@ PROVIDER_INK = {'claude': '#d68e68', 'codex': '#a799e5', 'grok': '#cbd1d7'}
 ICON_PAPER = PROVIDER_INK['grok']
 FONT_MAIN = '/usr/share/fonts/truetype/dejavu/DejaVuSans'
 FONT_NUMBERS = '/usr/share/fonts/truetype/dejavu/DejaVuSansMono'
-STYLES = ('pixel', 'digital', 'neon', 'retro', 'hud', 'space', 'gameboy', 'dual')
+STYLES = ('pixel', 'digital', 'neon', 'retro', 'hud', 'space', 'gameboy', 'retro-dual')
 # Gauge-only levels; labels/percentages always use TEXT, logos retain provider ink.
 GAUGE_LEVELS = ((50, '#76a99a'), (80, '#93c9b9'), (90, '#d1b275'), (101, '#d8877e'))
 STATUS = {'loading': 'WAIT', 'auth_required': 'LOGIN', 'identity_mismatch': 'CHECK',
@@ -342,7 +342,7 @@ function el(tag,text,cls){const e=document.createElement(tag);if(text!==undefine
 function reset(value){if(!value)return '--';let m=Math.max(0,Math.ceil((value-Date.now()/1000)/60));return m>=1440?Math.floor(m/1440)+'d '+Math.floor(m%1440/60)+'h':Math.floor(m/60)+'h '+m%60+'m'}
 let selectedStyle=null,displayInfo=null,busy=false,localError=false;
 const styles=['pixel','clean','arcade','columns','orbit','digital','neon','retro','modern','sakura'];
-const styleName=s=>s==='retro'?'Pixel Retro':s?s.charAt(0).toUpperCase()+s.slice(1):'Pixel';
+const styleName=s=>s==='retro'?'Pixel Retro':s==='retro-dual'?'Pixel Retro Dual':s?s.charAt(0).toUpperCase()+s.slice(1):'Pixel';
 function paintStyle(){
 const choice=selectedStyle||'pixel';
 for(const s of styles){const b=document.querySelector('#'+s);b.setAttribute('aria-pressed',String(s===choice));b.disabled=busy}
