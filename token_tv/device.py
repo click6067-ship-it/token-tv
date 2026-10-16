@@ -2,6 +2,7 @@
 import json
 import uuid
 from http.client import HTTPException
+from urllib.error import HTTPError
 from urllib.parse import quote, urlencode, urlparse
 from urllib.request import Request, urlopen
 
@@ -102,8 +103,14 @@ class UltraDisplay(PhotoDisplay):
     PHOTO_THEME = 3
 
     def capture(self):
-        _, raw = self.request("/app.json")
-        theme = json.loads(raw)["theme"]
+        # A new clock has no /app.json (404) until its theme is first changed: there is no saved theme to restore.
+        try:
+            _, raw = self.request("/app.json")
+            theme = json.loads(raw)["theme"]
+        except HTTPError as error:
+            if error.code != 404:
+                raise
+            theme = None
         _, raw = self.request("/album.json")
         album = json.loads(raw)
         return {"model": self.MODEL, "theme": theme, "autoplay": album["autoplay"], "i_i": album["i_i"]}
@@ -132,7 +139,8 @@ class UltraDisplay(PhotoDisplay):
     def restore(self, original):
         # There is no known way to read the previously shown image, so only the album settings and theme return.
         self.request(f"/set?i_i={int(original['i_i'])}&autoplay={int(original['autoplay'])}")
-        self.request(f"/set?theme={int(original['theme'])}")
+        if original["theme"] is not None:
+            self.request(f"/set?theme={int(original['theme'])}")
 
 
 def open_display(base_url):

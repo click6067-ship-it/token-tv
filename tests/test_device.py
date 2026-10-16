@@ -9,6 +9,7 @@ from contextlib import contextmanager
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from unittest.mock import patch
+from urllib.error import HTTPError
 from urllib.parse import parse_qs, urlparse
 
 from token_tv import live
@@ -131,6 +132,8 @@ def ultra_clock(state, calls):
             if url.path == "/v.json":
                 return self.reply({"m": "SmallTV-Ultra", "v": "Ultra-V9.0.54"})
             if url.path == "/app.json":
+                if state["theme"] is None:  # a new unit has no /app.json until its theme is first set
+                    return self.reply({}, 404)
                 return self.reply({"theme": state["theme"]})
             if url.path == "/album.json":
                 return self.reply({"autoplay": state["autoplay"], "i_i": state["i_i"]})
@@ -223,6 +226,32 @@ class UltraTests(unittest.TestCase):
             self.assertEqual(self.state["files"], {"cat.jpg": b"CAT", "tokentv.jpg": b"EXACT-JPEG", "tokentv.gif": b"GIF89a-EXACT"})
             paths = [c[1] for c in self.calls]
             self.assertFalse(any(word in p for p in paths for word in ("delete", "clear", "reset", "reboot", "update")))
+
+    def test_new_ultra_without_app_json_is_backed_up_shown_and_left_on_the_album(self):
+        # Seen on a new Ultra-V9.0.54 unit: /app.json is 404 until the theme is changed once.
+        self.state["theme"] = None
+        with serve(ultra_clock(self.state, self.calls)) as url:
+            display = open_display(url)
+            original = display.capture()
+            self.assertEqual(original, {"model": "ultra", "theme": None, "autoplay": 1, "i_i": 5})
+            self.assertEqual(json.loads(json.dumps(original)), original)  # survives display-original.json
+
+            start = len(self.calls)
+            display.activate(original)
+            self.assertEqual(self.calls[start:], [("GET", "/app.json"), ("GET", "/album.json"), ("GET", "/set?i_i=5&autoplay=0"),
+                                                  ("GET", "/set?theme=3"), ("GET", "/set?img=%2Fimage%2Ftokentv.jpg")])
+            self.assertEqual((self.state["theme"], self.state["img"]), (3, "/image/tokentv.jpg"))
+
+            # No theme was saved, so restoring puts autoplay back and does not invent a theme.
+            start = len(self.calls)
+            display.restore(original)
+            self.assertEqual(self.calls[start:], [("GET", "/set?i_i=5&autoplay=1")])
+
+    def test_ultra_app_json_errors_other_than_404_still_fail(self):
+        with serve(answering(500, b"")) as url:
+            with self.assertRaises(HTTPError) as raised:
+                UltraDisplay(url).capture()
+        self.assertEqual(raised.exception.code, 500)
 
     def test_ultra_activate_does_not_copy_clock_values_into_the_query(self):
         self.state["i_i"] = "5&theme=0"
