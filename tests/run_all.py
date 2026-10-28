@@ -10,8 +10,13 @@ import unittest
 
 
 class ColdResult(unittest.TextTestResult):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.passed = 0
+
     def addSuccess(self, test):
         super().addSuccess(test)
+        self.passed += 1
         self.stream.writeln(f"PASS {test.id()}")
 
 
@@ -22,7 +27,7 @@ def main():
     os.chdir(root)
     suite = unittest.defaultTestLoader.discover(str(root / "tests"))
     result = unittest.TextTestRunner(
-        stream=sys.stdout, verbosity=0, resultclass=ColdResult,
+        stream=sys.stdout, verbosity=0, resultclass=ColdResult, buffer=True,
     ).run(suite)
     for test, _ in result.failures + result.errors:
         print(f"FAIL {test.id()}")
@@ -30,7 +35,7 @@ def main():
         print(f"FAIL {test.id()} (unexpected success)")
     if not result.wasSuccessful():
         return 1
-    if result.testsRun == len(result.skipped) + len(result.expectedFailures):
+    if not result.passed:
         print("== NO_TESTS: no passing tests ==")
         return 2
     return 0
