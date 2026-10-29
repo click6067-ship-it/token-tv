@@ -7,15 +7,29 @@ Everything that used to be in the README. Written for people and for AI coding a
 Needs Python 3.10+ and the official CLI (`claude`, `codex` or `grok`) for each provider you use.
 
 ```bash
-pipx install token-tv                             # or: pip install --user token-tv
-token-tv demo                                     # every clock face with sample data, no login
-token-tv setup                                    # asks for emails (up to 3 per provider) and the clock IP
-token-tv doctor --live                            # asks each provider now; says what is missing and the fix
-token-tv run                                      # dashboard at http://127.0.0.1:8787, drives the clock
+npx token-tv start          # or: uvx token-tv start · or: pipx install token-tv && token-tv start
 ```
 
-`uvx token-tv demo` (uv) or `npx token-tv demo` (Node) runs it without installing. From a clone,
-`pip install .` gives the same `token-tv` command.
+`start` finds the Claude, Codex and Grok CLIs that are signed in and asks you to confirm each email, looks for
+the clock on your Wi-Fi (or asks for its address, shown on the clock's screen when it starts), asks once whether
+TokenTV should start with the computer and keep running, then opens the dashboard at http://127.0.0.1:8787.
+Choices on the command line: `--face pixel` (default `arcade`), `--only codex` (or `claude,codex`),
+`--device-url 192.168.0.50`. The [live demo](https://token-tv.vercel.app) writes this line for you.
+`npx token-tv autostart off` stops the background copy (`uvx token-tv ...` or `token-tv ...`, the way you
+started it); `autostart on` sets it up again. On Windows, off stops it from starting with the computer, and the copy
+running now stops when you sign out.
+If the router later gives the clock a new address, TokenTV finds it again on its own.
+
+More accounts or more control:
+
+```bash
+token-tv demo                 # every clock face with sample data, no login
+token-tv setup                # asks for emails (up to 3 per provider) and the clock IP
+token-tv doctor --live        # asks each provider now; says what is missing and the fix
+token-tv run                  # dashboard at http://127.0.0.1:8787, drives the clock
+```
+
+From a clone, `pip install .` gives the same `token-tv` command.
 
 <p align="center"><img src="images/usage-examples.png" alt="Digital face at low, busy and near-limit usage (sample data)"></p>
 

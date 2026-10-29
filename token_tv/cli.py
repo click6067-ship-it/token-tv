@@ -1,6 +1,7 @@
 """token-tv: set up, check, preview and run TokenTV.
 
-    token-tv start     find your signed-in CLIs, ask for the clock, run (the easy way)
+    token-tv start     find your signed-in CLIs and the clock, keep it running (the easy way)
+    token-tv autostart start TokenTV with this computer (on), stop that (off), or check (status)
     token-tv setup     write a credential-free config (never overwrites one)
     token-tv doctor    check CLIs and login files (--live asks each provider)
     token-tv demo      render every clock face with sample data
@@ -15,6 +16,7 @@ import shutil
 import sys
 import time
 from pathlib import Path
+from http.client import HTTPException
 from urllib.parse import urlparse
 
 PROVIDERS = {
@@ -113,7 +115,7 @@ def setup(args):
     except ValueError as error:
         print(error, file=sys.stderr)
         return 1
-    config = {'poll_seconds': 60, 'accounts': accounts, 'display_style': 'digital'}
+    config = {'poll_seconds': 60, 'accounts': accounts, 'display_style': 'arcade'}
     if device:
         config['device_url'] = device
     try:
@@ -139,7 +141,7 @@ def read_config(path):
     from token_tv.sources import load_config
     path = Path(path).expanduser()
     if not path.is_file():
-        print(f'No config at {path}. Run: token-tv setup', file=sys.stderr)
+        print(f'No config at {path}. Run: token-tv start', file=sys.stderr)
         return None
     try:
         return load_config(path)
@@ -239,14 +241,95 @@ def demo(args):
     return 0
 
 
+PORTS = range(8787, 8797)  # the dashboard's port: the first one free, when another program has 8787
+
+
+def running(port):
+    """Whether a TokenTV dashboard already answers on this port of this computer (in the background, say)."""
+    from urllib.request import ProxyHandler, build_opener
+    try:
+        with build_opener(ProxyHandler({})).open(f'http://127.0.0.1:{port}/display', timeout=2) as response:
+            return 'styles' in json.loads(response.read(65536))
+    except (OSError, ValueError, TypeError, HTTPException):  # nothing there, or another program (ssh, say)
+        return False
+
+
+def dashboard_port():
+    """(port, True) where TokenTV already runs, else (the first free port, False), else (None, False)."""
+    import socket
+    for port in PORTS:  # a copy already running anywhere first, whichever port it took
+        if running(port):
+            return port, True
+    for port in PORTS:
+        with socket.socket() as probe:
+            try:
+                probe.bind(('127.0.0.1', port))
+            except OSError:
+                continue
+        return port, False
+    return None, False
+
+
+def pick_clock(interactive):
+    """The clock's address: found on this Wi-Fi, chosen when there are several, else asked; '' = dashboard only."""
+    from token_tv.device import find_clocks
+    print('Looking for your clock on this Wi-Fi...', flush=True)
+    found = find_clocks()
+    if len(found) == 1:
+        print(f'Found a clock at {urlparse(found[0]).hostname}')
+        return found[0]
+    if found and interactive:
+        for n, url in enumerate(found, 1):
+            print(f'  {n}. {urlparse(url).hostname}')
+        choice = ask('Which clock? Number', '1')
+        return found[int(choice) - 1] if choice.isdigit() and 1 <= int(choice) <= len(found) else found[0]
+    if found:
+        print(f'Found {len(found)} clocks; using {urlparse(found[0]).hostname} (pass --device-url to choose)')
+        return found[0]
+    if not interactive:
+        print('No clock found on this Wi-Fi: the dashboard runs without one (pass --device-url to add it).')
+        return ''
+    print('No clock found on this Wi-Fi. Its address shows on the clock screen when it starts.')
+    return ask('Clock address, e.g. 192.168.0.50 (blank = dashboard only)')
+
+
 def start(args):
-    """One command: find signed-in CLIs, confirm their emails, ask for the clock, then run."""
+    """One command: find signed-in CLIs and the clock, write the config, keep it running, open the dashboard."""
     from token_tv.sources import logged_in_email
+    port, already = dashboard_port()
+    url = f'http://127.0.0.1:{port}'
+    only = [p.strip().lower() for p in (args.only or '').split(',') if p.strip()]
+    if set(only) - set(PROVIDERS):
+        print(f'--only takes {", ".join(PROVIDERS)}', file=sys.stderr)
+        return 1
     path = Path(args.config).expanduser()
+    if already:
+        if path.exists():
+            config = read_config(path)
+            if config is None or refuses_only(path, config, only):
+                return 1
+            if args.face and config.get('display_style') != args.face:
+                show_face(port, args.face)
+        print(f'TokenTV is already running on this computer: {url}')
+        if only:
+            from token_tv import autostart
+            print(f'It reads its accounts when it starts: after changing them, restart it '
+                  f'({autostart.how()} autostart off, then {autostart.how()} start).')
+        if not args.no_browser:
+            import webbrowser
+            webbrowser.open(url)
+        return 0
+    if port is None:
+        print(f'Ports {PORTS[0]}-{PORTS[-1]} are all taken on this computer; free one and run token-tv start again.',
+              file=sys.stderr)
+        return 1
     interactive = not args.yes and sys.stdin.isatty()
-    if not path.exists():
+    existed = path.exists()
+    if not existed:
         accounts = []
         for provider, (_, home, _, _) in PROVIDERS.items():
+            if only and provider not in only:
+                continue
             if not cli_path(provider) or login_state(provider, home) == 'no':
                 continue
             email = logged_in_email(provider, home)
@@ -258,12 +341,13 @@ def start(args):
                              'email': email, 'source_home': home})
             print(f'{provider.title()}: {email}')
         if not accounts:
-            print('No signed-in Claude, Codex or Grok CLI found. Sign in to one (for example `claude`, then /login),\n'
+            wanted = ' or '.join(p.title() for p in only) if only else 'Claude, Codex or Grok'
+            print(f'No signed-in {wanted} CLI found. Sign in to one (for example `codex`, then log in),\n'
                   'or look around first with: token-tv demo', file=sys.stderr)
             return 1
         device = args.device_url
-        if device is None and interactive:
-            device = ask('Clock address shown on the clock screen, e.g. 192.168.0.50 (blank = dashboard only)')
+        if device is None:
+            device = pick_clock(interactive)
         if device and not device.startswith(('http://', 'https://')):
             device = 'http://' + device
         try:
@@ -271,7 +355,7 @@ def start(args):
         except ValueError as error:
             print(error, file=sys.stderr)
             return 1
-        config = {'poll_seconds': 60, 'accounts': accounts, 'display_style': 'digital'}
+        config = {'poll_seconds': 60, 'accounts': accounts, 'display_style': args.face or 'arcade'}
         if device:
             config['device_url'] = device
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -295,14 +379,88 @@ def start(args):
                   f'and --device-url is only used when that file is created.\n'
                   f'To use {wanted}, change device_url in that file, then run token-tv start again.', file=sys.stderr)
             return 1
+    if existed and refuses_only(path, config, only):
+        return 1
+    if args.face and config.get('display_style') != args.face:  # the face picked on the web demo, kept from now on
+        config['display_style'] = args.face
+        path.write_text(json.dumps(config, indent=2) + '\n')
+    from token_tv import autostart
+    if interactive and autostart.status() == 'off' and \
+            ask('Start TokenTV with this computer and keep it running? [Y/n]', 'y').lower().startswith('y'):
+        try:
+            print(autostart.install(path))
+        except OSError as error:
+            print(f'Could not set that up ({error}); running here instead (Ctrl+C to stop).')
+        else:
+            for _ in range(60):  # the background copy needs a moment to open its dashboard
+                port, up = dashboard_port()
+                if up:
+                    break
+                time.sleep(.5)
+            if not up:
+                print(f'The background copy has not opened its dashboard after 30 seconds. Check it with: '
+                      f'{autostart.how()} autostart status (its log: {autostart.log_hint()})', file=sys.stderr)
+                return 1
+            url = f'http://127.0.0.1:{port}'
+            if not args.no_browser:
+                import webbrowser
+                webbrowser.open(url)
+            print(f'Dashboard: {url}')
+            return 0
     if not args.no_browser:
         import threading
         import webbrowser
-        threading.Timer(1.5, webbrowser.open, ['http://127.0.0.1:8787']).start()
-    print('Dashboard: http://127.0.0.1:8787  (Ctrl+C to stop)')
+        threading.Timer(1.5, webbrowser.open, [url]).start()
+    print(f'Dashboard: {url}  (Ctrl+C to stop)')
     from token_tv import live
-    sys.argv = ['token-tv start', '--config', str(path), '--state-dir', str(path.parent / 'state')]
+    sys.argv = ['token-tv start', '--config', str(path), '--state-dir', str(path.parent / 'state'), '--port', str(port)]
     live.main()
+    return 0
+
+
+def refuses_only(path, config, only):
+    """True, having said why, when a saved config shows services that --only leaves out: --only picks the services
+    when the config is made; it never quietly drops accounts from one."""
+    extra = sorted({a.get('provider') for a in config.get('accounts', [])} - set(only)) if only else []
+    if extra:
+        print(f'{path} already lists {", ".join(extra)} as well, and --only is only used when that file is made.\n'
+              f'To keep only {", ".join(only)}, remove the others from that file (or move it away and run this '
+              f'again), then run token-tv start.', file=sys.stderr)
+    return bool(extra)
+
+
+def show_face(port, face):
+    """Switch the TokenTV running on this computer to `face`, as its dashboard's own button does."""
+    from urllib.request import ProxyHandler, Request, build_opener
+    request = Request(f'http://127.0.0.1:{port}/display/style', data=json.dumps({'style': face}).encode(),
+                      headers={'Content-Type': 'application/json'})
+    try:
+        build_opener(ProxyHandler({})).open(request, timeout=5).close()
+        print(f'The clock switches to {face}.')
+    except (OSError, HTTPException):
+        print(f'Could not switch the running TokenTV to {face}; pick it on its dashboard.', file=sys.stderr)
+
+
+def autostart_command(args):
+    from token_tv import autostart
+    if args.action == 'on':
+        if read_config(args.config) is None:
+            return 1
+        try:
+            print(autostart.install(Path(args.config).expanduser()))
+        except OSError as error:
+            print(f'Could not set it up: {error}', file=sys.stderr)
+            return 1
+    elif args.action == 'off':
+        try:
+            print(autostart.remove())
+        except OSError as error:
+            print(f'Could not stop it: {error}. Nothing was removed; try again.', file=sys.stderr)
+            return 1
+    else:
+        state = autostart.status()
+        print({'on': 'TokenTV starts with this computer.', 'off': 'TokenTV does not start with this computer.',
+               'other': 'Another program owns the TokenTV entry; TokenTV leaves it alone.'}[state])
     return 0
 
 
@@ -315,6 +473,7 @@ def passthrough(module, args, extra):
 
 
 def main(argv=None):
+    from token_tv.display import STYLES
     parser = argparse.ArgumentParser(prog='token-tv', description=__doc__,
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
     commands = parser.add_subparsers(dest='command', metavar='command')
@@ -329,10 +488,14 @@ def main(argv=None):
                    help='give every account its own login home instead of reusing your existing CLI login')
     s.add_argument('--device-url', help='clock address, e.g. http://192.168.0.50')
     s.add_argument('--yes', action='store_true', help='do not ask; use only the flags given')
-    st = commands.add_parser('start', parents=[config], help='find your signed-in CLIs, ask for the clock, and run')
-    st.add_argument('--device-url', help='clock address, e.g. 192.168.0.50')
+    st = commands.add_parser('start', parents=[config], help='find your signed-in CLIs and the clock, and run')
+    st.add_argument('--device-url', help='clock address, e.g. 192.168.0.50 (default: found on this Wi-Fi)')
+    st.add_argument('--face', choices=STYLES, help='clock face (default: arcade)')
+    st.add_argument('--only', metavar='SERVICES', help='only these, comma-separated: claude,codex,grok')
     st.add_argument('--yes', action='store_true', help='accept every signed-in account without asking')
     st.add_argument('--no-browser', action='store_true', help='do not open the dashboard in a browser')
+    a = commands.add_parser('autostart', parents=[config], help='start TokenTV with this computer, or stop that')
+    a.add_argument('action', choices=('on', 'off', 'status'))
     o = commands.add_parser('doctor', parents=[config], help='check CLIs and logins')
     o.add_argument('--live', action='store_true', help='ask each provider now and compare the email; the CLI may refresh an expired login; prints status only')
     d = commands.add_parser('demo', help='render every clock face with sample data')
@@ -359,7 +522,8 @@ def main(argv=None):
     if args.command is None:
         parser.print_help()
         return 0
-    return {'setup': setup, 'doctor': doctor, 'demo': demo, 'start': start}[args.command](args)
+    return {'setup': setup, 'doctor': doctor, 'demo': demo, 'start': start,
+            'autostart': autostart_command}[args.command](args)
 
 
 if __name__ == '__main__':

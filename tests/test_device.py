@@ -535,3 +535,24 @@ class UltraTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class FindClockTests(unittest.TestCase):
+    """The clock is found on the Wi-Fi, so nobody has to read its address off the screen."""
+    def test_only_clocks_answer_and_nothing_is_written(self):
+        sd_state, sd_calls = {"files": {"cat.jpg": b"CAT"}, "enabled": set(), "total": 3000000, "base": 1500000}, []
+        ultra_state, ultra_calls = {"theme": 1, "autoplay": 1, "i_i": 5, "img": "", "files": {}, "parts": []}, []
+        from token_tv.device import find_clocks
+        with serve(sd_pro_clock(sd_state, sd_calls)) as sd_pro, serve(ultra_clock(ultra_state, ultra_calls)) as ultra, \
+                serve(answering(404, b"")) as printer, serve(answering(200, b"<html>router</html>")) as router:
+            nobody = "http://127.0.0.1:9"  # nothing listens there
+            found = find_clocks([sd_pro, printer, ultra, router, nobody], timeout=2)
+        self.assertEqual(found, [sd_pro, ultra])
+        self.assertTrue(all(method == "GET" for method, *_ in sd_calls + ultra_calls))
+        self.assertEqual({path for _, path in sd_calls}, {"/v.json", "/photo/list"})
+
+    def test_this_computers_network_is_searched(self):
+        from token_tv import device
+        with patch.object(device, "local_prefixes", return_value=["192.168.7"]), \
+                patch.object(device, "clock_model", side_effect=lambda url, timeout: "sdpro" if url.endswith(".42") else None):
+            self.assertEqual(device.find_clocks(), ["http://192.168.7.42"])

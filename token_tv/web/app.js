@@ -256,9 +256,37 @@ function paintClock(forceImage = false) {
  const style = clockChoice || displayInfo?.style;
  $('#clock-style').disabled = applying || !displayInfo; $('#apply').disabled = DEMO || applying || !displayInfo || (style === displayInfo.style && displayInfo.status !== 'error' && !clockError);
  $('#apply').textContent = applying ? 'Sending image…' : 'Apply to clock'; $('#apply').dataset.state = applying ? 'loading' : clockError || displayInfo?.status === 'error' ? 'error' : displayInfo?.status === 'ok' ? 'success' : 'default';
- $('#display-state').textContent = DEMO ? 'Demo · install TokenTV to drive a real clock' : clockError ? 'Could not apply. Please retry.' : !displayInfo ? 'Clock status unavailable' : style !== displayInfo.style ? 'Preview only · Apply to send' : displayInfo.status === 'queued' ? 'Sending image…' : displayInfo.status === 'error' ? 'Clock upload failed. Please retry.' : displayInfo.status === 'preview_only' ? 'Preview only · No clock connected' : 'Image sent · ' + styleName(displayInfo.applied_style);
+ $('#display-state').textContent = DEMO ? 'Demo · sample data' : clockError ? 'Could not apply. Please retry.' : !displayInfo ? 'Clock status unavailable' : style !== displayInfo.style ? 'Preview only · Apply to send' : displayInfo.status === 'queued' ? 'Sending image…' : displayInfo.status === 'error' ? 'Clock upload failed. Please retry.' : displayInfo.status === 'preview_only' ? 'Preview only · No clock connected' : 'Image sent · ' + styleName(displayInfo.applied_style);
+ paintSetup();
  if (style && !$('#clock-panel').hidden && (forceImage || style !== lastImageStyle || Date.now() - lastImageAt > 30000)) {lastImageStyle = style; lastImageAt = Date.now(); $('#frame').src = DEMO ? displayInfo.frames?.[style] || `/frames/${encodeURIComponent(style)}.jpg` : '/frame/0.jpg?style=' + encodeURIComponent(style) + '&t=' + lastImageAt; $('#frame').alt = styleName(style) + ' live clock preview'}
 }
+// On the demo: the one command that puts the face and tools picked here on a real clock.
+function setupCommand() {
+ const face = clockChoice || displayInfo?.style || 'arcade', parts = ['start'];
+ const picked = [...document.querySelectorAll('#get-it input[type=checkbox]:checked')].map(b => b.value);
+ const address = $('#get-address').value.trim().replace(/^https?:\/\//, '').replace(/\/+$/, '');
+ // An IPv4 address or a host name, with a port if any: letters, digits, dots, hyphens, so any shell takes it as is.
+ const valid = /^[A-Za-z0-9.-]+(:\d{1,5})?$/.test(address);
+ $('#get-address').setAttribute('aria-invalid', String(Boolean(address) && !valid));
+ if (STYLE_IDS.test(face) && face !== 'arcade') parts.push('--face', face);
+ if (picked.length && picked.length < 3) parts.push('--only', picked.join(','));
+ if (address && valid) parts.push('--device-url', address);
+ const problem = !picked.length ? 'Pick at least one tool' : address && !valid ? 'Check the clock address, e.g. 192.168.0.50' : '';
+ return {tail: parts.join(' '), problem};
+}
+const STYLE_IDS = /^[a-z][a-z0-9-]*$/;
+function paintSetup() {
+ if (!DEMO) return;
+ const {tail, problem} = setupCommand();
+ $('#get-command').textContent = problem || 'npx token-tv ' + tail;
+ $('#get-uvx').textContent = problem ? '—' : 'uvx token-tv ' + tail; $('#get-copy').disabled = Boolean(problem);
+}
+$('#get-copy').onclick = async () => {
+ const text = $('#get-command').textContent;
+ try {await navigator.clipboard.writeText(text); $('#get-copy').textContent = 'Copied'} catch {const range = document.createRange(); range.selectNodeContents($('#get-command')); getSelection().removeAllRanges(); getSelection().addRange(range); $('#get-copy').textContent = 'Press Ctrl+C'}
+ setTimeout(() => {$('#get-copy').textContent = 'Copy'}, 2000);
+};
+$('#get-it').oninput = paintSetup;
 const styleName = s => s === 'retro' ? 'Pixel Retro' : s === 'retro-dual' ? 'Pixel Retro Dual' : s === 'hud' ? 'Sci-Fi HUD' : s ? s[0].toUpperCase() + s.slice(1) : 'Unknown';
 let displayPolling = false;
 async function refreshDisplay(forceImage = false) {if (displayPolling) return; displayPolling = true; try {const r = await fetch(DEMO ? '/demo-display.json' : '/display', {cache:'no-store'}); if (!r.ok) throw Error(); const data = await r.json(); const dirty = displayInfo && clockChoice !== displayInfo.style; displayInfo = data; if (!clockChoice || !dirty) clockChoice = data.style; const select = $('#clock-style'); if (!select.options.length) for (const s of data.styles) {const o = el('option', styleName(s)); o.value = s; select.append(o)} select.value = clockChoice; paintClock(forceImage); if (DEMO && themeData && !lastThumbFrames) {lastThumbFrames = true; paintThemes()}} catch {$('#display-state').textContent = 'Clock status unavailable'} finally {displayPolling = false}}
@@ -306,6 +334,7 @@ async function loadThemes() {try {const r = await fetch(DEMO ? '/demo-themes.jso
 document.querySelectorAll('.theme-sort button').forEach(b => {b.onclick = () => {themeSort = b.dataset.sort; paintThemes()}});
 $('#frame').onerror = () => {$('#display-state').textContent = 'Clock preview unavailable. Reopen to retry.'};
 
+if (DEMO) {$('#get-it').hidden = false; $('#apply').hidden = true; $('#clock-panel').hidden = false; $('#clock-toggle').setAttribute('aria-expanded', 'true')}  // the demo opens on how to get it
 $('#mascot').append(retroMascot()); buildStarfield(); tick();
 update(); refreshDisplay(); loadThemes(); setInterval(update, 30000); setInterval(tick, 1000); setInterval(() => {if (!$('#clock-panel').hidden) refreshDisplay()}, 5000);
 

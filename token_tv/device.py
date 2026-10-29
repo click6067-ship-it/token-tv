@@ -1,11 +1,18 @@
 """Confirmed SD_PRO photo API, plus the SmallTV-Ultra image API. Never flash or delete existing photographs."""
+import ipaddress
 import json
+import re
+import socket
+import subprocess
+import sys
 import time
 import uuid
+from concurrent.futures import ThreadPoolExecutor
 from http.client import HTTPException
+from pathlib import Path
 from urllib.error import HTTPError
 from urllib.parse import quote, urlencode, urlparse
-from urllib.request import Request, urlopen
+from urllib.request import ProxyHandler, Request, build_opener, urlopen
 
 
 FILES = ("tokentv.jpg", "tokentv.gif")
@@ -250,3 +257,84 @@ def open_display(base_url):
     except (OSError, ValueError, AttributeError, HTTPException):
         return display  # model checked once at start; an Ultra offline at launch falls back to SD_PRO until restart
     return UltraDisplay(base_url) if isinstance(model, str) and model.startswith("SmallTV-Ultra") else display
+
+
+def clock_model(base_url, timeout=3):
+    """'ultra' or 'sdpro' when a clock answers at `base_url`, else None. Read-only; an address where nothing answers
+    is asked once."""
+    opener = build_opener(ProxyHandler({}))  # a clock is on this network, never behind a proxy
+
+    def get(path):
+        with opener.open(Request(base_url + path), timeout=timeout) as response:
+            return json.loads(response.read(65536))
+    try:
+        model = get("/v.json").get("m")
+        if isinstance(model, str) and model.startswith("SmallTV"):
+            return "ultra" if model.startswith("SmallTV-Ultra") else "sdpro"
+    except HTTPError:
+        pass  # something answers there: an SD_PRO has no /v.json
+    except (OSError, ValueError, AttributeError, HTTPException):
+        return None
+    try:
+        listing = get("/photo/list")
+        if isinstance(listing.get("files"), list) and "total" in listing:
+            return "sdpro"
+    except (OSError, ValueError, AttributeError, HTTPException):
+        pass
+    return None
+
+
+def local_addresses():
+    """This computer's IPv4 addresses on every network it is on, as its own tools list them (a VPN may hold the
+    default route while the clock sits on the Wi-Fi). Under WSL, Windows' addresses too."""
+    found = []
+    probe = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    try:
+        probe.connect(("192.0.2.1", 9))  # sends nothing: only picks the interface the default route is on
+        found.append(probe.getsockname()[0])
+    except OSError:
+        pass
+    finally:
+        probe.close()
+    tools = [["ipconfig"]] if sys.platform == "win32" else [["ip", "-4", "-o", "addr", "show"], ["ifconfig"]]
+    try:
+        if "microsoft" in Path("/proc/version").read_text().lower():
+            tools.append(["ipconfig.exe"])
+    except OSError:
+        pass
+    for tool in tools:
+        try:
+            shown = subprocess.run(tool, capture_output=True, timeout=10).stdout.decode(errors="replace")
+        except (OSError, subprocess.SubprocessError):
+            continue
+        pattern = r"IPv4[^\n]*?(\d+\.\d+\.\d+\.\d+)" if tool[0].startswith("ipconfig") else r"inet (?:addr:)?(\d+\.\d+\.\d+\.\d+)"
+        found += re.findall(pattern, shown)
+    return found
+
+
+def local_prefixes():
+    """The first three parts of this computer's private addresses: a clock on the same Wi-Fi is beside one.
+    Home networks first; at most four, so the search stays a few seconds."""
+    prefixes = []
+    for address in local_addresses():
+        try:
+            ip = ipaddress.ip_address(address)
+        except ValueError:
+            continue
+        if ip.is_private and not (ip.is_loopback or ip.is_link_local or address.startswith("0.")):
+            prefix = address.rsplit(".", 1)[0]
+            if prefix not in prefixes:
+                prefixes.append(prefix)
+    return sorted(prefixes, key=lambda p: (not p.startswith("192.168."), not p.startswith("10.")))[:4]
+
+
+def find_clocks(candidates=None, timeout=3):
+    """The addresses of the clocks that answer on this computer's networks, so nobody has to read one off the clock.
+    Every address of each local /24 is asked at once, read-only: a few seconds."""
+    if candidates is None:
+        candidates = [f"http://{prefix}.{n}" for prefix in local_prefixes() for n in range(1, 255)]
+    if not candidates:
+        return []
+    with ThreadPoolExecutor(max_workers=min(256, len(candidates))) as pool:
+        models = list(pool.map(lambda url: clock_model(url, timeout), candidates))
+    return [url for url, model in zip(candidates, models) if model]

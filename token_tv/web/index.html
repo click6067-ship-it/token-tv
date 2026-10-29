@@ -64,6 +64,20 @@
       <button class="control primary" id="apply" type="button" disabled>Apply to clock</button>
       <p id="display-state" role="status">Loading clock status</p>
       <p class="quiet">240 × 240 · The web appearance is separate from your clock style.</p>
+      <section id="get-it" class="get-it" aria-labelledby="get-it-title" hidden>
+        <div class="aside-head"><div><p class="eyebrow">Get it</p><h2 id="get-it-title">On your clock</h2></div></div>
+        <fieldset class="get-services"><legend>Your AI tools</legend>
+          <label><input type="checkbox" value="claude" checked> Claude</label>
+          <label><input type="checkbox" value="codex" checked> Codex</label>
+          <label><input type="checkbox" value="grok" checked> Grok</label>
+        </fieldset>
+        <label for="get-address">Clock address · optional</label>
+        <input id="get-address" class="control" placeholder="found on your Wi-Fi" autocomplete="off" spellcheck="false">
+        <p class="quiet">Paste this into a terminal on the computer where you use them:</p>
+        <div class="get-command"><code id="get-command">npx token-tv start</code><button id="get-copy" class="control primary" type="button">Copy</button></div>
+        <p class="quiet" id="get-note">It finds your signed-in tools and the clock, asks once to keep running when the computer starts, and opens your dashboard. No Node? <code id="get-uvx">uvx token-tv start</code></p>
+        <p class="quiet">The clock: a GeekMagic SmallTV (SD_PRO or Ultra), <a href="https://github.com/click6067-ship-it/token-tv/blob/main/docs/hardware-compatibility.md">which ones work</a>.</p>
+      </section>
     </aside>
   </div>
   <section class="gallery" id="gallery" aria-labelledby="gallery-title">

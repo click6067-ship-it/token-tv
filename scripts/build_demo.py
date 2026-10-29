@@ -54,7 +54,7 @@ def build(out, site):
         name = f"{style}.{'gif' if image[:4] == b'GIF8' else 'jpg'}"  # Space is animated
         (frames / name).write_bytes(image)
         paths[style] = f'/frames/{name}'
-    display = {'style': 'digital', 'applied_style': 'digital', 'status': 'preview_only', 'styles': list(STYLES), 'frames': paths}
+    display = {'style': 'arcade', 'applied_style': 'arcade', 'status': 'preview_only', 'styles': list(STYLES), 'frames': paths}
     (out / 'demo-display.json').write_text(json.dumps(display))
     (out / 'demo-themes.json').write_text(json.dumps(theme_payload()))
     shutil.copy2(ROOT / 'docs' / 'images' / 'social-preview.png', out / 'og.png')

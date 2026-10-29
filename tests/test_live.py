@@ -173,3 +173,24 @@ class LoopTimingTests(unittest.TestCase):
         self.assertAlmostEqual(until_loop_end(shown, 101.0), 7.4)  # 1 s in
         self.assertAlmostEqual(until_loop_end(shown, 100.0 + 2 * 8.4), 0)  # right at the end of the second loop
         self.assertEqual(until_loop_end({'at': None, 'loop': None}, 5), 0)
+
+
+class RelocateTests(unittest.TestCase):
+    def test_a_clock_with_a_new_address_is_followed_only_when_it_is_the_one_clock(self):
+        from token_tv.live import relocate
+        old = 'http://192.168.0.50'
+        self.assertEqual(relocate(old, lambda: ['http://192.168.0.77']), 'http://192.168.0.77')
+        self.assertIsNone(relocate(old, lambda: [old]))  # still there: just busy
+        self.assertIsNone(relocate(old, lambda: []))  # off
+        self.assertIsNone(relocate(old, lambda: ['http://192.168.0.77', 'http://192.168.0.78']))  # which one?
+
+
+class LockTests(unittest.TestCase):
+    def test_one_tokentv_per_config(self):
+        import subprocess, sys, tempfile
+        from token_tv.live import hold_lock
+        folder = Path(tempfile.mkdtemp())
+        self.assertTrue(hold_lock(folder))
+        other = subprocess.run([sys.executable, '-c', 'import sys; from pathlib import Path; from token_tv.live import hold_lock; '
+                                'sys.exit(0 if hold_lock(Path(sys.argv[1])) else 3)', str(folder)], capture_output=True)
+        self.assertEqual(other.returncode, 3)  # a second process with the same config is refused

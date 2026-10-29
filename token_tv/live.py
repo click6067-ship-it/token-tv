@@ -1,5 +1,6 @@
 """Live account dashboard and stock-firmware image publisher."""
 import argparse
+import atexit
 import dataclasses
 import hashlib
 import json
@@ -33,6 +34,39 @@ def until_loop_end(shown, now):
         return 0
     wait = shown['loop'] - (now - shown['at']) % shown['loop']
     return 0 if wait > shown['loop'] - .1 else wait  # right on time is no reason to wait a whole loop
+
+
+LOST_POLLS = 3  # polls in a row the clock does not answer before TokenTV looks for it on the network again
+RESCAN_SECONDS = 1800  # and then at most this often while it stays lost (a clock that is simply off)
+
+
+def relocate(current, find=None):
+    """The clock's new address when exactly one clock answers on this network and not at `current`, else None."""
+    if find is None:
+        from token_tv.device import find_clocks as find
+    found = find()
+    return found[0] if len(found) == 1 and found[0] != current else None
+
+
+LOCKS = []  # open lock files, held for the life of the process
+
+
+def hold_lock(state_dir):
+    """One TokenTV per config: two would both drive the clock and the same state files. False if one runs."""
+    state_dir.mkdir(parents=True, exist_ok=True)
+    handle = open(state_dir / "live.lock", "a+")
+    try:
+        if os.name == "nt":
+            import msvcrt
+            msvcrt.locking(handle.fileno(), msvcrt.LK_NBLCK, 1)
+        else:
+            import fcntl
+            fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except OSError:
+        handle.close()
+        return False
+    LOCKS.append(handle)
+    return True
 
 
 def write_json(path, data):
@@ -86,6 +120,13 @@ class DisplayPreferences:
             self.style = style
             self.status = 'queued' if self.config.get('device_url') else 'preview_only'
         self.changed.set()
+
+    def set_device(self, url):
+        """The clock moved to `url` (the router gave it a new address): kept in the config from now on."""
+        with self.lock:
+            updated = dict(load_config(self.path), device_url=url)
+            write_json(self.path, updated)
+            self.config = updated
 
     def delivered(self, style, success):
         with self.lock:
@@ -224,6 +265,12 @@ def main():
     if config.get("font"):
         os.environ["TOKEN_TV_FONT"] = config["font"]
     state_dir = Path(args.state_dir)
+    if not (args.once or args.restore_display):
+        if not hold_lock(state_dir):
+            raise SystemExit("TokenTV is already running with this config on this computer.")
+        pid_file = state_dir / "live.pid"
+        pid_file.write_text(str(os.getpid()))  # how `autostart off` ends it on Windows; gone again at exit
+        atexit.register(lambda: pid_file.unlink(missing_ok=True))
     device = open_display(config["device_url"]) if config.get("device_url") else None
     backup_path = state_dir / "display-original.json"
     if args.restore_display:
@@ -257,12 +304,13 @@ def main():
     streaks = {}  # account key -> full periods in a row, at its last 'full'
 
     shown = {'at': None, 'loop': None}  # when the clock's GIF started, and its loop
+    lost = {'polls': 0, 'scanned': None}  # polls in a row the clock did not answer, and when it was last looked for
 
     def cycle(refresh=True, egg=None):
         """Read (if `refresh`), draw and upload; True once the clock has the picture. A new picture for a looping
         face lands as the one on the clock finishes its loop, so the animation never jumps back mid-move; a
         one-off's first picture goes at once."""
-        nonlocal original, last_upload
+        nonlocal original, last_upload, device
         delivered = False
         if refresh:
             store.refresh()
@@ -310,9 +358,27 @@ def main():
                 write_json(state_dir / "display-receipt.json", {"at": int(time.time()), "style": style, "uploads": receipts})
                 preferences.delivered(style, True)
                 delivered = True
+                lost['polls'] = 0
             except (OSError, ValueError, KeyError, HTTPException) as error:
                 if isinstance(error, BackupMismatch):
                     print(mismatch_message(error, backup_path), flush=True)
+                if isinstance(error, (OSError, HTTPException)):  # no answer, or another device answers there now
+                    lost['polls'] += 1
+                    if lost['polls'] >= LOST_POLLS and (lost['scanned'] is None or
+                                                       time.monotonic() - lost['scanned'] > RESCAN_SECONDS):
+                        lost['scanned'] = time.monotonic()
+                        moved = relocate(device.base_url)
+                        candidate = moved and open_display(moved)
+                        try:
+                            if candidate and original is not None:
+                                candidate.check_backup(original)  # the same kind of clock, or it is not ours
+                        except BackupMismatch:
+                            candidate = None
+                        if candidate:
+                            device = candidate
+                            preferences.set_device(moved)
+                            lost['polls'] = 0
+                            print(f"TokenTV found the clock at its new address {moved}.", flush=True)
                 write_json(state_dir / "display-receipt.json", {"at": int(time.time()), "style": style, "status": "error", "phase": phase,
                            "uploads": receipts, "http_status": getattr(error, "code", None)})
                 preferences.delivered(style, False)

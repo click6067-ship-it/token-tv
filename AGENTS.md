@@ -16,12 +16,14 @@ When the user says "Set up TokenTV for me":
 
 1. Install: `python3 -m venv .venv && .venv/bin/pip install -e .` (Windows: `.venv\Scripts\pip install -e .`),
    or with Node only: `npx token-tv demo`.
-2. Ask the user for the clock's IP address (shown on the clock's screen).
-3. Run `.venv/bin/token-tv start --device-url <ip>`. It finds the Claude, Codex and Grok CLIs that are already
-   signed in, reads each account's email through the official login, asks the user to confirm, saves the
-   config and opens the dashboard at http://127.0.0.1:8787. The user then presses Clock display → Apply.
+2. Run `.venv/bin/token-tv start` in a terminal the user can answer. It finds the Claude, Codex and Grok CLIs
+   that are already signed in, reads each account's email through the official login and asks the user to
+   confirm, looks for the clock on the Wi-Fi (or asks for the IP shown on the clock's screen; pass
+   `--device-url <ip>` if you know it), asks once whether to start with the computer, saves the config and
+   opens the dashboard at http://127.0.0.1:8787.
+3. `--only codex` limits it to the tools the user names; `--face pixel` picks another face (default arcade).
 4. If it says nothing is signed in, tell the user to sign in to the CLI they use (e.g. `claude`, then /login)
-   and run step 3 again. A second account of the same service: `.venv/bin/token-tv connect --account <key>`.
+   and run step 2 again. A second account of the same service: `.venv/bin/token-tv connect --account <key>`.
 
 Verified on Linux with one SD_PRO clock. Mac and Windows hosts are untested; report what fails.
 

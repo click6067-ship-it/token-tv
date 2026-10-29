@@ -1610,13 +1610,14 @@ RAINBOW = ((255, 90, 82), (255, 167, 38), (255, 213, 79), (102, 187, 106), (66, 
 # catch the eye of someone working next to the clock.
 BURST = {'unique': ((176, 124, 255), (214, 166, 255), (242, 228, 255), (236, 226, 255)),
          'legend': ((255, 170, 60), (255, 214, 107), (255, 244, 200), (255, 248, 230))}  # rays..., the flash
-BURST_FRAMES = {'unique': 14, 'legend': 20}
+BURST_FRAMES = {'unique': 4, 'legend': 5}
+BURST_PACE = {'unique': 3.5, 'legend': 4}  # their 14 and 20 steps at about four times the first pace (owner's pick)
 
 
 def light_burst(draw, f, tier, night=False):
     """The cut-in: rays from the middle, a flash and a white core; at night only the coloured rays."""
     rays, flash = BURST[tier][:3], BURST[tier][3]
-    n, cx, cy = BURST_FRAMES[tier], SIZE * .42, SIZE * .58
+    f, n, cx, cy = f * BURST_PACE[tier], BURST_FRAMES[tier] * BURST_PACE[tier], SIZE * .42, SIZE * .58
     grow = min(1, (f + 1) / 4)  # the rays reach the edges in four frames
     thin = 1 if f < n * .55 else max(0, (n - f) / (n * .45))  # then thin away
     if 2 <= f < n * .5 and not night:

@@ -18,7 +18,20 @@ Grok은 CLI 예산 정보를 보여주는 실험적 기능입니다. 제작자�
 Python 3.10+와 사용할 공급자의 공식 CLI(`claude`, `codex`, `grok`)가 필요합니다.
 
 ```bash
-pipx install token-tv
+npx token-tv start   # 또는 uvx token-tv start · 또는 pipx install token-tv && token-tv start
+```
+
+`start`는 로그인된 Claude·Codex·Grok CLI를 찾아 이메일을 확인받고, 같은 와이파이에서 시계를 찾고(못 찾으면
+시계가 켜질 때 화면에 나오는 주소를 묻습니다), 컴퓨터를 켤 때 자동으로 돌지 한 번 물은 뒤 대시보드
+http://127.0.0.1:8787 을 엽니다. 고를 수 있는 것: `--face pixel`(기본 `arcade`), `--only codex`(또는
+`claude,codex`), `--device-url 192.168.0.50`. [라이브 데모](https://token-tv.vercel.app)가 이 줄을 만들어 줍니다.
+`npx token-tv autostart off`(시작할 때와 같은 방식: `uvx token-tv ...`, `token-tv ...`)로 백그라운드 실행을 멈추고,
+`autostart on`으로 다시 켭니다. Windows에서는 off가 다음 부팅부터 적용되고, 지금 도는 것은 로그아웃할 때 멈춥니다. 공유기가 시계 주소를 바꿔도
+TokenTV가 다시 찾습니다.
+
+계정을 더 넣거나 직접 다루려면:
+
+```bash
 token-tv demo     # 로그인 없이 샘플 데이터로 모든 시계 화면을 렌더
 token-tv setup         # 공급자당 최대 3계정 이메일과 시계 IP만 묻고, 기존 설정은 덮어쓰지 않음
 token-tv doctor --live # 지금 각 공급자에 조회해 빠진 CLI·로그인과 해결 명령을 안내
