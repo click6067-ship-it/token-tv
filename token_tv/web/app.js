@@ -7,8 +7,8 @@ const THEMES = [
  {id:'hud', name:'Sci-Fi HUD', eyebrow:'', title:'AI PROVIDER USAGE', note:'Real-time usage monitor'}
 ];
 const STATUS = {ok:'Connected', loading:'Loading', auth_required:'Login needed', identity_mismatch:'Check identity', quota_unavailable:'Quota unavailable', stale:'OLD · Previous value', rate_limited:'Retry later', error:'Fetch failed'};
-const PROVIDERS = ['claude', 'codex', 'grok'];
-const COMPANIES = {claude:'ANTHROPIC', codex:'OPENAI', grok:'XAI'};
+const PROVIDERS = ['claude', 'codex', 'grok', 'copilot', 'antigravity'];
+const COMPANIES = {claude:'ANTHROPIC', codex:'OPENAI', grok:'XAI', copilot:'GITHUB', antigravity:'GOOGLE'};
 const svgNS = 'http://www.w3.org/2000/svg';
 const $ = s => document.querySelector(s);
 const readPreference = (k, f) => {try {return JSON.parse(localStorage.getItem(k)) ?? f} catch {return f}};
@@ -35,6 +35,12 @@ function icon(provider) {
  } else if (provider === 'codex') {
   s.append(svgNode('path', {d:'M24 5 40.5 14.5V33.5L24 43 7.5 33.5V14.5Z', 'stroke-width':3.2}));
   s.append(svgNode('path', {d:'M7.5 14.5 24 24 40.5 14.5M24 24V43', 'stroke-width':3.2}));
+ } else if (provider === 'copilot') {
+  s.append(svgNode('rect', {x:6, y:16, width:16, height:13, rx:4, 'stroke-width':3.2}));
+  s.append(svgNode('rect', {x:26, y:16, width:16, height:13, rx:4, 'stroke-width':3.2}));
+  s.append(svgNode('path', {d:'M22 22.5H26M18 37C21 39.5 27 39.5 30 37', 'stroke-width':3.2}));
+ } else if (provider === 'antigravity') {  // its arch
+  s.append(svgNode('path', {d:'M7 42C9 24 15 9 24 9S39 24 41 42', 'stroke-width':6}));
  } else {
   s.append(svgNode('circle', {cx:24, cy:24, r:12.5, 'stroke-width':3.4}));
   s.append(svgNode('path', {d:'M5 43C17 33 31 19 43 5 34 19 21 32 5 43Z', fill:'currentColor', stroke:'currentColor', 'stroke-width':1.6}));
@@ -54,7 +60,7 @@ function clockGlyph() {
 /* Pixel Retro scenery on a 200×62 logical grid, anchored bottom-right. Sky objects sit
  * near x≈138 so they fall between the title row and the score column. */
 function scene(provider) {
- const W = 200, H = 62, rnd = seeded({claude:11, codex:23, grok:37}[provider]);
+ const W = 200, H = 62, rnd = seeded({claude:11, codex:23, grok:37, copilot:41, antigravity:53}[provider]);
  const s = svgNode('svg', {viewBox:`0 0 ${W} ${H}`, preserveAspectRatio:'xMaxYMax slice', 'shape-rendering':'crispEdges', class:'scene', 'aria-hidden':'true'});
  const rect = (x, y, w, h, fill, cls) => {const r = svgNode('rect', {x, y, width:w, height:h, fill}); if (cls) r.setAttribute('class', cls); s.append(r)};
  const bands = colors => colors.forEach((c, i) => rect(0, Math.floor(i * H / colors.length), W, Math.ceil(H / colors.length) + 1, c));
@@ -78,6 +84,18 @@ function scene(provider) {
   while (x < W) {const w = 6 + Math.floor(rnd() * 7), h = 10 + Math.floor(rnd() * 13); rect(x, 52 - h, w, h + 10, '#0b3530'); for (let wy = 54 - h; wy < 50; wy += 3) for (let wx = x + 1; wx < x + w - 1; wx += 2) if (rnd() > .55) rect(wx, wy, 1, 1, rnd() > .7 ? '#e8ffa6' : '#7dffb9'); x += w + 2}
   for (let p = 0; p < W; p += 5) pine(p + 2, 58, 6 + Math.floor(rnd() * 5), '#05201a');
   for (let i = 0; i < 9; i++) rect(60 + Math.floor(rnd() * 138), 38 + Math.floor(rnd() * 12), 1, 1, '#c8ff8a', 'twinkle');
+ } else if (provider === 'copilot') {
+  bands(['#062033', '#072a40', '#08344d', '#0a3f5b', '#0c4a68', '#0f5676', '#126283', '#166e90']);
+  stars(24, 40, 22, ['#9fe8ff', '#e6faff']);
+  for (const [cx, cy, r] of [[132, 14, 4], [137, 12, 5], [143, 14, 4]]) disc(cx, cy, r, '#bfefff');
+  ridge(x => 48 - 3 * Math.abs(Math.sin(x / 9)), '#2b86b8');
+  ridge(x => 54 - 2 * Math.abs(Math.sin(x / 6 + 1)), '#1b5f88');
+ } else if (provider === 'antigravity') {  // a dark maze: walls, a row of dots, a power pellet
+  bands(['#020208', '#03030c', '#040410', '#050514', '#060618', '#07071c', '#080820', '#090924']);
+  for (const [x, y, w, h] of [[100, 8, 96, 1], [100, 8, 1, 40], [195, 8, 1, 40], [100, 47, 96, 1], [124, 24, 48, 1], [124, 31, 48, 1], [124, 24, 1, 8], [171, 24, 1, 8]]) rect(x, y, w, h, '#2121de');
+  for (let x = 106; x < 192; x += 6) rect(x, 15, 1, 1, '#ffb8ae');
+  for (let x = 106; x < 192; x += 6) rect(x, 40, 1, 1, '#ffb8ae');
+  disc(110, 28, 2, '#ffb8ae');
  } else {
   bands(['#0d0a28', '#120d33', '#170f3e', '#1c1349', '#211654', '#271a5f', '#2d1e6a', '#33226f']);
   stars(80, 0, 46, ['#efe6ff', '#b9a6ff', '#ffffff']);
@@ -290,3 +308,27 @@ $('#frame').onerror = () => {$('#display-state').textContent = 'Clock preview un
 
 $('#mascot').append(retroMascot()); buildStarfield(); tick();
 update(); refreshDisplay(); loadThemes(); setInterval(update, 30000); setInterval(tick, 1000); setInterval(() => {if (!$('#clock-panel').hidden) refreshDisplay()}, 5000);
+
+// The collection book: scenes found so far, in their tier colours, each playable again on the clock.
+const TIER_NAMES = {rare:'Rare', unique:'Unique', legend:'Legend'};
+async function paintCollection() {
+ if (DEMO) return;
+ let data;
+ try {const r = await fetch('/collection', {cache:'no-store'}); if (!r.ok) throw Error(); data = await r.json()} catch {return}
+ const box = $('#collection'); box.hidden = !data.total; if (!data.total) return;
+ $('#collection-count').textContent = `${data.found.length} of ${data.total} found`;
+ const list = $('#collection-list'); list.replaceChildren();
+ for (const item of data.found) {
+  const li = el('li', undefined, 'collection-card'); li.dataset.tier = item.tier;
+  const img = el('img'); img.src = `/collection/${item.check}.gif`; img.alt = item.title; img.width = 240; img.height = 240; img.loading = 'lazy';
+  const when = new Date(item.first * 1000).toLocaleDateString();
+  const play = el('button', 'Replay on clock', 'control'); play.type = 'button';
+  play.onclick = async () => {play.disabled = true; try {const r = await fetch('/collection/replay', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({check:item.check})}); play.textContent = r.ok ? 'Playing on the clock' : r.status === 409 ? 'Switch the clock to Arcade first' : 'Could not play'} catch {play.textContent = 'Could not play'} setTimeout(() => {play.disabled = false; play.textContent = 'Replay on clock'}, 8000)};
+  li.append(el('span', TIER_NAMES[item.tier] || item.tier, 'tier-badge'), img, el('strong', item.title), el('span', `First seen ${when} · seen ${item.count}×`, 'quiet'), play);
+  list.append(li);
+ }
+ for (let i = 0; i < data.hidden; i++) {const li = el('li', undefined, 'collection-card locked'); li.append(el('span', '???', 'locked-mark'), el('span', 'Not found yet', 'quiet')); list.append(li)}
+}
+paintCollection();
+setInterval(paintCollection, 5 * 60 * 1000);
+

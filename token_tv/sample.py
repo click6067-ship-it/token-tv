@@ -20,6 +20,6 @@ def snapshot(now=None, sample=SAMPLE):
         if now is not None:
             row['fetched_at'] = row['last_success_at'] = now
             for window in row['windows']:
-                window['resets_at'] = now + window['resets_in']
+                window['resets_at'] = None if window['resets_in'] is None else now + window['resets_in']
         accounts[key] = row
     return {'schema': 1, 'updated_at': now or 0, 'accounts': accounts}

@@ -8,14 +8,14 @@ readings give identical bytes (no re-upload) while the choreography still change
 """
 import functools
 import hashlib
-import io
 import math
 import random
 import time
 
 from PIL import Image, ImageDraw
 
-from token_tv.display import ASSETS, overview_rows, pixel_text, primary_window
+from token_tv import gif
+from token_tv.display import ASSETS, overview_rows, pixel_text, shown_windows
 
 SIZE = 240
 FPS = 10
@@ -29,7 +29,6 @@ DIM = (128, 140, 178)
 EMPTY = (38, 48, 90)
 SPARK = (255, 216, 107)
 MOON = (233, 226, 200)
-GROK_GLASS = (64, 78, 140)
 STARS = ((92, 104, 150), (170, 182, 220), (255, 255, 255))
 # Used-quota bands (below 50, 50–79, 80–89, 90–100): start and tip of each cell ramp.
 BANDS = (((42, 168, 74), (94, 224, 106)), ((143, 201, 58), (211, 232, 74)),
@@ -50,6 +49,9 @@ def sprite(provider):
     flat = flat.quantize(colors=8, method=Image.Quantize.MEDIANCUT, dither=Image.Dither.NONE).convert('RGB')
     out = Image.new('RGBA', image.size, (0, 0, 0, 0))
     out.paste(flat, mask=alpha)
+    if provider == 'grok':  # white with dark eyes, as on every full-colour face
+        from token_tv.themes import bot_sprite
+        return bot_sprite('grok', image.width, image.height, '#f2f4f8', (12, 14, 20))
     return out
 
 
@@ -79,7 +81,8 @@ def backdrop():
 def readings(snapshot):
     rows = []
     for row in overview_rows(snapshot):
-        value = primary_window(row)
+        wins = shown_windows(row, 3)  # one number per bubble: the weekly window where there is one
+        value = wins[0] if wins else None
         used = max(0, min(100, value['used_percent'])) if value else None
         rows.append((row['provider'], used, bool(value) and row['status'] != 'ok'))
     return rows
@@ -148,8 +151,7 @@ def positions(t, paths, events):
 
 
 def bubble(frame, draw, provider, x, y, mirrored):
-    # The black Grok bot needs lighter glass to stay visible on the night sky.
-    draw.ellipse((x - RADIUS, y - RADIUS, x + RADIUS, y + RADIUS), fill=GROK_GLASS if provider == 'grok' else GLASS, outline=RIM)
+    draw.ellipse((x - RADIUS, y - RADIUS, x + RADIUS, y + RADIUS), fill=GLASS, outline=RIM)
     art = sprite(provider)
     if mirrored:
         art = art.transpose(Image.Transpose.FLIP_LEFT_RIGHT)
@@ -178,7 +180,7 @@ def render_frames(snapshot, now=None):
     rnd = random.Random(seed_for(rows, now))
     paths = [(rnd.uniform(60, 82), rnd.uniform(24, 40), rnd.choice((1, 2)), 1,
               rnd.uniform(0, 6.3), rnd.uniform(0, 6.3), 120, cy)
-             for cy in {1: (106,), 2: (76, 136)}.get(len(rows), (54, 110, 160))]
+             for cy in {1: (106,), 2: (76, 136), 4: (46, 90, 134, 178)}.get(len(rows), (54, 110, 160))]
     events = schedule(rnd, len(rows))
     sky, twinkles = backdrop()
     frames = []
@@ -223,16 +225,4 @@ def render_space(snapshot, now=None, scale=1):
     frames = render_frames(snapshot, now)
     if scale != 1:  # crisp enlargements for README and posts
         frames = [f.resize((SIZE * scale, SIZE * scale), Image.Resampling.NEAREST) for f in frames]
-    colours = set()
-    for frame in frames:
-        colours.update(c for _, c in frame.getcolors(maxcolors=frame.width * frame.height))
-    palette = sorted(colours)
-    if len(palette) > 256:
-        raise ValueError('Space face needs at most 256 colours')
-    reference = Image.new('P', (1, 1))
-    reference.putpalette([v for c in palette for v in c] + [0] * (768 - 3 * len(palette)))
-    indexed = [f.quantize(palette=reference, dither=Image.Dither.NONE) for f in frames]
-    buffer = io.BytesIO()
-    indexed[0].save(buffer, format='GIF', save_all=True, append_images=indexed[1:],
-                    duration=1000 // FPS, loop=0, disposal=1, optimize=False)
-    return buffer.getvalue()
+    return gif.encode(gif.indexed(frames, 'Space'), [1000 // FPS] * len(frames))

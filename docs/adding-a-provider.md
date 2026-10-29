@@ -1,6 +1,6 @@
 # Adding a service (provider)
 
-TokenTV reads Claude, Codex and Grok today. A new service is more than one function: the name is
+TokenTV reads Claude, Codex, Grok and (through CodexBar) Copilot and Antigravity today. A new service is more than one function: the name is
 listed in several places. This is the full list as of 2026-10-04; an AI agent can follow it.
 
 **First check the service exposes usage you can read** (percent used and reset time) through its
@@ -19,5 +19,10 @@ own signed-in CLI or a documented API. If it does not, it cannot be added honest
 | `token_tv/web/app.js` | `PROVIDERS`, `COMPANIES`, scene seed |
 | `tests/` | a payload → windows test with sample JSON, never real account data |
 
-Limits: every clock face shows at most three rows. With more than three services configured, the
-first three in `PROVIDERS` order are shown. Missing readings must stay a dash, never 0%.
+Limits: every account gets its own row, at most four; past four the clock keeps the accounts in use,
+then the fullest. Missing readings must stay a dash, never 0%.
+
+A service that CodexBar already reads can come in through CodexBar instead of its own reader, as
+Copilot and Antigravity do: allow it in `load_config` and `check_codexbar`, name its windows in
+`normalize_codexbar`, then add the drawing entries above. New clock styles take each service's
+colour from `BRAND` in `token_tv/display.py`.

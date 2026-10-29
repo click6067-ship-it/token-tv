@@ -17,3 +17,41 @@ The three requests preserve the reference silhouette, use a logical 32×32 pixel
 Final Claude prompt:
 
 > Make this exact orange pixel crab into a crisp flat game UI sprite. Use only ONE opaque solid peach-orange color (#D9845E) and opaque black rectangular eyes. Identical stepped silhouette, two side arms and four short square legs. This is a flat 32 by 32 logical pixel sprite, enlarged with nearest-neighbor square pixels. Transparent empty canvas. Absolutely NO glow, NO light, NO smoke, NO shadows, NO texture, NO gradients, NO highlights, NO blur, NO scene or background, NO white outline. Center the icon with a little transparent margin. Preserve the original simple pixel geometry. Pure solid opaque fills and hard right-angle edges. Output just the sprite.
+
+## Clawd's Quest poses
+
+`clawd.json` holds ten of Clawd's animations from Clawd's Quest (https://claude.dev/game/, Anthropic),
+copied as published in the game's `game.js` on 2026-10-28: Running, Jumping, LookingAround,
+Swaying, Turning, DancingHappy, BreakDancing, Meditating, Waving, Thinking, and for the reset and full
+events Excited, Disappointed and Dizzy. Each keeps the game's
+encoding (a base grid of palette indexes plus per-frame changes in base 36) and its anchor box;
+`token_tv/arcade.py` decodes them the way the game does. The Arcade and World faces use them.
+
+## Grok mascot
+
+`grok-pixel.png` keeps the generated black ball, with both eyes redrawn a third larger. Every full-colour face
+draws Grok white with dark eyes; the single-colour faces tint it like the others.
+
+## Codex mascot
+
+`codex-pixel.png` keeps the generated Codex cloud's silhouette and colours, cleaned to seven tones, with its
+face redrawn by hand as a two-pixel `>_` (after the Codex app icon).
+
+## Copilot mascot
+
+`copilot-pixel.png` is the owner's own pixel drawing after GitHub Copilot's goggled face: a pastel blue robot
+head with ear pods, a dark visor and two glowing eyes. On the plane, where it is only 8 px tall, Arcade places
+it by hand in the same colours.
+
+## Antigravity mascot (Anti)
+
+`antigravity-logo.png` holds the Antigravity logo's 12 × 10 blocks, one pixel each. Arcade draws Anti from
+it at 2 × 2, adding a chin row under the mouth, a ghost's hem along the feet, bean eyes and a cat's mouth;
+`antigravity-pixel.png` is that sprite for the dashboard. Anti's maze is drawn after the old arcade halls,
+with none of their characters.
+
+## Names and marks
+
+Claude, Clawd and Clawd's Quest are Anthropic's; Codex is OpenAI's; Grok is xAI's; GitHub Copilot is
+GitHub's; Antigravity and Gemini are Google's. TokenTV is an independent project, not affiliated with or
+endorsed by any of them; the mascots are fan drawings that point at each service.

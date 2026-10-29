@@ -1,7 +1,6 @@
 @import url('/assets/tokens.css');
 /* TokenTV web. Shared rules hold structure and data semantics; each theme block
- * below re-composes the same nodes after its reference image
- * (docs/plans/2026-10-03-web-theme-redesign.md). */
+ * below re-composes the same nodes after its reference image. */
 
 @font-face{font-family:'Manrope';src:url('/assets/manrope.ttf') format('truetype');font-weight:200 800;font-display:swap}
 @font-face{font-family:'VT323';src:url('/assets/vt323.woff2') format('woff2');font-display:swap}
@@ -97,6 +96,8 @@ h1{margin:0;font:600 48px/1.04 var(--font-display);letter-spacing:-.03em;color:v
 .card-shell,.provider-card{--accent:var(--claude);--accent-2:var(--claude-2)}
 .card-shell[data-provider=codex],.provider-card[data-provider=codex]{--accent:var(--codex);--accent-2:var(--codex-2)}
 .card-shell[data-provider=grok],.provider-card[data-provider=grok]{--accent:var(--grok);--accent-2:var(--grok-2)}
+.card-shell[data-provider=copilot],.provider-card[data-provider=copilot]{--accent:var(--copilot);--accent-2:var(--copilot-2)}
+.card-shell[data-provider=antigravity],.provider-card[data-provider=antigravity]{--accent:var(--antigravity);--accent-2:var(--antigravity-2)}
 .provider-card{position:relative;isolation:isolate;overflow:hidden;display:grid;grid-template-columns:minmax(0,1fr) auto;grid-template-areas:"head head" "reading timer" "gauge gauge" "more more" "foot foot";align-items:center;column-gap:28px;padding:24px 28px 0;border:1px solid var(--line);border-radius:var(--radius-card);background:var(--panel)}
 .card-art{position:absolute;inset:0;z-index:-1;display:none;pointer-events:none}
 .card-art .scene{display:none;position:absolute;inset:0;width:100%;height:100%}
@@ -715,3 +716,14 @@ h1{margin:0;font:600 48px/1.04 var(--font-display);letter-spacing:-.03em;color:v
 .theme-actions .control{min-height:28px;padding:4px 12px;font-size:12px}
 .theme-actions a{color:var(--ink-2)}.theme-update{color:var(--ink-3)}
 [data-demo] #apply{display:none}
+
+/* The collection book */
+.collection{margin:28px 0}
+.collection-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:14px;margin:12px 0 0;padding:0;list-style:none}
+.collection-card{--tier:#aab2c0;display:flex;flex-direction:column;gap:6px;padding:12px;border:1px solid color-mix(in srgb,var(--tier) 55%,transparent);border-radius:12px;background:color-mix(in srgb,var(--tier) 8%,transparent)}
+.collection-card[data-tier=rare]{--tier:#4aa3ff}.collection-card[data-tier=unique]{--tier:#b07cff}.collection-card[data-tier=legend]{--tier:#ffc54a}
+.collection-card img{width:100%;height:auto;image-rendering:pixelated;border-radius:8px}
+.collection-card .tier-badge{align-self:flex-start;padding:0 8px;border:1px solid var(--tier);border-radius:999px;color:var(--tier);font-size:12px;font-weight:700}
+.collection-card.locked{align-items:center;justify-content:center;min-height:84px;border-style:dashed;opacity:.55}
+.collection-card .locked-mark{font-size:28px;font-weight:800;letter-spacing:.1em}
+

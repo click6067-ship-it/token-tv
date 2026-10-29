@@ -1,11 +1,11 @@
 [build-system]
-requires = ["setuptools>=68"]
+requires = ["setuptools>=77"]  # the SPDX license field needs 77
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "token-tv"
-version = "0.2.0"
-description = "Your AI usage limits on a $5 desk clock: Claude, Codex and Grok on a 240x240 Wi-Fi clock"
+version = "0.3.0"
+description = "Your AI usage limits on a $5 desk clock: Claude, Codex, Grok, Copilot and Antigravity on a 240x240 Wi-Fi clock"
 readme = "README.md"
 license = "MIT"
 requires-python = ">=3.10"
@@ -23,4 +23,4 @@ packages = ["token_tv", "token_tv.providers", "token_tv.web", "token_tv.assets"]
 
 [tool.setuptools.package-data]
 "token_tv.web" = ["*"]
-"token_tv.assets" = ["*.png", "*.json"]
+"token_tv.assets" = ["*.png", "*.json", "*.bin"]

@@ -101,6 +101,27 @@ It is not a live ranking. Older installs show "update TokenTV" instead of downlo
   bytes like `token_tv/space.py`.
 - Fonts must be in `token_tv/web/` with their license file next to them.
 
+## What a style may change
+
+Every face is a style over the same instrument. Keep these the same on every face:
+
+- **The characters' shapes.** Silhouette and eyes come from `token_tv/assets/`; a face may
+  recolour or treat a mascot, never redraw its shape.
+- **What the numbers mean.** Used % (not remaining), the window names `5H` / `WK` / `BUD`,
+  the reset time, `OLD` / `LOGIN`, and a dash for a missing reading.
+- **The gauge.** Ten 10% cells, with the levels changing at 50, 80 and 90%.
+- **Who is who.** Each account's label, and Claude, Codex, Grok, Copilot, Antigravity in that order.
+
+A style chooses its own fonts for numbers and labels, its background, ink, gauge and glow
+colours, its frames and scenery, how a mascot is treated (full colour, one tint, hologram
+lines) and the shape of the gauge cells. On full-colour faces Grok is white with dark eyes. Single-colour styles such as Digital (green phosphor) and Game Boy (four greens)
+recolour everything, mascots and gauge levels included, and show levels by brightness.
+
+A new style takes each service's colour from `BRAND` in `token_tv/display.py`: Claude orange, Codex
+navy (with a light lavender), Grok white, Copilot a teal-to-blue gradient, Antigravity its logo's orange to
+green to blue (gradients drawn as a few flat steps in pixel art). Service colours mark who a row belongs to; the gauge's level colours alone say how much is
+used. The older faces keep their own tuned accents.
+
 ## Worked example
 
 [Pixel → Game Boy](../examples/gameboy/README.md) includes the render function, the same sample data before and after, and an old/missing-data check. It was made with Claude Code and runs without a clock or account.

@@ -13,6 +13,8 @@
   --claude: #f4a07a; --claude-2: #f4a07a;
   --codex: #6ea8ff; --codex-2: #6ea8ff;
   --grok: #5ee0b5; --grok-2: #5ee0b5;
+  --copilot: #3fb6e8; --copilot-2: #36d8b4;
+  --antigravity: #78b6ee; --antigravity-2: #e77345;
   --lvl-low: #6ee7b7; --lvl-medium: #79c0ff; --lvl-high: #f6c453; --lvl-critical: #f7768e;
   --lvl-low-2: #22c4a6; --lvl-medium-2: #2f8cff; --lvl-high-2: #f08a24; --lvl-critical-2: #e8455f;
   --radius-card: 22px; --radius-control: 10px;
@@ -27,7 +29,7 @@
   --ink: #7dffd0; --ink-2: #4dbb92; --ink-3: #3a9a77;
   --line: #164a37; --line-2: #22694f; --track: #0a2a1e; --focus: #c8ffe9;
   --amber: #ffcf5a;
-  --claude: #7dffd0; --codex: #7dffd0; --grok: #7dffd0;
+  --claude: #7dffd0; --codex: #7dffd0; --grok: #7dffd0; --copilot: #7dffd0; --antigravity: #7dffd0;
   --lvl-low: #3dfcb0; --lvl-medium: #c3f562; --lvl-high: #ff9d45; --lvl-critical: #ff5a6a;
   --lvl-low-2: #13b884; --lvl-medium-2: #6fd13a; --lvl-high-2: #ff6a2b; --lvl-critical-2: #e8243f;
   --radius-card: 0; --radius-control: 0;
@@ -43,6 +45,8 @@
   --claude: #ff8a2b; --claude-2: #ffd23f;
   --codex: #22d3ee; --codex-2: #4f7bff;
   --grok: #d946ef; --grok-2: #8b5cf6;
+  --copilot: #22c7e0; --copilot-2: #5fe8cf;
+  --antigravity: #78b6ee; --antigravity-2: #e77345;
   --lvl-low: #2cf5b0; --lvl-medium: #38d6ff; --lvl-high: #ffc23d; --lvl-critical: #ff3d81;
   --lvl-low-2: #00b894; --lvl-medium-2: #1f7bff; --lvl-high-2: #ff8a1f; --lvl-critical-2: #ff2a4a;
   --radius-card: 26px; --radius-control: 999px;
@@ -59,6 +63,8 @@
   --claude: #ff9f43; --claude-2: #ffcf6b;
   --codex: #3ee68b; --codex-2: #9bffc8;
   --grok: #b388ff; --grok-2: #e0d0ff;
+  --copilot: #2fd0c0; --copilot-2: #8ff0e4;
+  --antigravity: #78b6ee; --antigravity-2: #e77345;
   --lvl-low: #5ee06a; --lvl-medium: #d3e84a; --lvl-high: #ffab3d; --lvl-critical: #ff5a5f;
   --lvl-low-2: #2aa84a; --lvl-medium-2: #8fc93a; --lvl-high-2: #ff7a1f; --lvl-critical-2: #d62b3c;
   --radius-card: 0; --radius-control: 0;
@@ -73,6 +79,8 @@
   --claude: #ff8a3d; --claude-2: #ffb47a;
   --codex: #2fd4ff; --codex-2: #8be9ff;
   --grok: #3ef29b; --grok-2: #9dffcb;
+  --copilot: #2fb8e8; --copilot-2: #7fe3f0;
+  --antigravity: #78b6ee; --antigravity-2: #e77345;
   --lvl-low: #35e0a0; --lvl-medium: #3cc4ff; --lvl-high: #ffb23f; --lvl-critical: #ff4d6a;
   --lvl-low-2: #14a874; --lvl-medium-2: #1a7dff; --lvl-high-2: #ff7a1a; --lvl-critical-2: #e01e3c;
   --radius-card: 0; --radius-control: 0;

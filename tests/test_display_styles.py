@@ -78,14 +78,14 @@ class DisplayStyleTests(unittest.TestCase):
         for frame in frames:
             image = Image.open(io.BytesIO(frame))
             self.assertEqual(image.size, (240, 240))
-            if frame[:4] == b'GIF8':  # the animated Space face
+            if frame[:4] == b'GIF8':  # the animated Space and Arcade faces
                 self.assertEqual(image.format, 'GIF')
                 self.assertGreater(image.n_frames, 1)
                 self.assertLess(len(frame), 400000)
             else:
                 self.assertEqual(image.format, 'JPEG')
                 self.assertLess(len(frame), 60000)
-        self.assertEqual(sum(f[:4] == b'GIF8' for f in frames[:len(STYLES)]), 1)
+        self.assertEqual(sum(f[:4] == b'GIF8' for f in frames[:len(STYLES)]), 2)
         with self.assertRaises(ValueError):
             render_page(sample, style='unknown')
 
@@ -120,4 +120,5 @@ class ConfiguredServicesOnlyTest(unittest.TestCase):
         self.assertEqual([r['provider'] for r in overview_rows(data)], ['claude'])  # no LOGIN rows for unused services
         for style in STYLES:
             self.assertTrue(render_page(data, style=style))  # every face copes with one row
-        self.assertEqual(len(overview_rows({'accounts': {}})), 3)  # empty config keeps the placeholders
+        from token_tv.display import PROVIDERS
+        self.assertEqual(len(overview_rows({'accounts': {}})), len(PROVIDERS))  # empty config keeps the placeholders

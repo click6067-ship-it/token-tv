@@ -20,15 +20,37 @@ token-tv run                                      # dashboard at http://127.0.0.
 <p align="center"><img src="images/usage-examples.png" alt="Digital face at low, busy and near-limit usage (sample data)"></p>
 
 <details>
-<summary><b>All six clock faces</b></summary>
+<summary><b>All the clock faces</b></summary>
 
 <br>
 
 ![Digital, Neon, Pixel Retro, Sci-Fi HUD, Pixel and the animated Space face (sample data)](images/clock-faces.png)
 
+Six of them are above; there are also **Game Boy** (four greens), **Pixel Retro Dual** (Pixel Retro with the 5-hour
+and weekly windows of each account, `retro-dual`) and the animated **Arcade** (below).
 Pick one under **Clock display** in the dashboard, then press **Apply to clock**. Space is an animated
 GIF that the stock photo album plays. A picture is uploaded again only when the rendered image differs
 from the last upload, for example a new percentage or the Space animation that changes every 30 minutes.
+
+Each account gets its own row, up to four; the rows share the screen, so one account fills it and two
+split it in half. With more than four, the clock keeps the ones in use, then the fullest. Up to two rows
+show both the 5-hour and the weekly window; three or four rows show the weekly one.
+
+**Arcade** is animated too, and each character's picture is also a gauge for one limit, labelled small
+(5H, WK, ...): Claude's moon is what is left of its 5 hours, the Codex garden grows a bracket flower for every
+20% used, Grok's fuel tank by the pad drains as it is used, Copilot's sky fills with a cloud for every 20%, and
+Anti's (Antigravity's) four power pellets are what is left of its 5 hours. While an account's used % has gone up
+within the last ten minutes it is at work: Clawd jogs to and fro (its poses come from Clawd's Quest on
+claude.dev), the Codex cloud rains zeros, ones and code symbols on its garden, Grok fuels its Falcon Heavy or
+runs checks at the console, Copilot flies across under its clouds, and Anti patrols its maze. At rest they
+breathe, look round now and then and stretch. From 90% used (until it drops below 85%) each one frets in its own
+way and moves more. A window that resets plays fireworks once; one that runs out, a flop. Codex's saved limit
+resets show as a golden ticket in the header with how many are left, and in their last three days as a red D-n.
+From 11 pm to 6 am the picture dims. A few rarer scenes are hidden: they ship locked and open only when their
+moment really comes on your clock, a rare one every few days and a unique one every week or two, and some leave
+a small keepsake in the scene for a while. Arcade shows one account at a time (the working ones in turn, or all
+of them while idle). An account that reports no percentage, such as a Grok login without billing data, never
+counts as working.
 </details>
 
 ## Make it yours
@@ -68,7 +90,8 @@ See [docs/hardware-compatibility.md](hardware-compatibility.md) for what is veri
 | Grok | Grok CLI billing RPC (experimental) | Share of the CLI **billing budget**, not web chat limits |
 
 Every login is checked against the email you configured. The clock gets only a picture,
-never a password, token or cookie. Polling runs every five minutes; old readings say OLD and
+never a password, token or cookie. Polling runs every minute, Claude accounts every five minutes
+because its usage endpoint rate-limits frequent callers; old readings say OLD and
 missing data shows a dash, never a fake 0%. Claude accounts with `refresh_with_cli: true` may
 refresh an expired login through the CLI, which sends one tiny prompt.
 

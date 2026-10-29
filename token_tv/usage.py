@@ -51,12 +51,27 @@ def normalize_codex(data):
     return result
 
 
+def reset_credits(data):
+    """Codex's saved limit resets: {'count', 'expires_at'} with the soonest expiry of those still
+    available, or None when the reply has no such record."""
+    record = data.get("rateLimitResetCredits") if isinstance(data, dict) else None
+    count = record.get("availableCount") if isinstance(record, dict) else None
+    if not isinstance(count, int) or isinstance(count, bool) or count < 0:
+        return None
+    expiry = [timestamp(item.get("expiresAt")) for item in record.get("credits") or []
+              if isinstance(item, dict) and str(item.get("status", "")).lower() == "available"]
+    expiry = [at for at in expiry if at]
+    return {"count": count, "expires_at": min(expiry) if expiry else None}
+
+
 def normalize_codexbar(entry):
     """One provider entry of CodexBar's usage JSON (`codexbar usage --format json`, `serve` GET /usage).
     Only the primary and secondary slots: tertiary and extra windows are model-scoped and would
     overwrite the weekly reading if they shared its label."""
-    result = []
+    result, labels = [], []
     usage = entry.get("usage")
+    # Copilot's slots carry no length: the primary is the monthly premium-request allowance, the secondary chat.
+    unnamed = {"primary": "MONTH", "secondary": "CHAT"} if entry.get("provider") == "copilot" else {}
     for key in ("primary", "secondary"):
         value = usage.get(key) if isinstance(usage, dict) else None
         if not isinstance(value, dict):
@@ -64,7 +79,12 @@ def normalize_codexbar(entry):
         duration = value.get("windowMinutes")
         if not isinstance(duration, int) or isinstance(duration, bool) or duration <= 0:
             duration = None
-        label = {300: "5H", 10080: "WEEK"}.get(duration, "WINDOW")
+        label = {300: "5H", 1440: "DAY", 10080: "WEEK"}.get(duration) or unnamed.get(key, "WINDOW")
+        # Readings are compared window by window, so a window keeps one name: an unnamed second window is always
+        # WINDOW2, and a second window as long as the first gets a 2.
+        if label in labels or (key == "secondary" and label == "WINDOW"):
+            label += "2"
+        labels.append(label)
         item = window(label, value.get("usedPercent"), value.get("resetsAt"), duration)
         if item:
             result.append(item)

@@ -113,7 +113,7 @@ def setup(args):
     except ValueError as error:
         print(error, file=sys.stderr)
         return 1
-    config = {'poll_seconds': 300, 'accounts': accounts, 'display_style': 'digital'}
+    config = {'poll_seconds': 60, 'accounts': accounts, 'display_style': 'digital'}
     if device:
         config['device_url'] = device
     try:
@@ -271,7 +271,7 @@ def start(args):
         except ValueError as error:
             print(error, file=sys.stderr)
             return 1
-        config = {'poll_seconds': 300, 'accounts': accounts, 'display_style': 'digital'}
+        config = {'poll_seconds': 60, 'accounts': accounts, 'display_style': 'digital'}
         if device:
             config['device_url'] = device
         path.parent.mkdir(parents=True, exist_ok=True)

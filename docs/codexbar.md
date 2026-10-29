@@ -16,7 +16,13 @@ CodexBar CLI 0.74.0 (Linux x86_64 release tarball) on Ubuntu 24.04, 2026-10-11, 
 | Claude, default source | `codexbar usage --provider claude --format json` | Failed: on Linux CodexBar fell back to Claude Code's `/usage` and could not read the output of Claude Code 2.1.289. Set `"codexbar_source": "oauth"` |
 
 `codexbar serve` (`GET /usage`) returned the same entries for both providers. TokenTV accepts the
-CodexBar input for `claude` and `codex` accounts only, because no other provider has been checked.
+CodexBar input for `claude`, `codex`, `copilot` and `antigravity` accounts. Copilot has not been checked with a real
+account yet: its mapping follows CodexBar's [Copilot notes](https://github.com/steipete/CodexBar/blob/main/docs/copilot.md)
+(sign in once with `codexbar config login --provider copilot`). Copilot and Antigravity accounts can only be read
+through CodexBar. Google's two are one account on the clock: an Antigravity account reads CodexBar's
+`antigravity` entry, or with `"codexbar_provider": "gemini"` its `gemini` one (the Gemini CLI quota, a daily
+window, or the Gemini app's 5-hour and weekly limits); a config that still says `"provider": "gemini"` is read
+as Antigravity. Neither has been checked with a real account yet.
 CodexBar's macOS app has not been tried.
 
 ## Config
@@ -28,6 +34,10 @@ CodexBar's macOS app has not been tried.
     {"key": "claude_a", "alias": "CLAUDE A", "provider": "claude", "email": "you@example.com",
      "codexbar_command": "codexbar", "codexbar_source": "oauth"},
     {"key": "codex_a", "alias": "CODEX A", "provider": "codex", "email": "you@example.com",
+     "codexbar_command": "codexbar"},
+    {"key": "copilot_a", "alias": "COPILOT A", "provider": "copilot", "email": "you@example.com",
+     "codexbar_command": "codexbar"},
+    {"key": "anti_a", "alias": "ANTI A", "provider": "antigravity", "email": "you@example.com",
      "codexbar_command": "codexbar"}
   ]
 }
@@ -51,7 +61,9 @@ account's source as CodexBar.
 
 - The `primary` and `secondary` windows. A 300-minute window is the 5-hour limit and a 10080-minute
   window is the weekly limit. A window without a length is shown without a label; TokenTV does not
-  guess one from CodexBar's display names.
+  guess one from CodexBar's display names. Copilot's windows carry no length: its primary is the
+  monthly premium-request allowance (`MO`) and its secondary is chat. GitHub gives no reset time, so
+  Copilot's reset stays a dash.
 - Model-only windows (for example Claude's "Fable only") and `tertiary` are not shown, so they never
   replace the weekly reading.
 - A missing window is a dash, never 0%.

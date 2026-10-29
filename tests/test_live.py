@@ -123,18 +123,37 @@ class LiveTests(unittest.TestCase):
         self.assertGreater(len(image.getcolors(240 * 240)), 20)
         self.assertLess(len(body), 60000)
 
-    def test_overview_keeps_one_account_per_provider_without_losing_details(self):
-        def account(provider, alias, status="ok"):
+    def test_each_account_gets_a_row_and_more_than_four_keep_the_most_relevant(self):
+        def account(provider, alias, status="ok", used=94):
             return {"provider": provider, "alias": alias, "status": status,
-                    "windows": [] if status != "ok" else [{"label": "WEEK", "used_percent": 94, "resets_at": None}]}
+                    "windows": [] if status != "ok" else [{"label": "WEEK", "used_percent": used, "resets_at": None}]}
         snapshot = {"accounts": {
-            "ca": account("claude", "CLAUDE A"), "cb": account("claude", "CLAUDE B"),
+            "ca": account("claude", "CLAUDE A"), "cb": account("claude", "CLAUDE B", used=20),
             "cc": account("claude", "CLAUDE C"), "xa": account("codex", "CODEX A"),
-            "ga": account("grok", "GROK A", "auth_required"), "gb": account("grok", "GROK B")}}
-        rows = overview_rows(snapshot)
-        self.assertEqual([r["key"] for r in rows], ["ca", "xa", "gb"])
+            "ga": account("grok", "GROK A", "auth_required"), "gb": account("grok", "GROK B", used=50)}}
+        rows = overview_rows(snapshot)  # four rows: the fullest accounts with a reading, in service order
+        self.assertEqual([r["key"] for r in rows], ["ca", "cc", "xa", "gb"])
+        snapshot["accounts"]["cb"]["active"] = True  # an account in use takes a row first
+        self.assertEqual([r["key"] for r in overview_rows(snapshot)], ["ca", "cb", "cc", "xa"])
+        two = {"accounts": {"xa": account("codex", "CODEX A"), "xb": account("codex", "CODEX B")}}
+        self.assertEqual([r["key"] for r in overview_rows(two)], ["xa", "xb"])  # two of one service, two rows
         self.assertEqual(len(snapshot["accounts"]), 6)
         self.assertEqual(render_page(snapshot, 0), render_page(snapshot, 1))
+
+    def test_roomy_rows_show_both_windows_and_crowded_ones_the_week(self):
+        from token_tv.display import shown_windows, slots
+        row = {"windows": [{"label": "WEEK", "used_percent": 80}, {"label": "5H", "used_percent": 20}]}
+        self.assertEqual([w["label"] for w in shown_windows(row, 1)], ["5H", "WEEK"])
+        self.assertEqual([w["label"] for w in shown_windows(row, 2)], ["5H", "WEEK"])
+        self.assertEqual([w["label"] for w in shown_windows(row, 3)], ["WEEK"])
+        self.assertEqual([w["label"] for w in shown_windows({"windows": [{"label": "5H", "used_percent": 3}]}, 4)], ["5H"])
+        self.assertEqual(shown_windows({"windows": []}, 1), [])
+        self.assertEqual([(s.y, s.h) for s in slots(3)], [(3, 76), (82, 76), (161, 76)])  # three rows as always
+        for count in (1, 2, 4):
+            places = slots(count)
+            self.assertEqual(len(places), count)
+            self.assertEqual(places[0].y, 3)
+            self.assertLessEqual(places[-1].y + places[-1].h, 3 + 2 * 79 + 76 + 1)
 
     def test_overview_preserves_quota_period_and_unknown_values(self):
         windows = [{"label": "5H", "used_percent": 2}, {"label": "WEEK", "used_percent": 94}]
@@ -145,3 +164,12 @@ class LiveTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class LoopTimingTests(unittest.TestCase):
+    def test_a_new_picture_goes_as_the_loop_ends(self):
+        from token_tv.live import until_loop_end
+        shown = {'at': 100.0, 'loop': 8.4}
+        self.assertAlmostEqual(until_loop_end(shown, 101.0), 7.4)  # 1 s in
+        self.assertAlmostEqual(until_loop_end(shown, 100.0 + 2 * 8.4), 0)  # right at the end of the second loop
+        self.assertEqual(until_loop_end({'at': None, 'loop': None}, 5), 0)

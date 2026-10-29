@@ -1,5 +1,5 @@
 {
-  "poll_seconds": 300,
+  "poll_seconds": 60,
   "accounts": [
     {
       "key": "claude_a",

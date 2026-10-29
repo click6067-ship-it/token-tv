@@ -19,12 +19,16 @@ runs TokenTV code, so there is nothing to flash and no firmware to restore.
 1. **Read usage.** A computer on the same network reads usage through each tool's own
    login: the Claude Code CLI's OAuth profile and usage, the official `codex app-server`
    rate-limit RPC, and, as an experimental option, the Grok CLI billing RPC (a share of the CLI
-   billing budget, not web chat limits). It polls every five minutes by default.
+   billing budget, not web chat limits). It polls every minute by default, Claude accounts every five minutes.
 2. **Draw a face.** Python and Pillow draw a 240×240 image: used percentage, window,
    reset time and account label. An old reading is marked OLD, and missing data shows a dash
    instead of a fake 0%.
 3. **Upload a picture.** The image goes to the clock's `/photo/upload` page as a normal
-   file upload: `tokentv.jpg` (kept under 60 KB), or `tokentv.gif` for the animated face.
+   file upload: `tokentv.jpg` (kept under 60 KB), or for the animated face one of `tokentv.gif`,
+   `tokentv-b.gif` and `tokentv-c.gif` in turn. A GIF never goes to the file the clock is playing:
+   TokenTV checks the new one arrived whole, then switches the album over, and a picture that comes
+   back (a resting pet's still minutes) is a switch, not a new upload. The third file is used only
+   while it leaves 300 KB free for your own photos.
 4. **Show only that picture.** TokenTV first reads `/theme/list` and `/photo/list` and saves
    the current settings. It then enables only its own file, switches the clock to the photo
    theme and leaves your other photos in the album.

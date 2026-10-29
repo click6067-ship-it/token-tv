@@ -17,7 +17,8 @@ from urllib.error import HTTPError
 from urllib.parse import parse_qs, urlparse
 from urllib.request import Request, urlopen
 
-from token_tv.usage import normalize_claude, normalize_codex, normalize_codexbar, normalize_grok, timestamp, window
+from token_tv.usage import (normalize_claude, normalize_codex, normalize_codexbar, normalize_grok, reset_credits, timestamp,
+                             window)
 from token_tv.display import STYLES
 
 CODEXBAR_SOURCES = {"auto", "web", "cli", "oauth", "api"}
@@ -118,12 +119,17 @@ def load_config(path):
         raise ValueError('Unknown display style')
     seen = set()
     allowed = {"key", "alias", "provider", "source_home", "email", "snapshot_file", "fallback_snapshot_file", "refresh_with_cli",
-               "codexbar_command", "codexbar_url", "codexbar_source"}
+               "codexbar_command", "codexbar_url", "codexbar_source", "codexbar_provider"}
     for account in data.get("accounts", []):
         if set(account) - allowed:
             raise ValueError("Only credential-free account metadata is allowed")
-        if account.get("provider") not in ("claude", "codex", "grok"):
+        if account.get("provider") == "gemini":  # one Google pet now, Anti; an old Gemini account still reads Gemini
+            account["provider"] = "antigravity"
+            account.setdefault("codexbar_provider", "gemini")
+        if account.get("provider") not in ("claude", "codex", "grok", "copilot", "antigravity"):
             raise ValueError("Unknown provider")
+        if account["provider"] in CODEXBAR_ONLY and not (uses_codexbar(account) or account.get("snapshot_file")):
+            raise ValueError(f"{account['provider'].title()} is read through CodexBar: set codexbar_command or codexbar_url")
         check_codexbar(account)
         key = account.get("key", "")
         if not re.fullmatch(r"[a-z0-9_-]{1,48}", key) or key in seen:
@@ -148,8 +154,11 @@ def check_codexbar(account):
     if not fields:
         return
     command, url = account.get("codexbar_command"), account.get("codexbar_url")
-    if account["provider"] not in ("claude", "codex"):
-        raise ValueError("CodexBar input is checked for claude and codex accounts only")
+    if account["provider"] not in ("claude", "codex", "copilot", "antigravity"):
+        raise ValueError("CodexBar input is checked for claude, codex, copilot and antigravity accounts only")
+    if account.get("codexbar_provider") and (account["provider"] != "antigravity"
+                                             or account["codexbar_provider"] not in ("gemini", "antigravity")):
+        raise ValueError("codexbar_provider picks antigravity or gemini for an Antigravity account")
     if bool(command) == bool(url) or account.get("snapshot_file"):
         raise ValueError("Use one of codexbar_command or codexbar_url, without snapshot_file")
     if command is not None and not (isinstance(command, str) and command.strip()):
@@ -267,15 +276,25 @@ def grok_payload(account):
         rpc.close()
 
 
+# Services TokenTV reads only through CodexBar, which owns their logins. An Antigravity account reads CodexBar's
+# antigravity entry, or its gemini one with `codexbar_provider` (CodexBar reads Gemini's quota through Antigravity).
+CODEXBAR_ONLY = ("copilot", "antigravity")
+
+
+def codexbar_name(account):
+    return account.get("codexbar_provider") or account["provider"]
+
+
 def codexbar_payload(account):
     """CodexBar's usage JSON. CodexBar owns the login; TokenTV only reads what it prints or serves."""
     if account.get("codexbar_url"):
         return json_get(account["codexbar_url"])
     command = [exe(os.path.expanduser(account["codexbar_command"])), "usage",
-               "--provider", account["provider"], "--format", "json"]
+               "--provider", codexbar_name(account), "--format", "json"]
     if account.get("codexbar_source"):
         command += ["--source", account["codexbar_source"]]
-    env = scoped_env(account["provider"], Path(account["source_home"]).expanduser()) if account.get("source_home") else None
+    env = (scoped_env(account["provider"], Path(account["source_home"]).expanduser())
+           if account.get("source_home") and account["provider"] not in CODEXBAR_ONLY else None)
     try:
         result = subprocess.run(command, env=env, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
                                 stderr=subprocess.DEVNULL, text=True, timeout=60)
@@ -300,7 +319,7 @@ def codexbar_entry(data, account):
     """This account's entry and whether CodexBar reported its email. Every reported email must match."""
     if not isinstance(data, list):
         raise SourceError("invalid_codexbar_output")
-    entries = [entry for entry in data if isinstance(entry, dict) and entry.get("provider") == account["provider"]]
+    entries = [entry for entry in data if isinstance(entry, dict) and entry.get("provider") == codexbar_name(account)]
     if not entries:
         raise SourceError("codexbar_provider_missing")
     for entry in entries:
@@ -369,7 +388,8 @@ def grok_identity(account):
 def imported_row(account):
     data = json.loads(Path(account["snapshot_file"]).expanduser().read_text())
     row = data["accounts"][account["key"]]
-    if row.get("provider") != account["provider"] or row.get("alias") != account["alias"]:
+    provider = "antigravity" if row.get("provider") == "gemini" else row.get("provider")  # from before Anti
+    if provider != account["provider"] or row.get("alias") != account["alias"]:
         raise SourceError("identity_mismatch")
     fetched = timestamp(row.get("fetched_at"))
     if fetched is None or fetched > time.time() + 60:
@@ -384,12 +404,15 @@ def imported_row(account):
     if last_success and last_success <= fetched:
         clean["last_success_at"] = last_success
     for value in row.get("windows", []):
-        if value.get("label") not in {"5H", "WEEK", "WINDOW", "BUDGET"}:
+        if str(value.get("label", "")).rstrip("2") not in {"5H", "WEEK", "WINDOW", "BUDGET", "MONTH", "CHAT", "DAY"}:
             continue
         item = window(value["label"], value.get("used_percent"), value.get("resets_at"),
                       value.get("duration_minutes"))
         if item:
             clean["windows"].append(item)
+    credits = row.get("reset_credits")  # saved limit resets come across too
+    if isinstance(credits, dict) and isinstance(credits.get("count"), int) and not isinstance(credits["count"], bool):
+        clean["reset_credits"] = {"count": max(0, credits["count"]), "expires_at": timestamp(credits.get("expires_at"))}
     if time.time() - fetched > 900:
         clean["status"] = "stale"
         clean["error_code"] = "laptop_offline"
@@ -419,7 +442,11 @@ def fetch_account(account):
             row["windows"] = normalize_claude(data)
             row["identity_verified"] = True
         elif account["provider"] == "codex":
-            row["windows"] = normalize_codex(codex_payload(account))
+            data = codex_payload(account)
+            row["windows"] = normalize_codex(data)
+            credits = reset_credits(data)
+            if credits:
+                row["reset_credits"] = credits
             row["identity_verified"] = True
         else:
             if not identity_matches(account["email"], grok_identity(account)):

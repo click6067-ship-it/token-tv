@@ -6,7 +6,7 @@ import subprocess
 import time
 
 from token_tv.sources import load_config
-from token_tv.state import UsageStore
+from token_tv.state import MIN_FETCH_SECONDS, UsageStore
 
 REMOTE_WRITE = """import json,os,pathlib,sys
 p=pathlib.Path(sys.argv[1]).expanduser()
@@ -28,7 +28,7 @@ def main():
     if args.ssh_host.startswith("-"):
         parser.error("A host name is required")
     config = load_config(args.config)
-    store = UsageStore(config["accounts"])
+    store = UsageStore(config["accounts"], min_fetch_seconds=MIN_FETCH_SECONDS)
     while True:
         try:
             store.refresh()
@@ -40,7 +40,7 @@ def main():
             print("TokenTV normalized account snapshot delivered.", flush=True)
         except (OSError, subprocess.SubprocessError):
             print("TokenTV bridge unavailable; display will mark stale.", flush=True)
-        time.sleep(max(60, int(config.get("poll_seconds", 300))))
+        time.sleep(max(60, int(config.get("poll_seconds", 60))))
 
 
 if __name__ == "__main__":
