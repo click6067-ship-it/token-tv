@@ -340,8 +340,10 @@ def codexbar_error(error):
     return "codexbar_" + kind if kind in ("args", "config", "provider", "runtime") else "codexbar_error"
 
 
-def logged_in_email(provider, home):
-    """The email of the account already signed in to this CLI home, or None. Prints nothing secret."""
+def logged_in_email(provider, home, why=None):
+    """The email of the account already signed in to this CLI home, or None; then, when `why` is a list, the reason
+    goes into it: 'refused' (expired or revoked), 'busy', 'offline', 'not_chatgpt' or 'unreadable'. Prints nothing
+    secret."""
     root = Path(home).expanduser()
     try:
         if provider == "claude":
@@ -358,11 +360,17 @@ def logged_in_email(provider, home):
                 rpc.process.stdin.write('{"method":"initialized","params":{}}\n')
                 rpc.process.stdin.flush()
                 identity = rpc.call("account/read", {"refreshToken": True}).get("account") or {}
+                if identity.get("type") != "chatgpt" and why is not None:
+                    why.append("not_chatgpt")
                 return identity.get("email") if identity.get("type") == "chatgpt" else None
             finally:
                 rpc.close()
         return grok_identity({"source_home": str(root)})
-    except (SourceError, OSError, ValueError, KeyError, TypeError, HTTPError, subprocess.SubprocessError):
+    except (SourceError, OSError, ValueError, KeyError, TypeError, HTTPError, subprocess.SubprocessError) as error:
+        if why is not None:
+            code = getattr(error, "code", None)
+            why.append("refused" if code in (401, 403) else "busy" if code == 429 else
+                       "offline" if isinstance(error, OSError) and not isinstance(error, HTTPError) else "unreadable")
         return None
 
 

@@ -18,6 +18,13 @@ the theme and autoplay back, but there is no known way to read which photo was s
 TokenTV's picture can stay in the album. Delete `tokentv.jpg` / `tokentv.gif` on the clock's image page
 if you want them gone.
 
+The Ultra has one picture file, not the SD_PRO's three: each new animated face is written over the one the
+clock is playing, and TokenTV cannot list the Ultra's files to check that it arrived whole. This is how the
+contributors' units ran; if an Ultra ever freezes on a picture, turn it off and on.
+
+On the SD_PRO, leave TokenTV's `tokentv*.gif` files alone in the album while TokenTV runs: it switches them
+itself, and one turned on by hand can be the next file TokenTV writes while the clock plays it.
+
 A new SmallTV-Ultra has no `/app.json` (it answers 404) until its theme is changed for the first time.
 TokenTV then records that there was no saved theme, switches to the Photo Album as usual, and on restore
 puts autoplay back but leaves the theme alone. Pick a theme on the clock's settings page afterwards if you
@@ -35,13 +42,14 @@ want a different one.
 
 1. Open the clock's address (shown on its screen) in a browser on the same network.
 2. Look for a photo album / photo upload page. Without one, TokenTV cannot draw on it.
-3. `token-tv demo` needs no clock and no login. `token-tv setup` then asks for the clock address
-   (`http://<ip>`) and checks its form before writing anything.
+3. `npx token-tv demo` needs no clock and no login. `npx token-tv start` then looks for the clock on
+   your Wi-Fi, or asks for its address, and checks its form before writing anything.
 
 Tried another model? Please open a **Hardware compatibility** issue with the model, the firmware
 web UI name and the result. Leave out Wi-Fi names, passwords and public IP addresses.
 
 ## What you need besides the clock
 
-A computer that stays on in the same network (Python 3.10+). The clock only shows the picture;
-the computer reads usage and draws it.
+A computer that stays on in the same network, with Claude Code, Codex or the Grok CLI signed in, and
+Node for `npx` (the launcher brings its own Python if it needs one). The clock only shows the picture;
+the computer reads usage and draws it, so while the computer sleeps the clock keeps its last picture.

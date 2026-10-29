@@ -25,7 +25,7 @@ LIMITS = {"tokentv.jpg": (60000, "image/jpeg"), **{name: (400000, "image/gif") f
 LEGACY_FILES = ("tokentv-c.jpg", "tokentv-m.jpg")
 ROOM = 300000  # bytes of the clock's space a third slot leaves free, for the owner's own photos
 MARGIN = 30000  # and any slot, for the clock's own files
-LIST_SECONDS = 600  # how long the clock's file list is trusted without reading it again
+LIST_SECONDS = 300  # how long the clock's file list is trusted without reading it again
 MODEL_NAMES = {"sdpro": "an SD_PRO", "ultra": "a SmallTV-Ultra"}
 
 
@@ -33,9 +33,21 @@ class BackupMismatch(ValueError):
     """The saved original state belongs to a different kind of clock."""
 
 
+class NotAClock(ValueError):
+    """Something answers at the clock's address, but not as a clock does (a printer or router took the address)."""
+
+
+class ClockFull(ValueError):
+    """No slot but the one playing has room for the picture: nothing was sent, the clock keeps what it shows."""
+    def __init__(self, needed, free):
+        super().__init__(f"The clock is full: {max(1, (needed - free) // 1000)} kB more needed")
+        self.needed, self.free = needed, free
+
+
 class PhotoDisplay:
     MODEL = "sdpro"
     SLOTS = SLOTS
+    guessed = False  # True when nothing answered to say which model this is
 
     def __init__(self, base_url):
         parsed = urlparse(base_url)
@@ -51,7 +63,8 @@ class PhotoDisplay:
         self.last_used = {}  # slot -> when it was last shown, so the one longest unused is written next
 
     def request(self, path, data=None, headers=None):
-        with urlopen(Request(self.base_url + path, data=data, headers=headers or {}), timeout=20) as response:
+        # Straight to the clock: it is on this network, so a proxy set for the internet must not stand between.
+        with DIRECT.open(Request(self.base_url + path, data=data, headers=headers or {}), timeout=20) as response:
             body = response.read()
             return response.status, body
 
@@ -80,15 +93,21 @@ class PhotoDisplay:
         boundary = "TokenTV" + uuid.uuid4().hex
         body = (f'--{boundary}\r\nContent-Disposition: form-data; name="file"; filename="{name}"\r\n'
                 f'Content-Type: {mime}\r\n\r\n').encode() + image + f"\r\n--{boundary}--\r\n".encode()
-        status, _ = self.request("/photo/upload", body,
-                                 {"Content-Type": "multipart/form-data; boundary=" + boundary})
+        status, answer = self.request("/photo/upload", body,
+                                      {"Content-Type": "multipart/form-data; boundary=" + boundary})
+        if b"success" not in answer.lower():  # the SD_PRO says "Upload Success"; a router or printer says something else
+            raise NotAClock("The address took the upload, but not as a clock")
         return {"file": name, "status": status, "bytes": len(image)}
 
     def listed(self):
         """The album as the clock lists it now: its sizes, free space and enabled files."""
         _, raw = self.request("/photo/list")
-        listing = json.loads(raw)
-        self.enabled = {f["name"] for f in listing["files"] if f.get("enabled")}
+        try:
+            listing = json.loads(raw)
+            files = listing["files"]
+            self.enabled = {f["name"] for f in files if f.get("enabled")}
+        except (ValueError, KeyError, TypeError, AttributeError):
+            raise NotAClock("The address answers, but not as a clock") from None
         self.sizes = {f["name"]: f.get("size") for f in listing["files"]}
         self.free = listing.get("total", float("inf")) - listing.get("used", 0)
         self.listed_at = time.monotonic()
@@ -104,9 +123,10 @@ class PhotoDisplay:
         for what was sent. An animated face never goes to an enabled GIF: it goes to another slot, so a send cut
         short is never what the clock is playing.
 
-        The clock plays and answers on one core, so every request holds the animation. Its list is therefore kept
-        and read again only every LIST_SECONDS, after anything failed, and after a send to a clock low on space,
-        where a send could be kept short of whole; between, the sizes and free space follow our own sends."""
+        The clock plays and answers on one core, so every request holds the animation. Its list is therefore read
+        before a send only when older than LIST_SECONDS or after anything failed, and after every send to check it
+        arrived whole; between, the sizes and free space follow our own sends. A slot the owner turns on by hand in
+        between is not seen until then (docs/hardware-compatibility.md)."""
         if name not in self.SLOTS:
             return name, [dict(self.upload(name, image), sha256=digest)]
         if self.sizes is None or time.monotonic() - self.listed_at > LIST_SECONDS:
@@ -123,22 +143,22 @@ class PhotoDisplay:
         # third slot is used only while the owner's photos keep plenty of room.
         fits = [s for s in self.SLOTS if s not in playing
                 and self.free - len(image) >= (MARGIN if s in self.SLOTS[:2] else ROOM)]
-        # A clock too full for a second slot: write over the one shown, as before slots.
-        slot = (min(fits, key=lambda s: self.last_used.get(s, 0)) if fits
-                else next((s for s in self.SLOTS if s in self.enabled), None)
-                or (self.active if self.active in self.SLOTS else self.SLOTS[0]))
+        if not fits:  # never the one playing: that is what can leave a clock frozen on a broken file
+            if time.monotonic() - self.listed_at > 1:
+                self.listed()  # make sure it is really full, not an old count
+                return self.put(name, image, digest)
+            raise ClockFull(len(image) + MARGIN, self.free)
+        slot = min(fits, key=lambda s: self.last_used.get(s, 0))
         self.held.pop(slot, None)
         try:
             receipts = [dict(self.upload(slot, image), sha256=digest)]
         except Exception:
             self.sizes = None  # what the slot has now is unknown: list it again before the next send
             raise
-        if self.free - len(image) < ROOM:
-            if self.listed().get(slot) != len(image):
-                raise ValueError("The clock did not keep the whole picture")
-        else:
-            self.free -= len(image) - (self.sizes.get(slot) or 0)
-            self.sizes[slot] = len(image)
+        # Read back every send before it is switched on: the owner may have filled the clock since the last list,
+        # and a GIF cut short can leave the clock frozen. One request, about a second of hold, at the loop's end.
+        if self.listed().get(slot) != len(image):
+            raise ValueError("The clock did not keep the whole picture")
         self.held[slot] = (digest, len(image))
         return slot, receipts
 
@@ -255,14 +275,18 @@ def open_display(base_url):
         _, raw = display.request("/v.json")
         model = json.loads(raw).get("m")
     except (OSError, ValueError, AttributeError, HTTPException):
-        return display  # model checked once at start; an Ultra offline at launch falls back to SD_PRO until restart
+        display.guessed = True  # an Ultra that is off reads as an SD_PRO until it answers
+        return display
     return UltraDisplay(base_url) if isinstance(model, str) and model.startswith("SmallTV-Ultra") else display
+
+
+DIRECT = build_opener(ProxyHandler({}))
 
 
 def clock_model(base_url, timeout=3):
     """'ultra' or 'sdpro' when a clock answers at `base_url`, else None. Read-only; an address where nothing answers
     is asked once."""
-    opener = build_opener(ProxyHandler({}))  # a clock is on this network, never behind a proxy
+    opener = DIRECT  # a clock is on this network, never behind a proxy
 
     def get(path):
         with opener.open(Request(base_url + path), timeout=timeout) as response:

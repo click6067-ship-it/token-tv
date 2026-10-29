@@ -1,228 +1,181 @@
 # TokenTV 설정·참고 (한국어)
 
-예전 README.ko.md의 전체 내용입니다. 사람과 AI 에이전트 모두를 위한 문서이고, [AGENTS.md](../AGENTS.md)도 함께 봅니다.
+예전 README에 있던 내용을 모두 담았습니다. 사람과 AI 코딩 에이전트 모두를 위한 문서이고, [AGENTS.md](../AGENTS.md)도 함께 보세요.
 
-# TokenTV
+## 빠른 시작
 
-[English README](../README.md) · [▶ 라이브 데모](https://token-tv.vercel.app)
-
-![실제 시계에 띄운 Digital, Pixel Retro, Sci-Fi HUD 화면](images/real-clock.jpg)
-
-**AI 사용 한도를 작은 책상 시계에.** Claude와 Codex 사용량을 여러 계정으로, 시계 펌웨어를 바꾸지 않고 보여줍니다.
-Grok은 CLI 예산 정보를 보여주는 실험적 기능입니다. 제작자의 시계 구매 영수증은 5,650원(한국 알리익스프레스 할인가)이며 가격은 지역마다 다릅니다. 다른 기기는 확인하지 않았습니다. 켜 두는 컴퓨터(호스트)가 필요합니다.
-
-사용량은 240×240 책상 시계에 띄우고, 계정별 세부는 브라우저에서 봅니다. 계정별 인증 홈을 분리하고 실제 조회 실패와 오래된 값을 표시합니다.
-
-## 실행
-
-Python 3.10+와 사용할 공급자의 공식 CLI(`claude`, `codex`, `grok`)가 필요합니다.
+와이파이에 연결된 GeekMagic SmallTV(SD_PRO 또는 Ultra)와 계속 켜 두는 컴퓨터가 필요합니다. 그 컴퓨터에는
+Claude Code(`claude`), Codex(`codex`), Grok(`grok`) 가운데 쓰는 서비스의 공식 CLI가 설치되고 로그인돼 있어야
+합니다. 브라우저에서 claude.ai나 chatgpt.com에 로그인한 것만으로는 안 됩니다.
+[Claude Code](https://code.claude.com/docs/ko/quickstart)나 Codex(`npm install -g @openai/codex`)를 설치해 같은
+계정으로 로그인하세요. `npx`에는 [Node](https://nodejs.org/)만 있으면 됩니다. Python이 필요하면 런처가 알아서
+받아 옵니다.
 
 ```bash
-npx token-tv start   # 또는 uvx token-tv start · 또는 pipx install token-tv && token-tv start
+npx token-tv start          # 또는: uvx token-tv start
 ```
 
-`start`는 로그인된 Claude·Codex·Grok CLI를 찾아 이메일을 확인받고, 같은 와이파이에서 시계를 찾고(못 찾으면
-시계가 켜질 때 화면에 나오는 주소를 묻습니다), 컴퓨터를 켤 때 자동으로 돌지 한 번 물은 뒤 대시보드
-http://127.0.0.1:8787 을 엽니다. 고를 수 있는 것: `--face pixel`(기본 `arcade`), `--only codex`(또는
-`claude,codex`), `--device-url 192.168.0.50`. [라이브 데모](https://token-tv.vercel.app)가 이 줄을 만들어 줍니다.
-`npx token-tv autostart off`(시작할 때와 같은 방식: `uvx token-tv ...`, `token-tv ...`)로 백그라운드 실행을 멈추고,
-`autostart on`으로 다시 켭니다. Windows에서는 off가 다음 부팅부터 적용되고, 지금 도는 것은 로그아웃할 때 멈춥니다. 공유기가 시계 주소를 바꿔도
-TokenTV가 다시 찾습니다.
+pipx를 쓴다면 `pipx install token-tv` 다음에 `pipx ensurepath`를 실행하고, 새 터미널을 열어 `token-tv start`를 실행합니다.
 
-계정을 더 넣거나 직접 다루려면:
+`start`는 로그인된 Claude·Codex·Grok CLI를 찾아 이메일마다 확인을 받고, 와이파이에서 시계를 찾고(못 찾으면
+시계가 켜질 때 화면에 나오는 주소를 묻습니다), TokenTV를 컴퓨터와 함께 시작해 계속 돌릴지 물은 뒤(설정 파일을
+처음 만들 때만) 대시보드 http://127.0.0.1:8787 을 엽니다.
+명령줄에서 고를 수 있는 것: `--face pixel`(기본 `arcade`), `--only codex`(또는 `claude,codex`),
+`--device-url 192.168.0.50`. [라이브 데모](https://token-tv.vercel.app)가 이 줄을 만들어 줍니다.
+`npx token-tv autostart off`는 백그라운드에서 도는 TokenTV를 멈추고 컴퓨터와 함께 시작하지 않게 합니다(시작할
+때와 같은 방식으로: `uvx token-tv ...` 또는 `token-tv ...`). `autostart on`으로 다시 설정합니다. Linux에서는
+시스템이 허용하면 로그아웃한 뒤에도 백그라운드에서 계속 돌고, 허용하지 않으면 TokenTV가 그렇다고 알려 줍니다.
+나중에 공유기가 시계 주소를 바꿔도 TokenTV가 알아서 다시 찾습니다. 시계 없이 설정했다면 시계를 와이파이에 연결한
+뒤 `start`를 한 번 더 실행하면 그때 찾습니다(같은 와이파이의 시계가 남의 것일 수 있어 혼자서는 찾지 않습니다). `start --device-url 192.168.0.50`으로 언제든 직접 넣어도 됩니다.
+
+Windows에서는 claude·codex가 로그인된 쪽(Windows 또는 WSL)에서 TokenTV를 실행하세요. Node를 설치한
+Windows에서 바로 돌리는 게 가장 간단하고, WSL은 마지막 터미널을 닫으면 곧 꺼집니다. 컴퓨터가 잠자기 상태일
+때는 시계가 마지막 그림을 그대로 보여 줍니다.
+
+계정을 더 넣거나 직접 다루려면(아래는 `token-tv`로 적었습니다. `npx`나 `uvx`로 실행한다면 앞에 붙이세요):
 
 ```bash
-token-tv demo     # 로그인 없이 샘플 데이터로 모든 시계 화면을 렌더
-token-tv setup         # 공급자당 최대 3계정 이메일과 시계 IP만 묻고, 기존 설정은 덮어쓰지 않음
-token-tv doctor --live # 지금 각 공급자에 조회해 빠진 CLI·로그인과 해결 명령을 안내
-token-tv run      # 대시보드 http://127.0.0.1:8787 + 시계 전송
+token-tv demo                 # 로그인 없이 샘플 데이터로 모든 시계 화면
+token-tv setup                # 이메일(공급자당 최대 3개)과 시계 IP를 물음
+token-tv doctor --live        # 지금 각 공급자에 물어, 빠진 것과 고칠 방법을 알려 줌
+token-tv run                  # 대시보드 http://127.0.0.1:8787, 시계 구동
 ```
 
-설정 파일은 `~/.config/token-tv/config.json`이며 모든 명령이 `--config`를 받습니다.
-A 계정은 평소 쓰던 로그인(`~/.claude` 등)을 재사용할 수 있고, B·C 계정은
-`~/.config/token-tv/homes/` 아래 별도 로그인 폴더를 씁니다. `token-tv connect --account codex_b`로
-별도 계정에 로그인하며, 평소 로그인 위에 다시 로그인하려면 REPLACE를 입력해야 합니다.
-`doctor`는 로그인 파일 존재만 보고, `doctor --live`는 실제 조회(만료 시 CLI 갱신 가능)를 하되
-계정별 상태만 출력합니다. 기여 방법은 [CONTRIBUTING.md](../CONTRIBUTING.md)와
-[시계 화면 만들기](clock-faces.md)를 봅니다.
-설치 없이 실행하려면 `uvx token-tv demo`(uv) 또는 `npx token-tv demo`(Node)를 씁니다.
-클론에서는 `pip install .`로 같은 명령을 설치합니다.
+클론에서는 `python3 -m venv .venv && .venv/bin/pip install .`로 같은 명령을 `.venv/bin/token-tv`로 쓸 수 있습니다.
 
-macOS(실기기 미검증): Claude Code가 로그인을 Keychain에 두므로, CLI 홈에
-`.credentials.json`이 없으면 `security`로 읽기 전용 조회합니다. 이메일 대조는 그대로 합니다.
+<p align="center"><img src="images/usage-examples.png" alt="사용량이 적을 때, 바쁠 때, 한도에 가까울 때의 Digital 화면(샘플 데이터)"></p>
 
-브라우저: `http://127.0.0.1:8787/`. `/snapshot`과 `/snapshot/<key>`는 JSON,
-`/frame/0.jpg`는 시계와 같은 240×240 JPEG이며 `/frame/1.jpg`는 호환 별칭입니다.
-시계는 Claude·Codex·Grok 각각 한 계정을 세 행으로 보여줍니다. 픽셀 아이콘, 큰 사용률 숫자, 막대, 기간 및 리셋 시간을 표시합니다.
-실제 사용량을 제공하는 첫 계정을 선택하며 계정 전환은 수행하지 않습니다. Claude/Codex는 가장 높은 기간 사용률을 표시합니다.
-영문 계정명은 `CLAUDE A/B/C`, `CODEX A/B`, `GROK A/B`로 구분합니다. 일곱 계정의 전체 기간과 조회 시각·오류 상태는 웹에서 공급자별로 확인합니다.
-기본 조회 주기는 1분(Claude 계정은 5분)이며 브라우저를 열어도 추가 조회하지 않습니다.
+<details>
+<summary><b>모든 시계 화면</b></summary>
 
-### 화면 스타일
+<br>
 
-웹의 **Clock display**에서 시계 화면 9종을 미리 보고 고릅니다(설정값: pixel, digital, neon, retro, hud, space, gameboy, arcade, retro-dual).
-**Pixel Retro Dual**(`retro-dual`)은 Pixel Retro 카드에 계정마다 5시간·주간 한도를 함께 보여 줍니다.
-**Digital / Neon / Pixel Retro / Sci-Fi HUD**는 같은 이름의 웹 테마와 같은 글꼴·장식·게이지를
-쓰고, 원래의 **Pixel**도 남아 있습니다. **Space**는 세 봇이 유리 헬멧을 쓰고 밤하늘을
-떠다니는 움직이는 화면(GIF)입니다. **Arcade**도 움직이는 화면이고, 캐릭터마다 그림이 한도 하나의 게이지이기도 합니다(작게 5H, WK 등 표시). Claude의 달은 5시간 한도의 남은 양,
-Codex 꽃밭은 20% 쓸 때마다 괄호꽃 한 송이, Grok의 발사대 옆 연료탱크는 쓸수록 줄고, Copilot 하늘은 20%마다 구름이 하나씩 차고,
-Anti(Antigravity)의 파워 펠릿 네 개는 5시간 한도의 남은 양입니다. 최근 10분 안에 사용률이 오른 계정은 '작업 중'으로 보여서
-Clawd는 땅을 오가며 달리고(동작은 claude.dev의 Clawd's Quest 원본), Codex 구름은 0·1·기호 비로 꽃밭을 키우고, Grok은 팰컨 헤비에
-연료를 넣거나 콘솔에서 점검하고, Copilot은 구름 아래를 가로질러 날고, Anti는 미로를 순찰합니다. 쉴 때는 숨을 쉬다가 가끔 둘러보고
-기지개를 켭니다. 90% 넘게 쓰면(85% 아래로 내려갈 때까지) 저마다 다르게 초조해하며 더 크게 움직입니다. 창이 리셋되면 폭죽, 다 쓰면
-지쳐 쓰러집니다. Codex의 저장된 리셋권은 머리줄에 금색 티켓과 남은 개수로, 만료 3일 전부터는 빨간 D-n으로 보입니다. 밤 11시부터
-아침 6시까지는 화면이 어두워집니다. 더 드문 장면 몇 개는 숨겨져 있습니다. 잠긴 채로 들어 있다가 그 순간이 실제로 시계에 찾아올 때만
-열리고(레어는 며칠에 한 번, 유니크는 한두 주에 한 번), 몇몇은 장면에 작은 기념품을 잠시 남깁니다.
-Arcade는 한 계정씩(작업 중인 계정만 번갈아, 모두 쉬면 전부) 크게 보여 줍니다. 그린 이미지가 직전에 보낸 것과 다를 때만 새로 보내며, 사용률이 바뀌거나 30분마다 바뀌는 Space 애니메이션이 그 예입니다. **Apply to clock**을 누르면 선택을 저장하고 같은 계정
-캐시로 기기에 전송합니다. 미리보기만 선택하면 시계에는 적용되지 않습니다.
+![Digital, Neon, Pixel Retro, Sci-Fi HUD, Pixel, 움직이는 Space 화면(샘플 데이터)](images/clock-faces.png)
 
-| Theme | 240×240 화면 표현 |
-|---|---|
-| Digital | 녹색 형광 터미널, 7세그먼트 숫자(꺼진 칸 표시), 호박색 리셋 시간 |
-| Neon | 발광 카드 테두리, 아이콘 웰, 흰 숫자와 공급자 색 번짐, 둥근 칸 게이지 |
-| Pixel Retro | 픽셀 프레임, 공급자별 픽셀 풍경, 마스코트, HP 블록 게이지 |
-| Sci-Fi HUD | 모서리를 깎은 발광 프레임, 기울어진 칸 게이지 |
+위에 여섯 가지가 있고, 그 밖에 **Game Boy**(초록 네 색), **Pixel Retro Dual**(Pixel Retro에 계정마다 5시간·주간
+창을 함께 보여 줌, `retro-dual`), 움직이는 **Arcade**(아래)가 있습니다.
+대시보드의 **Clock display**에서 하나를 고르고 **Apply to clock**을 누르세요. Space는 순정 사진 앨범이 재생하는
+움직이는 GIF입니다. 그린 이미지가 직전에 보낸 것과 다를 때만 다시 보냅니다. 사용률이 바뀌었을 때나, 30분마다
+바뀌는 Space 애니메이션이 그 예입니다.
 
-기존 Pixel(5×7 비트맵 글꼴과 픽셀 마스코트)도 같은 목록에서 고를 수 있습니다.
-각 스타일은 Claude·Codex·Grok·Copilot 계정과 10% 단위 10칸 게이지를 표시합니다.
-계정마다 한 줄씩 최대 4줄로 화면을 나눠 쓰고(넘치면 작업 중·사용률 높은 계정 우선), 2줄까지는 5시간·주간 창을 둘 다, 3줄부터는 주간 창만 보여 줍니다.
-설정의 `display_style`은 `digital`, `neon`, `retro`, `hud`, `pixel`, `space`, `gameboy`, `arcade`를 지원하며 재시작 후에도 유지됩니다. 미설정 기본값은 `pixel`입니다.
-숫자는 테마 내 공통 중성색입니다.
-로고 색은 공급자별로 유지하며 게이지는 0–49% / 50–79% / 80–89% / 90–100% 구간마다 같은 색 계열의 두 색 그라데이션으로 표시합니다.
-색만으로 상태를 전달하지 않으며 실제 숫자, 칸 수, 미인증/오래된 값 표기를 함께 제공합니다.
+계정마다 한 줄씩, 최대 네 줄입니다. 줄들이 화면을 나눠 쓰므로 계정이 하나면 화면을 다 채우고, 둘이면 반씩
+씁니다. 넷이 넘으면 지금 쓰는 계정을 먼저, 그다음 가장 많이 쓴 계정을 남깁니다. 두 줄까지는 5시간 창과 주간
+창을 둘 다, 세 줄이나 네 줄이면 주간 창을 보여 줍니다.
 
-![시계 화면 6종의 실제 240×240 이미지(예시 데이터)](images/clock-faces.png)
+**Arcade**도 움직이는 화면이고, 캐릭터마다 그림이 곧 한도 하나의 게이지입니다(작게 5H, WK 등으로 표시).
+Claude의 달은 5시간 한도의 남은 양이고, Codex 꽃밭에는 20% 쓸 때마다 괄호꽃이 한 송이씩 피고, 발사대 옆 Grok의
+연료탱크는 쓸수록 줄고, Copilot의 하늘은 20%마다 구름이 하나씩 차고, Anti(Antigravity)의 파워 펠릿 네 개는
+5시간 한도의 남은 양입니다. 최근 10분 안에 사용률이 오른 계정은 일하는 중입니다. Clawd는 이리저리 달리고(동작은
+claude.dev의 Clawd's Quest에서 가져왔습니다), Codex 구름은 꽃밭에 0·1과 코드 기호 비를 뿌리고, Grok은 팰컨 헤비에
+연료를 넣거나 콘솔에서 점검하고, Copilot은 구름 아래를 가로질러 날고, Anti는 미로를 순찰합니다. 쉴 때는 숨을
+쉬다가 가끔 둘러보고 기지개를 켭니다. 90% 넘게 쓰면(85% 아래로 내려갈 때까지) 저마다 다르게 초조해하며 더 많이
+움직입니다. 창이 리셋되면 폭죽이, 다 쓰면 털썩 쓰러지는 장면이 한 번 나옵니다. Codex의 저장된 한도 리셋은
+머리줄에 금색 티켓과 남은 개수로, 만료 전 마지막 사흘 동안은 빨간 D-n으로 보입니다. 밤 11시부터 아침
+6시까지는 화면이 어두워집니다. 더 드문 장면 몇 개는 숨겨져 있습니다. 잠긴 채로 들어 있다가 그 순간이 실제로
+시계에 찾아올 때만 열리고(레어는 며칠에 한 번, 유니크는 한두 주에 한 번), 몇몇은 장면에 작은 기념품을 잠시
+남깁니다. Arcade는 한 번에 한 계정을 보여 줍니다(일하는 계정들을 차례로, 모두 쉬고 있으면 전부를 차례로).
+결제 데이터가 없는 Grok 로그인처럼 사용률을 알려 주지 않는 계정은 일하는 중으로 치지 않습니다.
+</details>
 
-새 화면은 참고 이미지를 바탕으로 코드로 그렸습니다. 원본 이미지의 가상 통계나 정적인 숫자는 포함하지 않습니다.
-이미지를 자동으로 테마로 바꾸는 기능이나 테마 편집기는 현재 구현돼 있지 않습니다.
-
-## 인증과 사용률
-
-설정에는 계정 별칭, 예상 이메일, 공급자, 공식 CLI의 인증 홈 경로만 넣습니다.
-비밀번호·API 키·OAuth 토큰 값을 설정에 넣으면 안 됩니다.
-기기로 전송되는 내용은 사용률과 별칭을 그린 JPEG뿐입니다.
-
-| 공급자 | 조회 경로 | 수치의 의미 |
-|---|---|---|
-| Claude | CLI 소유 OAuth의 profile/usage | 5시간 및 주간 **사용한 비율** |
-| Codex | 공식 `codex app-server`의 계정/한도 RPC | 응답이 지정한 실제 기간의 **사용한 비율** |
-| Grok | 공식 CLI billing RPC, 실험 단계 | 제공된 CLI **비용 한도**. 웹 대화 횟수와 별개 |
-
-Claude/Codex는 예상 이메일과 인증된 이메일을 대조합니다.
-Grok은 공식 CLI 인증 홈에 저장된 단일 계정 이메일도 대조합니다.
-계정이 여러 개 섞인 인증 홈은 거부하며 billing 인증만으로 이메일을 추정하지 않습니다.
-Grok이 한도 수치를 제공하지 않으면 `quota_unavailable`로 표시합니다.
-`auth_required`, `identity_mismatch`, `rate_limited`, `error`, `stale`을 구별하며
-이전 성공 값에는 `last_success_at`을 붙입니다. 실패한 값을 0%로 바꾸지 않습니다.
-
-`refresh_with_cli: true`인 Claude 계정은 401일 때 공식 CLI로 인증 갱신을 시도합니다.
-이 과정은 도구를 끈 짧은 확인 응답 하나를 요청하므로 구독 사용량을 소량 소비할 수 있습니다.
-인증 파일의 토큰을 직접 수정하거나 다른 머신으로 복사하지 않습니다.
-
-[CodexBar](https://github.com/steipete/CodexBar)를 이미 쓰고 있다면 Claude·Codex 계정은 CodexBar의
-사용량 JSON을 대신 읽을 수 있습니다. 설정과 확인한 범위는 [docs/codexbar.md](codexbar.md)에 있습니다.
-
-**5시간과 주간 중 무엇을 보여 주나요?** 둘 다 읽습니다. 시계는 사용률이 더 높은 쪽과 그 창의 리셋 시간을
-보여 줍니다. 웹 대시보드도 같은 창을 먼저 보여 주고, 그 아래 다른 창 항목을 펼치면 나머지를 볼 수 있습니다.
-
-**다른 화면(HYTE, Apple Watch)도 되나요?** 브라우저 대시보드는 있지만,
-HYTE Y70 화면에서의 레이아웃은 시험하지 않았습니다. Apple Watch 앱은 현재 없습니다.
-
-## 내 디자인 만들기
+## 내 화면 만들기
 
 **동작하는 화면에서 시작하세요.** 시계·로그인·포크 없이 [Game Boy 예제](../examples/gameboy)를 실행하고
-AI에게 바꿔 달라고 하면 됩니다. 시계 화면은 240×240을 그리는 Python 함수 하나이며,
-[docs/clock-faces.md](clock-faces.md)를 따라 샘플 데이터로 만들 수 있습니다. 예제를 복사하거나 포크하는 것만으로는 등록되지 않습니다. 가이드대로 `RENDERERS`와 `STYLES`에 등록하면
-대시보드 **Gallery**에 *Local*로 나타나 시계에 적용할 수 있습니다. 수정본은 로컬에 보관해도 되고,
-GitHub에 보관하고 싶으면 포크하세요.
+AI에게 바꿔 달라고 하면 됩니다. 시계 화면은 240×240 픽셀을 그리는 Python 함수 하나이고,
+[docs/clock-faces.md](clock-faces.md)가 샘플 데이터로 차근차근 안내합니다.
+예제를 복사하거나 포크하는 것만으로는 등록되지 않습니다. 가이드대로 `RENDERERS`와 `STYLES`에 넣으면 대시보드
+**Gallery**에 *Local*로 나타납니다. 수정본은 로컬에 두어도 되고, GitHub에 두고 싶으면 포크하세요.
 
-다른 사람과 나누려면 일반 PR을 열고 [New clock face 체크리스트](../.github/PULL_REQUEST_TEMPLATE/theme.md) 내용을
-복사해 넣어 주세요. 공유된 화면은 다음 릴리스부터 **Gallery**에서 **Popular**(테마별 GitHub 이슈의 👍) 또는 **New** 순으로 보입니다. 좋아요는 릴리스 전에
-수동으로 집계하며, 목록에 집계 시각이 표시됩니다.
+다른 사람도 쓰게 하고 싶다면 일반 PR을 열고
+[New clock face 체크리스트](../.github/PULL_REQUEST_TEMPLATE/theme.md)를 복사해 넣으세요. 공유된 화면은 다음
+릴리스부터 모든 사람의 **Gallery**에 나오고, **Popular**(테마별 GitHub 이슈의 👍) 또는 **New** 순으로 정렬됩니다.
+좋아요는 릴리스 전에 손으로 세므로, 목록에 언제 셌는지가 나옵니다.
 
-## 시계 연결
+<details>
+<summary><b>하드웨어</b></summary>
 
-확인된 경로는 SD_PRO 웹 UI의 `/theme/list`, `/photo/list`, `/photo/upload`입니다.
-설정에 `"device_url": "http://<clock-ip>"`를 추가하면 사진 테마를 사용합니다.
-기기 펌웨어를 바꾸지 않습니다. 기존 사진 파일은 보존하고 선택 상태만 변경합니다.
-원래 테마와 사진 선택 상태는 설정 폴더의 `state/display-original.json`에 저장됩니다.
+- 순정 펌웨어에 사진 앨범 페이지가 있는 GeekMagic **SmallTV** 240×240 Wi-Fi 시계: **SD_PRO**(제작자의 영수증은
+  5,650원, 한국 알리익스프레스 할인가이며 가격은 지역마다 다릅니다) 또는 **SmallTV-Ultra**(기여자들이 확인).
+  다른 기기는 확인하지 않았습니다.
+- 같은 네트워크에서 계속 켜 두는 컴퓨터. 쓰는 공식 CLI가 로그인돼 있고, Node(또는 Python 3.10+)가 있어야
+  합니다.
 
-복원 전 데몬을 정지한 뒤 실행합니다.
+SD_PRO의 사진 API(`/theme/list`, `/photo/list`, `/photo/upload`)는 제작자의 시계에서 확인했습니다. 다른 펌웨어를
+쓰는 복제품은 시험하지 않았습니다.
+확인된 범위와 내 시계 확인 방법은 [docs/hardware-compatibility.md](hardware-compatibility.md)에 있습니다.
+</details>
+
+<details>
+<summary><b>사용량을 읽는 방법</b></summary>
+
+| 공급자 | 출처 | 숫자의 뜻 |
+|---|---|---|
+| Claude | Claude Code CLI 자체의 OAuth 로그인(profile, usage) | 5시간·주간 한도 중 **사용한** 비율 |
+| Codex | 공식 `codex app-server`의 계정·한도 RPC | 보고된 창마다 **사용한** 비율 |
+| Grok | Grok CLI billing RPC(실험 단계) | CLI **결제 예산** 중 쓴 비율, 웹 대화 한도가 아님 |
+
+모든 로그인은 설정한 이메일과 대조합니다. 시계는 그림만 받고, 비밀번호·토큰·쿠키는 절대 받지 않습니다.
+조회는 1분마다, Claude 계정은 5분마다 합니다. Claude의 사용량 엔드포인트가 잦은 호출을 제한하기 때문입니다.
+오래된 값에는 OLD가 붙고 없는 값은 대시로 보이며, 가짜 0%로 바꾸지 않습니다. `refresh_with_cli: true`인
+Claude 계정은 만료된 로그인을 CLI로 갱신할 수 있고, 이때 아주 짧은 프롬프트 하나를 보냅니다.
+
+[CodexBar](https://github.com/steipete/CodexBar)를 이미 쓰나요? Claude나 Codex 계정은 대신 CodexBar의 사용량
+JSON을 읽을 수 있습니다. [docs/codexbar.md](codexbar.md)를 보세요.
+
+**5시간, 아니면 주간?** 두 창을 모두 읽습니다. 시계는 더 많이 쓴 쪽을 그 창의 리셋 시각과 함께 보여 줍니다.
+웹 대시보드도 같은 창을 먼저 보여 주고, 그 아래 다른 창들을 펼치면 나머지를 볼 수 있습니다.
+
+**다른 화면(HYTE, Apple Watch)은?** 브라우저 대시보드는 있지만, HYTE Y70 화면에서의 레이아웃은 시험하지
+않았습니다. Apple Watch 앱은 없습니다.
+</details>
+
+<details>
+<summary><b>계정, 시계, 복원</b></summary>
+
+- `setup`에서 A 계정은 이미 있는 로그인(`~/.claude`, `~/.codex`, `~/.grok`)을 다시 쓸 수 있고, B·C 계정은
+  `~/.config/token-tv/homes/` 아래에 각자의 로그인 폴더를 받습니다.
+  묻지 않고 하려면 플래그를 반복합니다. 예: `token-tv setup --yes --codex-email a@x.com --codex-email b@x.com`.
+  `--isolate`를 붙이면 A 계정도 자기 폴더를 받습니다.
+- `token-tv add codex --email b@x.com`은 이미 있는 설정(`start`가 만든 것 등)에 같은 서비스의 계정을 하나
+  더 넣고, 그 계정만의 로그인 폴더를 만들어 로그인시킵니다. 평소 쓰던 로그인은 그대로입니다. 그 뒤 TokenTV를
+  다시 시작해야 새 계정을 읽습니다.
+- `token-tv connect --account codex_b`는 별도 계정을 그 서비스의 공식 CLI로 로그인시킵니다. 평소 쓰는
+  `~/.claude` / `~/.codex` 로그인 위에는 REPLACE를 입력하지 않는 한 다시 로그인하지 않습니다.
+- `token-tv doctor`는 로그인 파일이 있는지만 봅니다. `doctor --live`는 대시보드와 같은 확인을 합니다. 각
+  공급자에 사용량을 묻고, 만료된 로그인을 CLI가 갱신하게 할 수 있으며, 계정마다 상태만 출력하고 토큰은 절대
+  출력하지 않습니다.
+- 설정 파일은 `~/.config/token-tv/config.json`에 있습니다. `setup`은 이미 있는 설정을 덮어쓰지 않으며, 다른
+  경로를 쓰려면 어느 명령에든 `--config`를 주면 됩니다.
+- 설정에는 별칭, 이메일, CLI 홈 경로만 들어갑니다. 비밀번호, API 키, 토큰은 절대 넣지 마세요.
+- 시계를 나중에 넣거나 바꾸려면 `token-tv start --device-url <clock-ip>`를 실행하세요. 주소를 설정의
+  `device_url`에 저장하고, 이미 돌고 있는 TokenTV는 1분 안에 그 주소를 씁니다.
+- 시계에 원래 사진과 테마를 돌려주려면 TokenTV를 멈추고 `token-tv run --restore-display`를 실행합니다.
+- **macOS(실제 Mac에서는 시험하지 않음):** Claude Code는 로그인을 Keychain에 두므로, CLI 홈에
+  `.credentials.json`이 없으면 TokenTV가 `security`로 읽기 전용 조회합니다. 로그인은 여전히 설정한 이메일과
+  대조합니다. Codex와 Grok은 Linux와 같이 파일을 읽습니다.
+</details>
+
+<details>
+<summary><b>현황과 기여</b></summary>
+
+초기 단계이고 책상 하나를 위해 만들었습니다. 설정은 `token-tv start`와 CLI 로그인이고, Linux에서 제작자의
+SD_PRO와 기여자들의 SmallTV-Ultra 시계로 시험했으며, Claude·Codex·Grok을 지원합니다. 새 공급자를 넣으려면
+여러 파일을 고쳐야 합니다. [공급자 추가하기](adding-a-provider.md)를 보세요. 공급자, 시계 모델, 화면에 관한
+이슈와 PR을 환영합니다. [CONTRIBUTING.md](../CONTRIBUTING.md)와 [시계 화면 만들기](clock-faces.md)를 보세요.
+</details>
+
+<details>
+<summary><b>개발</b></summary>
 
 ```bash
-token-tv run --restore-display
+python3 -m venv .venv && .venv/bin/pip install -e .
+.venv/bin/python -B -m unittest discover -s tests -v
+.venv/bin/python scripts/render_usage_examples.py   # docs/images/usage-examples.png
+.venv/bin/python scripts/render_clock_faces.py      # docs/images/clock-faces.png
+.venv/bin/python scripts/build_demo.py --out site   # 정적 라이브 데모
 ```
 
-사진 API가 없는 다른 펌웨어는 아직 실기기로 검증하지 않았습니다. 확인된 범위와 내 시계 확인 방법은 [docs/hardware-compatibility.md](hardware-compatibility.md)에 있습니다.
+`scripts/test_web_browser.cjs`는 로컬 Playwright Chromium으로 브라우저 검사를 돌립니다.
+</details>
 
-## 다른 머신의 기존 인증 사용
-
-Mini에 인증이 아직 없으면 `token_tv.bridge`로 노트북에서 검증한 정규화 JSON만
-SSH로 보낼 수 있습니다. 설정의 `snapshot_file`이 해당 파일을 가리키도록 합니다.
-그 계정은 화면에 노트북 연동으로 표시되며 15분 이상 갱신되지 않으면 오래된 값이 됩니다.
-이 구성은 노트북이 켜져 있어야 동작합니다.
-
-Mini 설정에 `source_home`과 `fallback_snapshot_file`을 함께 지정하면 Mini 로그인을
-우선 사용하고, 인증이 없을 때만 노트북 조회로 대체합니다. 이메일 불일치는 대체로 숨기지 않습니다.
-Mini의 해당 계정에 로그인하면 다음 조회부터 노트북 의존성이 없어집니다.
-
-```bash
-# Mini의 프로젝트 디렉터리에서 계정을 선택합니다.
-token-tv connect
-```
-
-인증번호는 로그인 터미널 또는 공식 브라우저 화면에 입력합니다. 제품의 HTTP API는
-비밀번호나 인증번호를 받지 않습니다. 기본 CLI 홈과 Orca의 선택 계정은 바꾸지 않습니다.
-
-```bash
-python3 -m token_tv.bridge --config .runtime/laptop-config.json \
-  --ssh-host mini --remote-path '~/path/to/token-tv/.runtime/laptop-snapshot.json'
-```
-
-## 검증과 기존 mock
-
-```bash
-python3 -B -m unittest discover -s tests -v
-python3 -m token_tv.app
-```
-
-기존 mock 서버는 예시 데이터를 `status: "mock"`으로 제공하며 실제 사용량과 구별됩니다.
-
-### Four web appearances
-
-The live web dashboard provides **Digital Terminal, Neon Cyberpunk, Pixel Retro and
-Sci-Fi HUD**. Choose an appearance above the
-three provider cards. It is saved in this browser and does not change the physical
-clock. Account buttons A/B/C switch each provider independently; expand **more
-quota windows** to inspect the other reported limits. The large number always
-names its selected quota period.
-
-**Clock display** opens the 240×240 preview and five LCD styles. Previewing
-is read-only; **Apply to clock** explicitly sends the chosen LCD style. Unknown
-quota is shown as a dash, old readings carry an OLD label, and disconnected web
-sessions retain their last readings with an offline notice. Grok CLI budget is
-not the Grok web conversation quota.
-
-Web files live in `token_tv/web/`; `token_tv/web/tokens.css` defines appearance colors and fonts.
-`token_tv/web_assets.py` allowlists public files. The bundled fonts (Manrope, Orbitron,
-Oxanium, Press Start 2P, Jersey 10, VT323, DSEG7 Classic, Chakra Petch) are served locally with their SIL Open Font License notices; the dashboard makes
-no external font requests, and the clock renderer reuses the same files.
-
-For a Mini Codex account whose device-code login is unavailable, use the normal
-browser flow with `python3 -m token_tv.connect --config <private-config> --account
-<key> --browser`, forwarding localhost port 1455 to the Mini during authentication.
-This keeps each account's CLI home separate.
-
-Browser regression checks use local Playwright Chromium:
-
-```sh
-PLAYWRIGHT_PACKAGE=/path/to/playwright-package \
-CHROMIUM_EXECUTABLE=/path/to/chromium \
-TOKEN_TV_TEST_URL=http://127.0.0.1:18787 \
-node scripts/test_web_browser.cjs
-```
-
-The test captures four desktop/mobile appearances, tests five viewport widths,
-account choices, missing/stale/offline data, and clock controls. Its apply request
-is intercepted, so running it does not change a connected clock.
-
+MIT, [LICENSE](../LICENSE)를 보세요. 함께 넣은 글꼴의 SIL Open Font License 고지는 `token_tv/web/`에 그대로
+있습니다. · [English](setup.md)

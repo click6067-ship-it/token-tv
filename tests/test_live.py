@@ -194,3 +194,92 @@ class LockTests(unittest.TestCase):
         other = subprocess.run([sys.executable, '-c', 'import sys; from pathlib import Path; from token_tv.live import hold_lock; '
                                 'sys.exit(0 if hold_lock(Path(sys.argv[1])) else 3)', str(folder)], capture_output=True)
         self.assertEqual(other.returncode, 3)  # a second process with the same config is refused
+
+
+class LostClockTests(unittest.TestCase):
+    def test_searches_back_off_and_the_same_place_is_not_a_move(self):
+        from token_tv.live import lost_search_due, relocate, same_place
+        self.assertEqual([n for n in range(1, 30) if lost_search_due(n, 0.0, 100.0)], [3, 6, 12, 24])
+        self.assertTrue(lost_search_due(30, 0.0, 2000.0))
+        self.assertTrue(same_place('http://localhost:18001', 'http://127.0.0.1:18001'))
+        self.assertTrue(same_place('http://127.0.0.1:80', 'http://127.0.0.1'))
+        self.assertIsNone(relocate('http://localhost:18001', lambda: ['http://127.0.0.1:18001']))
+
+    def test_each_reason_has_words_for_the_dashboard(self):
+        from urllib.error import HTTPError, URLError
+        from token_tv.device import ClockFull, NotAClock
+        from token_tv.live import problem_of
+        self.assertEqual(problem_of(URLError('down')), 'no_answer')
+        self.assertEqual(problem_of(NotAClock('x')), 'not_a_clock')
+        self.assertEqual(problem_of(ClockFull(80000, 20000)), 'clock_full')
+        self.assertEqual(problem_of(HTTPError('u', 404, 'nf', {}, None)), 'not_a_clock')
+        self.assertEqual(problem_of(ValueError('The clock did not keep the whole picture')), 'short_copy')
+
+
+class GuardTests(unittest.TestCase):
+    def test_the_dashboard_answers_only_by_this_computers_names(self):
+        import http.client, threading
+        from token_tv import live
+        from token_tv.state import UsageStore
+        store = UsageStore([{'key': 'codex_a', 'alias': 'A', 'provider': 'codex'}], fetch=lambda _: None)
+        server = live.QuietServer(('127.0.0.1', 0), live.handler(store))
+        threading.Thread(target=server.serve_forever, daemon=True).start()
+        try:
+            def status(host):
+                conn = http.client.HTTPConnection('127.0.0.1', server.server_port, timeout=10)
+                conn.request('GET', '/snapshot', headers={'Host': host})
+                return conn.getresponse().status
+            self.assertEqual(status(f'127.0.0.1:{server.server_port}'), 200)
+            self.assertEqual(status(f'localhost:{server.server_port}'), 200)
+            self.assertEqual(status('evil.example:80'), 403)  # a page that renamed itself to 127.0.0.1
+        finally:
+            server.shutdown()
+
+    def test_one_tokentv_per_clock_whatever_the_config(self):
+        import subprocess, sys
+        from token_tv.live import hold_clock
+        url = 'http://127.0.0.1:18999'
+        self.assertTrue(hold_clock(url))
+        other = subprocess.run([sys.executable, '-c', 'import sys; from token_tv.live import hold_clock; '
+                                'sys.exit(0 if hold_clock(sys.argv[1]) else 3)', 'http://localhost:18999'], capture_output=True)
+        self.assertEqual(other.returncode, 3)  # the same clock by another name, from another process
+
+    def test_a_clock_lock_is_held_once_per_process_and_can_be_let_go(self):
+        import subprocess, sys
+        from token_tv.live import hold_clock, let_go
+        url = 'http://127.0.0.1:18998'
+        other = [sys.executable, '-c', 'import sys; from token_tv.live import hold_clock; '
+                 'sys.exit(0 if hold_clock(sys.argv[1]) else 3)', url]
+        path = hold_clock(url)
+        self.assertTrue(path)
+        self.assertEqual(hold_clock(url), path)  # this process again, say once the config is read again
+        self.assertEqual(subprocess.run(other, capture_output=True).returncode, 3)
+        let_go(path)  # another clock now
+        self.assertEqual(subprocess.run(other, capture_output=True).returncode, 0)
+
+    def test_a_lock_folder_it_cannot_write_is_no_reason_to_stop(self):
+        import contextlib, io, os, tempfile
+        from token_tv import live
+        if hasattr(os, 'geteuid') and os.geteuid() == 0:
+            self.skipTest('root writes anywhere')
+        folder = Path(tempfile.mkdtemp())
+        folder.chmod(0o555)  # another account's folder, say
+        self.addCleanup(folder.chmod, 0o755)
+        said = io.StringIO()
+        with patch.object(live, 'clock_lock', lambda url: folder / 'clock-x.lock'), contextlib.redirect_stdout(said):
+            self.assertTrue(live.hold_clock('http://127.0.0.1:18997'))
+        self.assertIn('runs without that check', said.getvalue())
+
+    def test_an_https_address_saved_before_is_read_as_the_http_the_clock_speaks(self):
+        from token_tv.live import plain
+        self.assertEqual(plain('HTTPS://192.168.0.50:8080'), 'http://192.168.0.50:8080')
+        self.assertEqual((plain('http://192.168.0.50'), plain(None)), ('http://192.168.0.50', None))
+
+    def test_a_model_guessed_while_nothing_answers_says_so(self):
+        from token_tv.device import open_display
+        self.assertTrue(open_display('http://127.0.0.1:9').guessed)  # nothing listens on the discard port
+
+    def test_an_answer_that_is_not_a_clocks_list_counts_as_not_a_clock(self):
+        import json
+        from token_tv.live import problem_of
+        self.assertEqual(problem_of(json.JSONDecodeError('x', '<html>', 0)), 'not_a_clock')

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "token-tv"
-version = "0.3.1"
+version = "0.3.2"
 description = "Your AI usage limits on a $5 desk clock: Claude, Codex, Grok, Copilot and Antigravity on a 240x240 Wi-Fi clock"
 readme = "README.md"
 license = "MIT"
@@ -16,7 +16,7 @@ Homepage = "https://github.com/click6067-ship-it/token-tv"
 Demo = "https://token-tv.vercel.app"
 
 [project.scripts]
-token-tv = "token_tv.cli:main"
+token-tv = "token_tv.cli:entry"
 
 [tool.setuptools]
 packages = ["token_tv", "token_tv.providers", "token_tv.web", "token_tv.assets"]

@@ -70,6 +70,26 @@
       "source_url": "https://github.com/click6067-ship-it/token-tv",
       "license": "MIT",
       "like_issue": null
+    },
+    {
+      "id": "arcade",
+      "name": "Arcade",
+      "author": "TokenTV",
+      "added_at": "2026-10-29T00:00:00Z",
+      "min_version": "0.3.0",
+      "source_url": "https://github.com/click6067-ship-it/token-tv",
+      "license": "MIT",
+      "like_issue": null
+    },
+    {
+      "id": "retro-dual",
+      "name": "Pixel Retro Dual",
+      "author": "okalentiev",
+      "added_at": "2026-10-28T00:00:00Z",
+      "min_version": "0.3.0",
+      "source_url": "https://github.com/click6067-ship-it/token-tv/pull/11",
+      "license": "MIT",
+      "like_issue": null
     }
   ]
 }

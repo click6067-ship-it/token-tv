@@ -3,7 +3,7 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-from token_tv import autostart
+from token_tv import __version__, autostart
 
 
 class AutostartTests(unittest.TestCase):
@@ -90,13 +90,28 @@ class AutostartTests(unittest.TestCase):
             self.assertIn('Task Manager', autostart.remove())
         kill.assert_not_called()
 
+    def test_the_npm_launchers_own_uv_starts_it_with_the_computer(self):
+        env = {'TOKEN_TV_LAUNCHER': 'npx', 'TOKEN_TV_UVX': '/home/me/.cache/token-tv/uv/uvx'}
+        with mock.patch.dict('os.environ', env), mock.patch('sys.prefix', '/home/me/.cache/uv/archive-v0/abc'), \
+                mock.patch('shutil.which', return_value=None):
+            self.assertEqual(autostart.command('/tmp/config.json')[:3], ['/home/me/.cache/token-tv/uv/uvx', f'token-tv@{__version__}', 'start'])
+            self.assertEqual(autostart.how(), 'npx token-tv')
+
+    def test_a_pipx_run_copy_is_started_through_pipx(self):
+        with mock.patch('sys.prefix', '/home/me/.local/share/pipx/.cache/0a1b2c'), mock.patch('shutil.which', return_value='/usr/bin/pipx'):
+            self.assertEqual(autostart.command('/tmp/config.json')[:5], ['/usr/bin/pipx', 'run', '--spec', f'token-tv=={__version__}', 'token-tv'])
+            self.assertEqual(autostart.how(), 'pipx run token-tv')
+
     def test_the_stop_command_is_the_one_this_person_can_run(self):
         with mock.patch('sys.prefix', '/home/me/.cache/token-tv/venv'):
             self.assertEqual(autostart.how(), 'npx token-tv')
         with mock.patch('sys.prefix', '/home/me/.cache/uv/archive-v0/abc'):
             self.assertEqual(autostart.how(), 'uvx token-tv')
-        with mock.patch('sys.prefix', '/home/me/.local/pipx/venvs/token-tv'):
+        with mock.patch('sys.prefix', '/home/me/.local/pipx/venvs/token-tv'), mock.patch('shutil.which', return_value='/home/me/.local/bin/token-tv'):
             self.assertEqual(autostart.how(), 'token-tv')
+        with mock.patch('sys.prefix', '/proj/.venv'), mock.patch('shutil.which', return_value=None), \
+                mock.patch.object(autostart.Path, 'exists', return_value=True):
+            self.assertEqual(autostart.how(), '/proj/.venv/bin/token-tv')  # a venv not on PATH: its full path
 
     def test_on_status_off_with_systemd(self):
         config = self.folder / 'config.json'
@@ -134,7 +149,7 @@ class AutostartTests(unittest.TestCase):
         with mock.patch('sys.prefix', '/home/me/.cache/uv/archive-v0/abc123'), \
                 mock.patch('shutil.which', return_value='/home/me/.local/bin/uvx'):
             argv = autostart.command('/tmp/config.json')
-        self.assertEqual(argv[:3], ['/home/me/.local/bin/uvx', 'token-tv', 'start'])
+        self.assertEqual(argv[:3], ['/home/me/.local/bin/uvx', f'token-tv@{__version__}', 'start'])  # this release, also offline
         with mock.patch('sys.prefix', '/home/me/.local/pipx/venvs/token-tv'):
             self.assertEqual(autostart.command('/tmp/config.json')[1:3], ['-m', 'token_tv'])
 

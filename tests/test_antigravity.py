@@ -7,9 +7,9 @@ from pathlib import Path
 
 from PIL import Image, ImageChops
 
-from token_tv import arcade
+from token_tv import arcade, gif
 from token_tv.display import STYLES, overview_rows, render_page
-from token_tv.sample import H, snapshot
+from token_tv.sample import D, H, snapshot
 from token_tv.sources import codexbar_entry, load_config
 from token_tv.usage import normalize_codexbar
 from token_tv.web_assets import ASSETS
@@ -18,6 +18,21 @@ from token_tv.web_assets import ASSETS
 def pixels(image):
     """Every pixel, on old and new Pillow alike."""
     return getattr(image, 'get_flattened_data', image.getdata)()
+
+
+DAY, NIGHT = time.mktime((2026, 10, 28, 14, 0, 0, 0, 0, -1)), time.mktime((2026, 10, 29, 2, 0, 0, 0, 0, -1))
+STAGE = (0, 28, 240, 170)  # the stage on the clock, its pixels doubled
+
+
+def anti_data(now, used=42, **fields):
+    data = snapshot(now, [('anti_a', 'ANTI A', 'antigravity', [('5H', used, 2 * H)])])
+    data['accounts']['anti_a'].update(fields)
+    return data
+
+
+def changed(a, b):
+    """How many pixels differ between two frames."""
+    return ImageChops.difference(a.convert('RGB'), b.convert('RGB')).convert('L').point(lambda v: 255 if v else 0).histogram()[255]
 
 # Shapes of `codexbar usage --provider antigravity|gemini --format json` (sample values, no real account).
 APP = {'provider': 'gemini', 'usage': {'primary': {'usedPercent': 42.0, 'windowMinutes': 300, 'resetsAt': 1900000000},
@@ -131,6 +146,83 @@ class AntigravityTests(unittest.TestCase):
         self.assertGreater(blue(stage(95, False, True)), blue(stage(50, False)) + 100)
         moved = [ImageChops.difference(calm[0], calm[k]).getbbox() for k in (10, 40, 80)]
         self.assertTrue(all(moved))  # round the maze
+
+    def test_anti_wears_the_v2_face_and_no_feet(self):
+        art, logo = arcade.anti_art(), arcade.anti_logo()
+        self.assertEqual(art.size, (24, 19))  # the legs' last row half height: no feet
+        for y in range(art.height):
+            for x in range(art.width):
+                block, here = logo.getpixel((x // 2, y // 2)), art.getpixel((x, y))
+                self.assertEqual(bool(here[3]), bool(block[3]) or (y == 10 and 10 <= x <= 13), (x, y))  # the logo and its chin
+                if block[3] and not (7 <= x <= 16 and 3 <= y <= 10):  # its colours, round the face
+                    self.assertEqual(here[:3], block[:3], (x, y))
+        self.assertEqual([art.getpixel(p)[:3] for p in ((9, 4), (13, 4))], [arcade.ANTI_GLINT] * 2)  # a glint on each bean
+        self.assertEqual([art.getpixel(p)[:3] for p in ((10, 4), (9, 6), (14, 6), (10, 8))], [arcade.ANTI_NAVY] * 4)
+        for face in ('normal', 'blink', 'sleep', 'curious', 'roll', 'happy'):
+            self.assertEqual({arcade.anti_art(face).getpixel(p)[:3] for p in arcade.ANTI_CHEEKS}, {arcade.ANTI_CHEEK}, face)
+        for face, body in (('scared', 'scared'), ('wide_scared', 'scared'), ('low_scared', 'scared'), ('wide_flash', 'flash')):
+            inks = {p[:3] for p in pixels(arcade.anti_art(face, body)) if p[3]}  # frightened faces stay frightened
+            self.assertFalse({arcade.ANTI_CHEEK, arcade.ANTI_GLINT} & inks, face)
+
+    def test_the_dashboard_shows_the_clocks_anti(self):
+        sprite = Image.open(arcade.ASSETS / 'antigravity-pixel.png').convert('RGBA')
+        drawn = Image.new('RGBA', (32, 32))
+        drawn.paste(arcade.anti_art(), (4, 6))
+        self.assertEqual(sprite.tobytes(), drawn.tobytes())
+
+    def test_anti_rests_a_minute_at_a_time_and_sleeps_the_night_through(self):
+        row = dict(anti_data(DAY)['accounts']['anti_a'], key='anti_a')
+        idles = {}
+        for minute in range(6 * 60):  # six hours of afternoon: every step of the rest flow, the rare one too
+            step, _ = arcade.rest_step('antigravity', DAY + 60 * minute)
+            idles.setdefault(step, arcade.scene_plan(row, DAY + 60 * minute)['idle'])
+        self.assertEqual(idles, {None: ('bounce', 'bounce'), 'look': ('arch', 'bounce'), 'stretch': ('float', 'bounce'),
+                                 'rare': ('umbrella', 'bounce')})
+        for minute in range(6):
+            self.assertEqual(arcade.scene_plan(row, NIGHT + 60 * minute)['idle'], ('blanket', 'blanket'))
+        worried = dict(anti_data(NIGHT, 95, worry=True)['accounts']['anti_a'], key='anti_a')
+        self.assertEqual(arcade.scene_plan(worried, NIGHT)['idle'], ('fret', 'fret'))
+
+    def test_each_rest_piece_keeps_the_gauge_on_the_open_floor_and_meets_its_start(self):
+        gauge = Image.new('RGB', (120, 71), arcade.MAZE_BG)
+        arcade.anti_pellets(arcade.ImageDraw.Draw(gauge), (0, 0, 120, 71), .58)
+        lit = [(x, y) for y in range(71) for x in range(120) if gauge.getpixel((x, y)) == arcade.MAZE_DOT]
+        for idle in ('bounce', 'bounce'), ('arch', 'bounce'), ('float', 'bounce'), ('umbrella', 'bounce'), \
+                    ('blanket', 'blanket'), ('fret', 'fret'):
+            frames = arcade.arcade_frames(anti_data(DAY, showcase=list(idle)), DAY)
+            self.assertTrue(all(f.getpixel((2 * x, 28 + 2 * y)) == arcade.MAZE_DOT for f in frames for x, y in lit), idle)
+            self.assertNotIn(arcade.MAZE_DOOR, {c for _, c in frames[0].getcolors(1 << 16)}, idle)  # no house at rest
+            steps = [changed(a, b) for a, b in zip(frames, frames[1:])]
+            self.assertTrue(max(steps), idle)
+            self.assertLessEqual(changed(frames[-1], frames[0]), max(steps), idle)  # no jump where the loop meets its start
+
+    def test_a_reset_pops_the_pellets_in_and_anti_hops_for_joy(self):
+        frames = [f.crop(STAGE) for f in arcade.arcade_frames(anti_data(DAY, 2), DAY, egg='reset@anti_a')]
+        dots = lambda image: sum(1 for p in pixels(image) if p == arcade.MAZE_DOT)
+        everyday = arcade.arcade_frames(anti_data(DAY, 2, showcase=['bounce']), DAY)[0].crop(STAGE)
+        self.assertLess(dots(frames[0]), dots(frames[-1]))  # left out at first, then in
+        self.assertEqual(dots(frames[-1]), dots(everyday))  # as many as the gauge shows any other time
+        def top(image):  # the highest row of Anti, between the top row of dots and the floor
+            band = image.crop((96, 44, 144, 120))
+            return 44 + next(y for y in range(band.height) if any(band.getpixel((x, y)) != arcade.MAZE_BG for x in range(band.width)))
+        self.assertGreaterEqual(sum(1 for f in frames[12:30] if top(f) <= top(frames[0]) - 16), 6)  # 8 px up for half a second
+
+    def test_every_anti_state_fits_the_upload_alone_and_among_four(self):
+        others = [('claude_a', 'CLAUDE A', 'claude', [('5H', 41, 2 * H)]), ('codex_a', 'CODEX A', 'codex', [('WEEK', 47, 4 * D)]),
+                  ('grok_a', 'GROK A', 'grok', [('BUDGET', 61, 6 * D)])]
+        states = [(DAY, 42, {'active': True}), (DAY, 95, {'active': True, 'worry': True}), (NIGHT, 42, {}),
+                  (DAY, 95, {'worry': True})] + [(DAY, 42, {'showcase': [idle, 'bounce']}) for idle in ('bounce', 'arch', 'float', 'umbrella')]
+        for four in (False, True):
+            for now, used, fields in states:
+                data = snapshot(now, [('anti_a', 'ANTI A', 'antigravity', [('5H', used, 2 * H)])] + (others if four else []))
+                for key, row in data['accounts'].items():
+                    row.update(fields if key == 'anti_a' else {'active': fields.get('active', False)})
+                frames = arcade.arcade_frames(data, now)
+                whole = gif.encode(gif.indexed(frames, 'Arcade'), [arcade.FRAME_MS] * len(frames))
+                self.assertLessEqual(len(whole), arcade.BUDGET, (four, now, used, fields))  # every frame kept
+        for kind, used in (('reset', 2), ('full', 100)):
+            frames = arcade.arcade_frames(anti_data(DAY, used), DAY, egg=f'{kind}@anti_a')
+            self.assertLessEqual(len(gif.encode(gif.indexed(frames, 'Arcade'), [arcade.FRAME_MS] * 120)), arcade.BUDGET)
 
 
 if __name__ == '__main__':

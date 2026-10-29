@@ -1,7 +1,8 @@
 """token-tv: set up, check, preview and run TokenTV.
 
     token-tv start     find your signed-in CLIs and the clock, keep it running (the easy way)
-    token-tv autostart start TokenTV with this computer (on), stop that (off), or check (status)
+    token-tv autostart  start with this computer (on), stop that (off), or check (status)
+    token-tv add       add another account of a service (e.g. add codex), with its own login
     token-tv setup     write a credential-free config (never overwrites one)
     token-tv doctor    check CLIs and login files (--live asks each provider)
     token-tv demo      render every clock face with sample data
@@ -13,6 +14,7 @@ import io
 import json
 import os
 import shutil
+import subprocess
 import sys
 import time
 from pathlib import Path
@@ -25,6 +27,9 @@ PROVIDERS = {
     'codex': ('codex', '~/.codex', 'auth.json', 'codex login'),
     'grok': ('grok', '~/.grok', 'auth.json', 'grok login'),
 }
+
+
+CODEXBAR = ('claude', 'codex', 'copilot', 'antigravity')  # what TokenTV reads through CodexBar, when it is installed
 
 
 def default_config():
@@ -48,11 +53,23 @@ def login_state(provider, home):
 
 
 def ask(prompt, default=''):
+    shown = f' [{default}]' if default and not prompt.rstrip().endswith(']') else ''  # '[Y/n]' already shows it
     try:
-        answer = input(f'{prompt}{f" [{default}]" if default else ""}: ').strip()
+        answer = input(f'{prompt}{shown}: ').strip()
     except EOFError:
         answer = ''
     return answer or default
+
+
+CONFIG = None  # the config this run uses, when it is not the default one: commands TokenTV prints carry it
+
+
+def cmd(rest):
+    """A command to type, written the way this person runs TokenTV (npx, uvx, token-tv or a venv's path), with this
+    run's --config when it is not the default."""
+    from token_tv.autostart import how, quoted
+    extra = f' --config {quoted(CONFIG)}' if CONFIG and str(Path(CONFIG).expanduser()) != default_config() else ''
+    return f'{how()} {rest}{extra}'
 
 
 def device_address(text):
@@ -64,7 +81,7 @@ def device_address(text):
         url.port
     except ValueError:
         raise ValueError(f'{text!r} has an invalid port') from None
-    return f'{url.scheme}://{url.netloc}'
+    return f'http://{url.netloc}'  # the clock speaks plain http, whatever was typed
 
 
 def setup(args):
@@ -104,14 +121,14 @@ def setup(args):
         return 1
     device = args.device_url
     while device is None and interactive:
-        device = ask('\nClock address, e.g. http://192.168.0.50 (blank for dashboard only)')
+        device = ask('\nClock address, e.g. 192.168.0.50 (blank for dashboard only)')
         try:
-            device = device and device_address(device)
+            device = device and device_address(device if device.startswith(('http://', 'https://')) else 'http://' + device)
         except ValueError as error:
             print(f'  {error}')
             device = None
     try:
-        device = device and device_address(device)
+        device = device and device_address(device if device.startswith(('http://', 'https://')) else 'http://' + device)
     except ValueError as error:
         print(error, file=sys.stderr)
         return 1
@@ -126,13 +143,12 @@ def setup(args):
     except OSError as error:
         print(f'Could not write {path}: {error.strerror or error}', file=sys.stderr)
         return 1
-    flag = '' if str(path) == default_config() else f' --config {path}'
     print(f'Wrote {path} ({len(accounts)} account{"s" * (len(accounts) != 1)}; emails and paths only, no secrets).')
     for account in accounts:
         shared = account['source_home'] == PROVIDERS[account['provider']][1]
         print(f'  {account["alias"]:<9} {"reuses your existing CLI login" if shared else "separate login"} '
               f'in {account["source_home"]}')
-    print(f'Next: token-tv doctor{flag}   (separate logins need: token-tv connect{flag} --account <key>)')
+    print(f'Next: {cmd("doctor")}   (separate logins need: {cmd("connect")} --account <key>)')
     return 0
 
 
@@ -141,7 +157,7 @@ def read_config(path):
     from token_tv.sources import load_config
     path = Path(path).expanduser()
     if not path.is_file():
-        print(f'No config at {path}. Run: token-tv start', file=sys.stderr)
+        print(f'No config at {path}. Run: {cmd("start")}', file=sys.stderr)
         return None
     try:
         return load_config(path)
@@ -156,7 +172,6 @@ def doctor(args):
     config = read_config(args.config)
     if config is None:
         return 1
-    flag = '' if str(Path(args.config).expanduser()) == default_config() else f' --config {args.config}'
     ready = True
     unreported = []
     for account in config['accounts']:
@@ -191,7 +206,7 @@ def doctor(args):
             line += f'live check {"ok" if good else row["status"].upper()}'
             ready &= bool(good)
             if not good:
-                line += f' -> token-tv connect{flag} --account {account["key"]}'
+                line += f' -> {cmd("connect")} --account {account["key"]}' if found else ''
         elif state == 'yes':
             line += 'login file present (not verified yet)'
         elif state == 'keychain':
@@ -199,21 +214,21 @@ def doctor(args):
             line += 'no login file; macOS Keychain unchecked (untested on real Macs) -> doctor --live'
         else:
             ready = False
-            line += f'login MISSING -> token-tv connect{flag} --account {account["key"]}'
+            line += 'login MISSING' + (f' -> {cmd("connect")} --account {account["key"]}' if found else '')
         if not found:
             ready = False
             line += f'\n{"":<18}install the {provider} CLI, then log in ({PROVIDERS[provider][3]})'
         print(line)
     print('Clock: ' + (config.get('device_url') or 'none (dashboard only)'))
     if not ready:
-        print(f'Fix the lines above, then run token-tv doctor{flag} again.')
+        print(f'Fix the lines above, then run {cmd("doctor")} again.')
     elif args.live and unreported:
         print(f'Ready, but CodexBar did not report the email for {", ".join(unreported)}; '
-              f'check it reads the account you expect. Start with: token-tv run{flag}')
+              f'check it reads the account you expect. Start with: {cmd("start")}')
     elif args.live:
-        print(f'Ready: every account answered with the expected email. Start with: token-tv run{flag}')
+        print(f'Ready: every account answered with the expected email. Start with: {cmd("start")}')
     else:
-        print(f'Files are in place, but logins are not verified. Check them with: token-tv doctor{flag} --live')
+        print(f'Files are in place, but logins are not verified. Check them with: {cmd("doctor")} --live')
     return 0 if ready else 1
 
 
@@ -237,7 +252,8 @@ def demo(args):
             big = Image.open(io.BytesIO(image)).resize((240 * args.scale,) * 2, Image.Resampling.NEAREST)
             big.save(out / f'demo-{style}@{args.scale}x.png')
         print(name)
-    print('Sample data only (DEMO). Your real usage appears after setup, connect and run.')
+    from token_tv.autostart import how
+    print(f'Sample data only (DEMO). For your own usage on your clock: {how()} start')
     return 0
 
 
@@ -263,6 +279,7 @@ def dashboard_port():
     for port in PORTS:
         with socket.socket() as probe:
             try:
+                probe.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)  # as the dashboard's own server does
                 probe.bind(('127.0.0.1', port))
             except OSError:
                 continue
@@ -287,10 +304,20 @@ def pick_clock(interactive):
         print(f'Found {len(found)} clocks; using {urlparse(found[0]).hostname} (pass --device-url to choose)')
         return found[0]
     if not interactive:
-        print('No clock found on this Wi-Fi: the dashboard runs without one (pass --device-url to add it).')
+        print(f'No clock found on this Wi-Fi: the dashboard runs without one. Once the clock is on the Wi-Fi, run\n'
+              f'{cmd("start")} again to find it, or give its address: {cmd("start --device-url 192.168.0.50")}')
         return ''
     print('No clock found on this Wi-Fi. Its address shows on the clock screen when it starts.')
     return ask('Clock address, e.g. 192.168.0.50 (blank = dashboard only)')
+
+
+def clock_now(path, config, interactive):
+    """A config made without a clock, started again by hand: look for the clock now and keep the one chosen. Never
+    on its own (`--yes`, as the computer starts it): a lone clock on a shared Wi-Fi may be someone else's."""
+    if config.get('device_url') or not interactive:
+        return True
+    found = pick_clock(interactive)
+    return not found or save_clock(path, config, found) is not None
 
 
 def start(args):
@@ -299,8 +326,8 @@ def start(args):
     port, already = dashboard_port()
     url = f'http://127.0.0.1:{port}'
     only = [p.strip().lower() for p in (args.only or '').split(',') if p.strip()]
-    if set(only) - set(PROVIDERS):
-        print(f'--only takes {", ".join(PROVIDERS)}', file=sys.stderr)
+    if set(only) - set(PROVIDERS) - set(CODEXBAR):
+        print(f'--only takes {", ".join(dict.fromkeys([*PROVIDERS, *CODEXBAR]))}', file=sys.stderr)
         return 1
     path = Path(args.config).expanduser()
     if already:
@@ -310,40 +337,65 @@ def start(args):
                 return 1
             if args.face and config.get('display_style') != args.face:
                 show_face(port, args.face)
+            if args.device_url and save_clock(path, config, args.device_url) is None:
+                return 1
+            if not args.device_url and not clock_now(path, config, not args.yes and sys.stdin.isatty()):
+                return 1
         print(f'TokenTV is already running on this computer: {url}')
         if only:
-            from token_tv import autostart
-            print(f'It reads its accounts when it starts: after changing them, restart it '
-                  f'({autostart.how()} autostart off, then {autostart.how()} start).')
+            print(f'It reads its accounts when it starts: after changing them, restart it (Ctrl+C where it runs, '
+                  f'or {cmd("autostart off")} then {cmd("autostart on")} if it starts with the computer).')
         if not args.no_browser:
             import webbrowser
             webbrowser.open(url)
         return 0
     if port is None:
-        print(f'Ports {PORTS[0]}-{PORTS[-1]} are all taken on this computer; free one and run token-tv start again.',
+        print(f'Ports {PORTS[0]}-{PORTS[-1]} are all taken on this computer; free one and run {cmd("start")} again.',
               file=sys.stderr)
         return 1
     interactive = not args.yes and sys.stdin.isatty()
     existed = path.exists()
     if not existed:
-        accounts = []
-        for provider, (_, home, _, _) in PROVIDERS.items():
+        accounts, reasons = [], []
+        for provider, (_, home, _, hint) in PROVIDERS.items():
             if only and provider not in only:
                 continue
-            if not cli_path(provider) or login_state(provider, home) == 'no':
+            if not cli_path(provider):
+                reasons.append(f'{provider.title()}: not installed')
                 continue
-            email = logged_in_email(provider, home)
+            if login_state(provider, home) == 'no':
+                reasons.append(f'{provider.title()}: installed, not signed in ({hint})')
+                continue
+            why = []
+            email = logged_in_email(provider, home, why)
             if not email:
+                reasons.append(f'{provider.title()}: ' + {
+                    'refused': f'signed in, but the saved login was refused (expired?); open `{PROVIDERS[provider][0]}` once',
+                    'busy': 'signed in, but the service asked to wait; try again in a minute',
+                    'offline': 'signed in, but the service could not be reached; check the internet connection',
+                    'not_chatgpt': 'signed in with an API key; TokenTV reads a ChatGPT sign-in (`codex login`)',
+                }.get(why[0] if why else '', f'signed in, but its login could not be read; open `{PROVIDERS[provider][0]}` once'))
                 continue
             if interactive and not ask(f'Found {provider.title()} signed in as {email}. Use it? [Y/n]', 'y').lower().startswith('y'):
                 continue
             accounts.append({'key': f'{provider}_a', 'alias': f'{provider.upper()} A', 'provider': provider,
                              'email': email, 'source_home': home})
             print(f'{provider.title()}: {email}')
+        accounts += codexbar_accounts(only, {a['provider'] for a in accounts}, interactive)
         if not accounts:
             wanted = ' or '.join(p.title() for p in only) if only else 'Claude, Codex or Grok'
-            print(f'No signed-in {wanted} CLI found. Sign in to one (for example `codex`, then log in),\n'
-                  'or look around first with: token-tv demo', file=sys.stderr)
+            guides = {'claude': '  Claude Code: install it (https://code.claude.com/docs/en/quickstart), run `claude` and log in\n',
+                      'codex': '  Codex:       npm install -g @openai/codex, then run `codex login`\n',
+                      'grok': '  Grok:        install the Grok CLI, then run `grok login`\n',
+                      'copilot': '  Copilot:     install CodexBar and sign it in (docs/codexbar.md)\n',
+                      'antigravity': '  Antigravity: install CodexBar and sign it in (docs/codexbar.md)\n'}
+            codexbar = ('  CodexBar: installed, but it reported no signed-in account (`codexbar usage --format json` '
+                        'shows why)\n' if shutil.which('codexbar') else '')
+            print(f'No signed-in {wanted} CLI found on this computer:\n' + ''.join(f'  {r}\n' for r in reasons) +
+                  'TokenTV reads your limits through the official command-line tools; signing in on claude.ai or\n'
+                  'chatgpt.com in a browser is not enough.\n' +
+                  ''.join(guides[p] for p in (only or ('claude', 'codex'))) + codexbar +
+                  f'Then run this again. To see the faces first: {cmd("demo")}', file=sys.stderr)
             return 1
         device = args.device_url
         if device is None:
@@ -366,26 +418,17 @@ def start(args):
     config = read_config(path)
     if config is None:
         return 1
-    if args.device_url and path.exists():
-        # --device-url only fills a new config; say so rather than quietly using the saved clock.
-        wanted = args.device_url if args.device_url.startswith(('http://', 'https://')) else 'http://' + args.device_url
-        try:
-            wanted = device_address(wanted)
-        except ValueError as error:
-            print(error, file=sys.stderr)
-            return 1
-        if wanted != config.get('device_url'):
-            print(f'{path} already sets the clock to {config.get("device_url") or "none (dashboard only)"}, '
-                  f'and --device-url is only used when that file is created.\n'
-                  f'To use {wanted}, change device_url in that file, then run token-tv start again.', file=sys.stderr)
-            return 1
+    if existed and args.device_url and save_clock(path, config, args.device_url) is None:
+        return 1
+    if existed and not args.device_url and not clock_now(path, config, interactive):
+        return 1
     if existed and refuses_only(path, config, only):
         return 1
     if args.face and config.get('display_style') != args.face:  # the face picked on the web demo, kept from now on
         config['display_style'] = args.face
-        path.write_text(json.dumps(config, indent=2) + '\n')
+        update_config(path, display_style=args.face)
     from token_tv import autostart
-    if interactive and autostart.status() == 'off' and \
+    if interactive and not existed and autostart.status() == 'off' and \
             ask('Start TokenTV with this computer and keep it running? [Y/n]', 'y').lower().startswith('y'):
         try:
             print(autostart.install(path))
@@ -418,6 +461,67 @@ def start(args):
     return 0
 
 
+def codexbar_accounts(only, have, interactive):
+    """Accounts CodexBar reads on this computer, for the services no official CLI gave: how `start` sets up a
+    CodexBar user, and the only way to Copilot and Antigravity. CodexBar keeps the logins; TokenTV reads its JSON."""
+    from concurrent.futures import ThreadPoolExecutor
+    from token_tv.sources import SourceError, codexbar_emails, codexbar_payload
+    wanted = [p for p in CODEXBAR if p not in have and (p in only if only else True)]
+    if not wanted or not shutil.which('codexbar'):
+        return []
+
+    def ask_codexbar(provider):
+        account = {'provider': provider, 'codexbar_command': 'codexbar'}
+        if provider == 'claude':
+            account['codexbar_source'] = 'oauth'  # its default fails on Linux (docs/codexbar.md)
+        try:
+            data = codexbar_payload(account)
+        except (SourceError, OSError, subprocess.SubprocessError):
+            return None
+        found = [e for e in data if isinstance(e, dict) and e.get('provider') == provider and isinstance(e.get('usage'), dict)
+                 and not e.get('error')] if isinstance(data, list) else []
+        return (account, (codexbar_emails(found[0]) or [''])[0]) if found else None
+    print('Asking CodexBar...')
+    with ThreadPoolExecutor(len(wanted)) as pool:
+        answers = [answer for answer in pool.map(ask_codexbar, wanted) if answer]
+    accounts = []
+    for account, email in answers:
+        provider = account['provider']
+        name = 'Antigravity' if provider == 'antigravity' else provider.title()
+        seen = f' as {email}' if email else ''
+        if interactive and not ask(f'Found {name} through CodexBar{seen}. Use it? [Y/n]', 'y').lower().startswith('y'):
+            continue
+        # CodexBar reports no email for some services: then there is none to check, and the config says so.
+        accounts.append({'key': f'{provider}_a', 'alias': 'ANTI A' if provider == 'antigravity' else f'{provider.upper()} A',
+                         'email': email or 'not reported by CodexBar', **account})
+        print(f'{name}: through CodexBar{seen}')
+    return accounts
+
+
+def save_clock(path, config, address):
+    """Keep the clock address given on the command line in the config, saying so; a running TokenTV takes it up
+    within a minute. None, having said why, when it is not an address."""
+    wanted = address if address.startswith(('http://', 'https://')) else 'http://' + address
+    try:
+        wanted = device_address(wanted)
+    except ValueError as error:
+        print(error, file=sys.stderr)
+        return None
+    if wanted != config.get('device_url'):
+        config['device_url'] = wanted
+        update_config(path, device_url=wanted)
+        print(f'The clock is at {wanted} from now on (saved in {path}).')
+    return wanted
+
+
+def update_config(path, **changes):
+    """Write these keys into the config as it is on disk now: a running TokenTV may have just saved another key
+    (the face picked on its dashboard, say), and an older copy here must not undo it."""
+    current = json.loads(path.read_text())
+    current.update(changes)
+    path.write_text(json.dumps(current, indent=2) + '\n')
+
+
 def refuses_only(path, config, only):
     """True, having said why, when a saved config shows services that --only leaves out: --only picks the services
     when the config is made; it never quietly drops accounts from one."""
@@ -425,7 +529,7 @@ def refuses_only(path, config, only):
     if extra:
         print(f'{path} already lists {", ".join(extra)} as well, and --only is only used when that file is made.\n'
               f'To keep only {", ".join(only)}, remove the others from that file (or move it away and run this '
-              f'again), then run token-tv start.', file=sys.stderr)
+              f'again), then run {cmd("start")}.', file=sys.stderr)
     return bool(extra)
 
 
@@ -439,6 +543,43 @@ def show_face(port, face):
         print(f'The clock switches to {face}.')
     except (OSError, HTTPException):
         print(f'Could not switch the running TokenTV to {face}; pick it on its dashboard.', file=sys.stderr)
+
+
+def add(args):
+    """Add another account of one service to the config, with a login of its own, and sign it in."""
+    path = Path(args.config).expanduser()
+    config = read_config(path)
+    if config is None:
+        return 1
+    keys = {a['key'] for a in config.get('accounts', [])}
+    letter = next((l for l in 'ABCDE' if f'{args.provider}_{l.lower()}' not in keys), None)
+    if letter is None:
+        print(f'{path} already has five {args.provider} accounts.', file=sys.stderr)
+        return 1
+    email = args.email or (ask(f'{args.provider.title()} account {letter}: its email') if sys.stdin.isatty() else '')
+    if '@' not in email:
+        print(f'Give the account\'s email: {cmd(f"add {args.provider} --email you@example.com")}', file=sys.stderr)
+        return 1
+    key = f'{args.provider}_{letter.lower()}'
+    config.setdefault('accounts', []).append({
+        'key': key, 'alias': f'{args.provider.upper()} {letter}', 'provider': args.provider, 'email': email,
+        'source_home': str(path.parent / 'homes' / key)})  # its own login; the everyday one stays as it is
+    path.write_text(json.dumps(config, indent=2) + '\n')
+    print(f'Added {args.provider.upper()} {letter} ({email}) to {path}.')
+    if args.no_login:
+        print(f'Sign it in later with: {cmd(f"connect --account {key}")}')
+    else:
+        from token_tv import connect
+        sys.argv = ['token-tv connect', '--config', str(path), '--account', key]
+        try:
+            connect.main()
+        except SystemExit as stop:
+            if stop.code not in (0, None):
+                print(f'Not signed in yet; try again with: {cmd(f"connect --account {key}")}', file=sys.stderr)
+                return 1
+    print(f'A TokenTV already running shows it after a restart (Ctrl+C where it runs, or {cmd("autostart off")} '
+          f'then {cmd("autostart on")}).')
+    return 0
 
 
 def autostart_command(args):
@@ -474,8 +615,10 @@ def passthrough(module, args, extra):
 
 def main(argv=None):
     from token_tv.display import STYLES
+    from token_tv import __version__
     parser = argparse.ArgumentParser(prog='token-tv', description=__doc__,
-                                     formatter_class=argparse.RawDescriptionHelpFormatter)
+                                     formatter_class=lambda prog: argparse.RawDescriptionHelpFormatter(prog, max_help_position=30))
+    parser.add_argument('--version', action='version', version=f'token-tv {__version__}')
     commands = parser.add_subparsers(dest='command', metavar='command')
     config = argparse.ArgumentParser(add_help=False)
     config.add_argument('--config', default=default_config(), help='config path (default: %(default)s)')
@@ -494,6 +637,10 @@ def main(argv=None):
     st.add_argument('--only', metavar='SERVICES', help='only these, comma-separated: claude,codex,grok')
     st.add_argument('--yes', action='store_true', help='accept every signed-in account without asking')
     st.add_argument('--no-browser', action='store_true', help='do not open the dashboard in a browser')
+    ad = commands.add_parser('add', parents=[config], help='add another account of a service, with its own login')
+    ad.add_argument('provider', choices=tuple(PROVIDERS))
+    ad.add_argument('--email', help="the account's email")
+    ad.add_argument('--no-login', action='store_true', help='only add it to the config; sign in later with connect')
     a = commands.add_parser('autostart', parents=[config], help='start TokenTV with this computer, or stop that')
     a.add_argument('action', choices=('on', 'off', 'status'))
     o = commands.add_parser('doctor', parents=[config], help='check CLIs and logins')
@@ -507,6 +654,8 @@ def main(argv=None):
                         add_help=False)
 
     args, extra = parser.parse_known_args(argv)
+    global CONFIG
+    CONFIG = getattr(args, 'config', None)
     if args.command in ('connect', 'run'):
         if args.command == 'run':
             from token_tv import live as module
@@ -522,9 +671,18 @@ def main(argv=None):
     if args.command is None:
         parser.print_help()
         return 0
-    return {'setup': setup, 'doctor': doctor, 'demo': demo, 'start': start,
+    return {'setup': setup, 'doctor': doctor, 'demo': demo, 'start': start, 'add': add,
             'autostart': autostart_command}[args.command](args)
 
 
+def entry():
+    """The installed `token-tv` command: Ctrl+C at a question stops quietly."""
+    try:
+        return main()
+    except KeyboardInterrupt:
+        print('\nStopped.', file=sys.stderr)
+        return 130
+
+
 if __name__ == '__main__':
-    raise SystemExit(main())
+    raise SystemExit(entry())

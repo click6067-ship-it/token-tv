@@ -1,3 +1,3 @@
-from token_tv.cli import main
+from token_tv.cli import entry
 
-raise SystemExit(main())
+raise SystemExit(entry())

@@ -16,14 +16,33 @@ LABEL = 'io.github.click6067-ship-it.token-tv'
 
 
 def how():
-    """How this person runs TokenTV, for the commands TokenTV tells them: `npx token-tv`, `uvx token-tv` or
-    `token-tv`."""
+    """How this person runs TokenTV, for the commands TokenTV tells them: `npx token-tv`, `uvx token-tv`,
+    `token-tv`, or the full path of a venv's copy that is not on PATH."""
     prefix = Path(sys.prefix)
+    if os.environ.get('TOKEN_TV_LAUNCHER') == 'npx' or (prefix.name == 'venv' and prefix.parent.name == 'token-tv'):
+        return 'npx token-tv'
+    if pipx_run():
+        return 'pipx run token-tv'
     if throwaway():
         return 'uvx token-tv'
-    if prefix.name == 'venv' and prefix.parent.name == 'token-tv':  # the npx launcher's own copy
-        return 'npx token-tv'
-    return 'token-tv'
+    if shutil.which('token-tv'):
+        return 'token-tv'
+    script = prefix / ('Scripts' if sys.platform == 'win32' else 'bin') / 'token-tv'
+    return quoted(script) if script.exists() else f'{Path(sys.executable).name} -m token_tv'
+
+
+def quoted(text):
+    """`text` as one word for this person's shell: a path with a space in it stays one argument when pasted."""
+    text = str(text)
+    if sys.platform == 'win32':  # cmd and PowerShell both take double quotes
+        return f'"{text}"' if any(c in text for c in ' \t&()[]{}^=;!\'+,`~$@#%') else text
+    return shlex.quote(text)
+
+
+def pipx_run():
+    """Whether this is a `pipx run` copy, which pipx keeps in its cache for about two weeks."""
+    parts = Path(sys.prefix).parts
+    return 'pipx' in parts and '.cache' in parts
 
 
 def throwaway():
@@ -42,10 +61,14 @@ def command(config):
     """How the computer starts TokenTV: this same Python (a pipx, pip or npx install keeps it), or uvx when this
     run is uvx's throwaway copy, which uv may clear."""
     tail = ['start', '--yes', '--no-browser', '--config', str(Path(config).expanduser().resolve())]
+    if pipx_run() and shutil.which('pipx'):  # pipx fetches this release again when its cache has let it go
+        from token_tv import __version__
+        return [shutil.which('pipx'), 'run', '--spec', f'token-tv=={__version__}', 'token-tv', *tail]
     if throwaway():
-        uvx = shutil.which('uvx')
-        if uvx:
-            return [uvx, 'token-tv', *tail]
+        uvx = os.environ.get('TOKEN_TV_UVX') or shutil.which('uvx')  # the npm launcher's own uv, if it fetched one
+        if uvx:  # this release, not whatever is newest at the next boot
+            from token_tv import __version__
+            return [uvx, f'token-tv@{__version__}', *tail]
     python = Path(sys.executable)
     if sys.platform == 'win32' and (python.parent / 'pythonw.exe').exists():
         python = python.parent / 'pythonw.exe'  # no console window
@@ -138,6 +161,10 @@ def install(config):
             done = run(step)
             if done.returncode:
                 undo((done.stderr or done.stdout).strip() or 'systemctl failed')
+        # A user service stops when its user's last session ends, unless the user lingers: ask for that.
+        if run(['loginctl', 'enable-linger']).returncode:
+            return (f'TokenTV now runs in the background and starts when you log in (this system did not allow it '
+                    f'to keep running after you log out). Stop it with: {how()} autostart off')
     elif kind == 'launchd':
         domain = f'gui/{os.getuid()}'
         run(['launchctl', 'bootout', domain, str(path)])

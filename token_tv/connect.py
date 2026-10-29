@@ -1,6 +1,7 @@
 """Sign in to one account's own CLI home, without changing defaults."""
 import argparse
 import os
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -10,6 +11,11 @@ from token_tv.sources import exe, fetch_account, load_config, scoped_env
 # provider: (everyday CLI home, file present after login)
 DEFAULT_HOMES = {"claude": ("~/.claude", ".credentials.json"), "codex": ("~/.codex", "auth.json"),
                  "grok": ("~/.grok", "auth.json")}
+
+
+def cli_command(rest):
+    from token_tv import cli
+    return cli.cmd(rest)
 
 
 def login_command(account, browser=False):
@@ -23,10 +29,13 @@ def login_command(account, browser=False):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--config", required=True)
+    parser.add_argument("--config", help="Config file (default: the one `start` made)")
     parser.add_argument("--account", help="Stable account key; omit to choose interactively")
     parser.add_argument("--browser", action="store_true", help="Use Codex browser login (forward localhost:1455 when running over SSH)")
     args = parser.parse_args()
+    if args.config is None:
+        from token_tv.cli import default_config
+        args.config = default_config()
     accounts = load_config(args.config)["accounts"]
     key = args.account
     if key is None:
@@ -40,7 +49,10 @@ def main():
         except (ValueError, IndexError, EOFError):
             parser.error("Choose one of the listed accounts")
     account = next((a for a in accounts if a["key"] == key), None)
-    if account is None or not account.get("source_home"):
+    if account is None:
+        parser.error(f"There is no account {key} in {args.config}; the accounts there are: "
+                     + ", ".join(a["key"] for a in accounts))
+    if not account.get("source_home"):
         parser.error("An account with its own CLI home (source_home) is required")
     root = Path(account["source_home"]).expanduser()
     default, marker = DEFAULT_HOMES[account["provider"]]
@@ -49,14 +61,18 @@ def main():
         state = "may already be signed in (macOS keeps it in the Keychain)" if keychain else "it is already signed in"
         print(f"{account['alias']} reuses your everyday {account['provider']} login in {default}; {state}.\n"
               "Logging in again replaces that login for every tool that uses it. To keep it,\n"
-              "just run token-tv doctor --live. For a separate login, point source_home elsewhere.", flush=True)
+              f"just run {cli_command('doctor --live')}. For a separate login, point source_home elsewhere.", flush=True)
         if not sys.stdin.isatty() or input("Type REPLACE to log in again anyway: ").strip() != "REPLACE":
             print("Kept the existing login.", flush=True)
             return
+    command = login_command(account, args.browser)
+    if not shutil.which(command[0]):
+        raise SystemExit(f"The {account['provider']} CLI is not installed on this computer ({command[0]} not found). "
+                         "Install it, then run this again.")
     root.mkdir(parents=True, exist_ok=True)
     os.chmod(root, 0o700)
     print("Sign in as " + account["email"] + ". Enter login codes here, not in chat.", flush=True)
-    result = subprocess.run(login_command(account, args.browser), env=scoped_env(account["provider"], root))
+    result = subprocess.run(command, env=scoped_env(account["provider"], root))
     if result.returncode:
         raise SystemExit(result.returncode)
     # Verification must use the newly authenticated source, never its fallback.

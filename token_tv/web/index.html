@@ -29,6 +29,29 @@
     <div id="themes" class="themes" role="group" aria-label="Web theme"></div>
   </nav>
   <div class="workspace">
+    <aside id="clock-panel" class="clock-panel" aria-label="Physical clock" hidden>
+      <div class="aside-head"><div><p class="eyebrow">Physical display</p><h2>Your clock</h2></div><button class="control icon-control" id="close-clock" type="button" aria-label="Close clock panel">×</button></div>
+      <div class="device"><div class="lcd"><img id="frame" width="240" height="240" alt="Live clock preview"></div></div>
+      <label for="clock-style">Clock style</label>
+      <select id="clock-style" class="control"></select>
+      <button class="control primary" id="apply" type="button" disabled>Apply to clock</button>
+      <p id="display-state" role="status">Loading clock status</p>
+      <p class="quiet">240 × 240 · The web appearance is separate from your clock style.</p>
+      <section id="get-it" class="get-it" aria-label="Put it on your clock" hidden>
+        <fieldset class="get-services"><legend>Your AI tools</legend>
+          <label><input type="checkbox" value="claude" checked> Claude</label>
+          <label><input type="checkbox" value="codex" checked> Codex</label>
+          <label><input type="checkbox" value="grok" checked> Grok</label>
+        </fieldset>
+        <p class="quiet">On a computer that stays on, where Claude Code, Codex or the Grok CLI is signed in (a browser login is not enough), paste into a terminal:</p>
+        <div class="get-command"><code id="get-command" aria-live="polite">npx token-tv start</code><button id="get-copy" class="control primary" type="button">Copy</button></div>
+        <p id="get-status" class="get-status" role="status" aria-live="polite"></p>
+        <label for="get-address">Clock address · optional</label>
+        <input id="get-address" class="control" placeholder="found on your Wi-Fi" autocomplete="off" spellcheck="false" aria-describedby="get-status">
+        <p class="quiet" id="get-note">It finds your signed-in tools and the clock, asks once to keep running when the computer starts, and opens your dashboard. <button id="get-runner" class="link-button" type="button">No Node? Use uvx instead</button></p>
+        <p class="quiet">The clock: a GeekMagic SmallTV (SD_PRO or Ultra), <a href="https://github.com/click6067-ship-it/token-tv/blob/main/docs/hardware-compatibility.md">which ones work</a>.</p>
+      </section>
+    </aside>
     <main class="screen" id="dashboard">
       <header class="screen-head">
         <div class="title-block">
@@ -56,29 +79,6 @@
         <div class="legend" aria-label="Used quota levels"><span class="section-label">Used quota</span><span><i data-level="low"></i>0–49%</span><span><i data-level="medium"></i>50–79%</span><span><i data-level="high"></i>80–89%</span><span><i data-level="critical"></i>90–100%</span></div>
       </footer>
     </main>
-    <aside id="clock-panel" class="clock-panel" aria-label="Physical clock" hidden>
-      <div class="aside-head"><div><p class="eyebrow">Physical display</p><h2>Your clock</h2></div><button class="control icon-control" id="close-clock" type="button" aria-label="Close clock panel">×</button></div>
-      <div class="device"><div class="lcd"><img id="frame" width="240" height="240" alt="Live clock preview"></div></div>
-      <label for="clock-style">Clock style</label>
-      <select id="clock-style" class="control"></select>
-      <button class="control primary" id="apply" type="button" disabled>Apply to clock</button>
-      <p id="display-state" role="status">Loading clock status</p>
-      <p class="quiet">240 × 240 · The web appearance is separate from your clock style.</p>
-      <section id="get-it" class="get-it" aria-labelledby="get-it-title" hidden>
-        <div class="aside-head"><div><p class="eyebrow">Get it</p><h2 id="get-it-title">On your clock</h2></div></div>
-        <fieldset class="get-services"><legend>Your AI tools</legend>
-          <label><input type="checkbox" value="claude" checked> Claude</label>
-          <label><input type="checkbox" value="codex" checked> Codex</label>
-          <label><input type="checkbox" value="grok" checked> Grok</label>
-        </fieldset>
-        <label for="get-address">Clock address · optional</label>
-        <input id="get-address" class="control" placeholder="found on your Wi-Fi" autocomplete="off" spellcheck="false">
-        <p class="quiet">Paste this into a terminal on the computer where you use them:</p>
-        <div class="get-command"><code id="get-command">npx token-tv start</code><button id="get-copy" class="control primary" type="button">Copy</button></div>
-        <p class="quiet" id="get-note">It finds your signed-in tools and the clock, asks once to keep running when the computer starts, and opens your dashboard. No Node? <code id="get-uvx">uvx token-tv start</code></p>
-        <p class="quiet">The clock: a GeekMagic SmallTV (SD_PRO or Ultra), <a href="https://github.com/click6067-ship-it/token-tv/blob/main/docs/hardware-compatibility.md">which ones work</a>.</p>
-      </section>
-    </aside>
   </div>
   <section class="gallery" id="gallery" aria-labelledby="gallery-title">
     <div class="themes-head"><h2 id="gallery-title">Gallery</h2><div class="theme-sort" role="group" aria-label="Sort clock faces"><button type="button" class="control" data-sort="popular" aria-pressed="true">Popular</button><button type="button" class="control" data-sort="new" aria-pressed="false">New</button></div></div>

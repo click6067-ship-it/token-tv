@@ -1,13 +1,13 @@
 # Agent guide
 
-TokenTV puts Claude and Codex usage limits on a ~$5 AliExpress Wi-Fi desk clock (240×240, SmallTV-style) by uploading pictures to its stock photo album, so the clock keeps its firmware. A computer that stays on reads usage and draws the pictures. Python 3.10+, Pillow, no other runtime deps.
+TokenTV puts Claude and Codex usage limits on a ~$5 GeekMagic SmallTV Wi-Fi desk clock (240×240, SD_PRO or Ultra) by uploading pictures to its stock photo album, so the clock keeps its firmware. A computer that stays on reads usage and draws the pictures. Python 3.10+, Pillow, no other runtime deps.
 
 ## Run without accounts or a clock
 
 ```bash
-pip install -e .
-token-tv demo --out token-tv-demo     # every face from sample data
-python3 -B -m unittest discover -s tests
+python3 -m venv .venv && .venv/bin/pip install -e .   # Windows: .venv\Scripts\pip install -e .
+.venv/bin/token-tv demo --out token-tv-demo           # every face from sample data
+.venv/bin/python -B -m unittest discover -s tests
 ```
 
 ## Set up TokenTV for the user
@@ -15,17 +15,20 @@ python3 -B -m unittest discover -s tests
 When the user says "Set up TokenTV for me":
 
 1. Install: `python3 -m venv .venv && .venv/bin/pip install -e .` (Windows: `.venv\Scripts\pip install -e .`),
-   or with Node only: `npx token-tv demo`.
+   or, with Node only, use `npx token-tv` in place of `.venv/bin/token-tv` below.
 2. Run `.venv/bin/token-tv start` in a terminal the user can answer. It finds the Claude, Codex and Grok CLIs
    that are already signed in, reads each account's email through the official login and asks the user to
    confirm, looks for the clock on the Wi-Fi (or asks for the IP shown on the clock's screen; pass
-   `--device-url <ip>` if you know it), asks once whether to start with the computer, saves the config and
-   opens the dashboard at http://127.0.0.1:8787.
+   `--device-url <ip>` if you know it), saves the config, asks whether to start with the computer (only when
+   it first writes the config) and opens the dashboard at http://127.0.0.1:8787.
 3. `--only codex` limits it to the tools the user names; `--face pixel` picks another face (default arcade).
 4. If it says nothing is signed in, tell the user to sign in to the CLI they use (e.g. `claude`, then /login)
-   and run step 2 again. A second account of the same service: `.venv/bin/token-tv connect --account <key>`.
+   and run step 2 again. A second account of the same service: `.venv/bin/token-tv add codex --email <email>`
+   (it gets its own login folder and is signed in there; then restart TokenTV).
 
-Verified on Linux with one SD_PRO clock. Mac and Windows hosts are untested; report what fails.
+Verified on Linux with one SD_PRO clock. Mac and Windows hosts are untested; report what fails. On Windows, run
+it on the side where the user's claude or codex is signed in: Windows itself with Node is simplest, and WSL
+stops soon after its last terminal closes.
 
 ## Change how things look
 

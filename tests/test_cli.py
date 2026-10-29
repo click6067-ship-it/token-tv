@@ -13,7 +13,9 @@ from token_tv.display import STYLES
 
 def run(*argv):
     out, err = io.StringIO(), io.StringIO()
-    with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+    # Commands TokenTV prints follow how it was started; these tests read them as an installed `token-tv`.
+    with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err), \
+            mock.patch('token_tv.autostart.how', return_value='token-tv'):
         code = cli.main(list(argv))
     return code, out.getvalue(), err.getvalue()
 
@@ -124,12 +126,15 @@ class CliTest(unittest.TestCase):
         self.assertNotEqual(json.loads(self.config.read_text())['accounts'][0]['source_home'], '~/.claude')
 
     def test_bad_clock_address_is_rejected_before_writing(self):
-        for bad in ('192.168.0.50', 'ftp://clock', 'http://', 'http://clock/photo', 'http://clock:99999'):
+        for bad in ('ftp://clock', 'http://', 'http://clock/photo', 'http://clock:99999'):
             code, _, err = run('setup', '--config', str(self.config), '--yes',
                                '--claude-email', 'a@example.com', '--device-url', bad)
             self.assertEqual(code, 1, bad)
             self.assertFalse(self.config.exists())
         self.assertEqual(cli.device_address('http://10.0.0.9:8080/'), 'http://10.0.0.9:8080')
+        code, _, _ = run('setup', '--config', str(self.config), '--yes', '--claude-email', 'a@example.com',
+                         '--device-url', '192.168.0.50')  # a bare address, as start takes it
+        self.assertEqual((code, json.loads(self.config.read_text())['device_url']), (0, 'http://192.168.0.50'))
 
     def test_doctor_without_config_points_to_start(self):
         code, _, err = run('doctor', '--config', str(self.config))
@@ -213,6 +218,42 @@ class ConnectGuardTest(unittest.TestCase):
         self.assertIn('Keychain', out.getvalue())
 
 
+class AddTest(unittest.TestCase):
+    def test_another_account_gets_its_own_login_and_is_signed_in(self):
+        from token_tv import connect
+        config = Path(tempfile.mkdtemp()) / 'config.json'
+        config.write_text(json.dumps({'accounts': [{'key': 'codex_a', 'alias': 'CODEX A', 'provider': 'codex',
+                                                    'email': 'a@example.com', 'source_home': '~/.codex'}]}))
+        with mock.patch.object(connect, 'main') as login:
+            code, out, _ = run('add', 'codex', '--email', 'b@example.com', '--config', str(config))
+        self.assertEqual(code, 0)
+        added = json.loads(config.read_text())['accounts'][1]
+        self.assertEqual((added['key'], added['alias'], added['email']), ('codex_b', 'CODEX B', 'b@example.com'))
+        self.assertEqual(added['source_home'], str(config.parent / 'homes' / 'codex_b'))  # the everyday login untouched
+        login.assert_called_once()
+        code, _, err = run('add', 'codex', '--config', str(config))  # no email, not at a terminal
+        self.assertEqual(code, 1)
+        self.assertIn('--email', err)
+
+
+class ConfigWriteTest(unittest.TestCase):
+    def test_a_change_from_the_command_line_keeps_what_the_running_copy_saved_meanwhile(self):
+        config = Path(tempfile.mkdtemp()) / 'config.json'
+        stale = {'display_style': 'pixel', 'accounts': []}
+        config.write_text(json.dumps(dict(stale, display_style='neon')))  # the dashboard switched to neon
+        cli.save_clock(config, dict(stale), '192.168.0.9')
+        saved = json.loads(config.read_text())
+        self.assertEqual((saved['display_style'], saved['device_url']), ('neon', 'http://192.168.0.9'))
+
+    def test_printed_commands_carry_a_custom_config(self):
+        with mock.patch('token_tv.autostart.how', return_value='npx token-tv'):
+            cli.CONFIG = '/tmp/other/config.json'
+            self.assertEqual(cli.cmd('doctor'), 'npx token-tv doctor --config /tmp/other/config.json')
+            cli.CONFIG = cli.default_config()
+            self.assertEqual(cli.cmd('doctor'), 'npx token-tv doctor')
+            cli.CONFIG = None
+
+
 class PortTest(unittest.TestCase):
     def test_another_program_on_8787_moves_the_dashboard_to_the_next_free_port(self):
         import socket
@@ -236,16 +277,16 @@ class StartTest(unittest.TestCase):
     def setUp(self):
         self.config = Path(tempfile.mkdtemp()) / 'config.json'
 
-    def start(self, *extra, emails=None, found=(), already=False):
+    def start(self, *extra, emails=None, found=(), already=False, yes=True):
         from token_tv import live
         emails = emails or {'claude': 'me@example.com', 'codex': None}
         with mock.patch.object(cli, 'cli_path', return_value='/usr/bin/x'), \
                 mock.patch.object(cli, 'login_state', side_effect=lambda p, h: 'yes' if p != 'grok' else 'no'), \
-                mock.patch('token_tv.sources.logged_in_email', side_effect=lambda p, h: emails.get(p)) as detect, \
+                mock.patch('token_tv.sources.logged_in_email', side_effect=lambda p, h, why=None: emails.get(p)) as detect, \
                 mock.patch('token_tv.device.find_clocks', return_value=list(found)) as scan, \
                 mock.patch.object(cli, 'dashboard_port', return_value=(8787, already)), \
                 mock.patch.object(live, 'main') as run:
-            code, out, err = run_cli('start', '--config', str(self.config), '--yes', '--no-browser', *extra)
+            code, out, err = run_cli('start', '--config', str(self.config), *(['--yes'] if yes else []), '--no-browser', *extra)
         self.scan = scan
         return code, out, err, detect, run
 
@@ -263,6 +304,21 @@ class StartTest(unittest.TestCase):
         self.assertNotIn('device_url', json.loads(self.config.read_text()))
         self.assertIn('No clock found', out)
 
+    def test_started_again_by_hand_it_looks_for_the_clock_but_never_on_its_own(self):
+        self.start()  # set up with no clock
+        self.assertNotIn('device_url', json.loads(self.config.read_text()))
+        self.start()  # --yes, as the computer starts it: a lone clock on a shared Wi-Fi may be someone else's
+        self.scan.assert_not_called()
+        with mock.patch('sys.stdin.isatty', return_value=True), mock.patch('builtins.input', return_value=''):
+            code, out, _, _, _ = self.start(found=['http://192.168.0.77'], already=True, yes=False)
+        self.assertEqual(code, 0)
+        self.assertEqual(json.loads(self.config.read_text())['device_url'], 'http://192.168.0.77')
+        self.assertIn('Found a clock at 192.168.0.77', out)
+
+    def test_an_https_address_is_kept_as_the_http_the_clock_speaks(self):
+        self.start('--device-url', 'https://192.168.0.50')
+        self.assertEqual(json.loads(self.config.read_text())['device_url'], 'http://192.168.0.50')
+
     def test_an_address_given_is_not_searched_for(self):
         self.start('--device-url', '192.168.0.50')
         self.scan.assert_not_called()
@@ -274,6 +330,37 @@ class StartTest(unittest.TestCase):
         data = json.loads(self.config.read_text())
         self.assertEqual([a['provider'] for a in data['accounts']], ['codex'])
         self.assertEqual(data['display_style'], 'pixel')
+
+    def test_a_codexbar_user_is_set_up_from_what_codexbar_reads(self):
+        import os, stat, sys
+        folder = Path(tempfile.mkdtemp())
+        fake = folder / 'codexbar'  # answers like `codexbar usage --provider <p> --format json`
+        fake.write_text(f"""#!{sys.executable}
+import json, sys
+provider = sys.argv[sys.argv.index('--provider') + 1]
+usage = {{'primary': {{'usedPercent': 12, 'windowMinutes': 300}}}}
+if provider == 'codex':
+    usage['accountEmail'] = 'me@example.org'
+if provider == 'claude':
+    print(json.dumps([{{'provider': 'claude', 'error': {{'message': 'not signed in'}}}}])); sys.exit(1)
+print(json.dumps([{{'provider': provider, 'usage': usage}}]))
+""")
+        fake.chmod(fake.stat().st_mode | stat.S_IXUSR)
+        with mock.patch.dict(os.environ, {'PATH': f'{folder}{os.pathsep}{os.environ["PATH"]}'}):
+            code, out, _, _, run = self.start('--device-url', '10.0.0.5', emails={'claude': None, 'codex': None})
+        self.assertEqual(code, 0)
+        accounts = json.loads(self.config.read_text())['accounts']
+        self.assertEqual([(a['provider'], a['email'], a['codexbar_command']) for a in accounts],
+                         [('codex', 'me@example.org', 'codexbar'), ('copilot', 'not reported by CodexBar', 'codexbar'),
+                          ('antigravity', 'not reported by CodexBar', 'codexbar')])
+        self.assertIn('Copilot: through CodexBar', out)
+        run.assert_called_once()
+
+    def test_only_a_codexbar_service_without_codexbar_says_how(self):
+        with mock.patch('shutil.which', return_value=None):
+            code, _, err, _, _ = self.start('--only', 'copilot')
+        self.assertEqual(code, 1)
+        self.assertIn('install CodexBar', err)
 
     def test_only_a_service_not_signed_in_says_which(self):
         code, _, err, _, run = self.start('--only', 'codex')
@@ -298,6 +385,20 @@ class StartTest(unittest.TestCase):
         self.assertEqual(code, 0)
         face.assert_called_once_with(8787, 'neon')
 
+    def test_a_login_that_did_not_answer_says_why(self):
+        def refused(p, h, why=None):
+            why.append('refused' if p == 'claude' else 'not_chatgpt')
+            return None
+        from token_tv import live
+        with mock.patch.object(cli, 'cli_path', return_value='/usr/bin/x'), mock.patch.object(cli, 'login_state', return_value='yes'), \
+                mock.patch('token_tv.sources.logged_in_email', side_effect=refused), mock.patch('token_tv.device.find_clocks', return_value=[]), \
+                mock.patch.object(cli, 'dashboard_port', return_value=(8787, False)), mock.patch.object(live, 'main'):
+            code, _, err = run_cli('start', '--config', str(self.config), '--yes', '--no-browser', '--only', 'claude,codex')
+        self.assertEqual(code, 1)
+        self.assertIn('Claude: signed in, but the saved login was refused', err)
+        self.assertIn('Codex: signed in with an API key', err)
+        self.assertNotIn('Grok:', err)  # only the tools asked for
+
     def test_only_rejects_unknown_services(self):
         code, _, err, _, _ = self.start('--only', 'gemini')
         self.assertEqual(code, 1)
@@ -317,13 +418,22 @@ class StartTest(unittest.TestCase):
         self.assertFalse(self.config.exists())
         run.assert_not_called()
 
+    def test_the_background_question_is_asked_only_when_the_config_is_made(self):
+        from token_tv import autostart, live
+        self.saved_config('http://192.168.0.50')
+        with mock.patch.object(cli, 'dashboard_port', return_value=(8787, False)), \
+                mock.patch('sys.stdin.isatty', return_value=True), mock.patch.object(cli, 'ask', return_value='y') as ask, \
+                mock.patch.object(autostart, 'status', return_value='off'), mock.patch.object(live, 'main'):
+            run_cli('start', '--config', str(self.config), '--no-browser')
+        self.assertFalse(any('computer' in c.args[0] for c in ask.call_args_list))
+
     def test_asked_once_to_start_with_the_computer(self):
         from token_tv import autostart, live
         for answer, background in (('y', True), ('n', False)):
             self.config.unlink(missing_ok=True)
             with mock.patch.object(cli, 'cli_path', return_value='/usr/bin/x'), \
                     mock.patch.object(cli, 'login_state', return_value='yes'), \
-                    mock.patch('token_tv.sources.logged_in_email', side_effect=lambda p, h: 'me@example.com' if p == 'codex' else None), \
+                    mock.patch('token_tv.sources.logged_in_email', side_effect=lambda p, h, why=None: 'me@example.com' if p == 'codex' else None), \
                     mock.patch('token_tv.device.find_clocks', return_value=[]), \
                     mock.patch.object(cli, 'dashboard_port', side_effect=[(8787, False), (8788, True)]), \
                     mock.patch('sys.stdin.isatty', return_value=True), \
@@ -340,8 +450,10 @@ class StartTest(unittest.TestCase):
 
     def test_a_background_copy_that_never_answers_is_reported(self):
         from token_tv import autostart, live
-        self.saved_config('http://192.168.0.50')
         with mock.patch.object(cli, 'dashboard_port', return_value=(8787, False)), \
+                mock.patch.object(cli, 'cli_path', return_value='/usr/bin/x'), mock.patch.object(cli, 'login_state', return_value='yes'), \
+                mock.patch('token_tv.sources.logged_in_email', side_effect=lambda p, h, why=None: 'me@example.com' if p == 'codex' else None), \
+                mock.patch('token_tv.device.find_clocks', return_value=[]), \
                 mock.patch('sys.stdin.isatty', return_value=True), mock.patch.object(cli, 'ask', return_value='y'), \
                 mock.patch.object(autostart, 'status', return_value='off'), \
                 mock.patch.object(autostart, 'install', return_value='ok'), mock.patch.object(cli.time, 'sleep'), \
@@ -382,16 +494,19 @@ class StartTest(unittest.TestCase):
         self.config.write_text(json.dumps(config))
         return config
 
-    def test_new_clock_address_with_existing_config_stops_and_says_where(self):
-        # Reported in #7: the clock's IP changed and --device-url was silently ignored.
-        saved = self.saved_config('http://192.168.0.50')
-        code, _, err, _, run = self.start('--device-url', '192.168.0.77')
+    def test_a_clock_address_given_later_is_kept_in_the_config(self):
+        # Reported in #7 (an address silently ignored) and by QA: a clock added after the first start.
+        self.saved_config('http://192.168.0.50')
+        code, out, _, _, run = self.start('--device-url', '192.168.0.77')
+        self.assertEqual(code, 0)
+        self.assertIn('http://192.168.0.77', out)
+        self.assertEqual(json.loads(self.config.read_text())['device_url'], 'http://192.168.0.77')
+        run.assert_called_once()
+        self.config.write_text(json.dumps({'accounts': json.loads(self.config.read_text())['accounts']}))  # no clock yet
+        code, _, _, _, run = self.start('--device-url', '10.0.0.9', already=True)  # while one runs: it takes it up
+        self.assertEqual((code, json.loads(self.config.read_text())['device_url']), (0, 'http://10.0.0.9'))
+        code, _, err, _, _ = self.start('--device-url', 'ftp://nope')
         self.assertEqual(code, 1)
-        self.assertIn('http://192.168.0.50', err)
-        self.assertIn('http://192.168.0.77', err)
-        self.assertIn(str(self.config), err)
-        self.assertEqual(json.loads(self.config.read_text()), saved)
-        run.assert_not_called()
 
     def test_same_clock_address_with_existing_config_runs(self):
         self.saved_config('http://192.168.0.50')

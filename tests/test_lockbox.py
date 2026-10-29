@@ -188,6 +188,62 @@ class LockboxTests(unittest.TestCase):
         finally:
             server.shutdown()
 
+    def test_a_replay_with_no_clock_says_so_and_queues_nothing(self):
+        import http.client
+        import threading
+        from token_tv import live
+        locks = self.box()
+        locks.pick(self.data(at(10, 7)), at(10, 7))
+        check = locks.collection()['found'][0]['check']
+        config = Path(self.dir.name) / 'config.json'
+        config.write_text(json.dumps({'display_style': 'arcade', 'accounts': [{'key': 'codex_a', 'alias': 'A', 'provider': 'codex'}]}))
+        preferences = live.DisplayPreferences(config, json.loads(config.read_text()))
+        store = UsageStore([{'key': 'codex_a', 'alias': 'A', 'provider': 'codex'}], fetch=lambda _: None)
+        replays = []
+        server = live.QuietServer(('127.0.0.1', 0), live.handler(store, preferences, locks, replays, threading.Event()))
+        threading.Thread(target=server.serve_forever, daemon=True).start()
+        try:
+            conn = http.client.HTTPConnection('127.0.0.1', server.server_port, timeout=10)
+            conn.request('POST', '/collection/replay', json.dumps({'check': check}), {'Content-Type': 'application/json'})
+            reply = conn.getresponse()
+            self.assertEqual(reply.status, 409)
+            self.assertIn(b'No clock connected', reply.read())
+            self.assertEqual(replays, [])
+        finally:
+            server.shutdown()
+
+    def test_a_replay_waits_for_the_clock_to_take_a_first_picture(self):
+        import http.client
+        import threading
+        from token_tv import live
+        locks = self.box()
+        locks.pick(self.data(at(10, 7)), at(10, 7))
+        check = locks.collection()['found'][0]['check']
+        config = Path(self.dir.name) / 'config.json'
+        config.write_text(json.dumps({'display_style': 'arcade', 'device_url': 'http://127.0.0.1:9',
+                                      'accounts': [{'key': 'codex_a', 'alias': 'A', 'provider': 'codex'}]}))
+        preferences = live.DisplayPreferences(config, json.loads(config.read_text()))
+        store = UsageStore([{'key': 'codex_a', 'alias': 'A', 'provider': 'codex'}], fetch=lambda _: None)
+        replays = []
+        server = live.QuietServer(('127.0.0.1', 0), live.handler(store, preferences, locks, replays, threading.Event()))
+        threading.Thread(target=server.serve_forever, daemon=True).start()
+
+        def replay():
+            conn = http.client.HTTPConnection('127.0.0.1', server.server_port, timeout=10)
+            conn.request('POST', '/collection/replay', json.dumps({'check': check}), {'Content-Type': 'application/json'})
+            reply = conn.getresponse()
+            return reply.status, json.loads(reply.read() or b'{}').get('error')
+        try:
+            self.assertEqual(replay(), (409, 'Waiting for the clock'))  # the first picture is still on its way
+            preferences.delivered('arcade', False)
+            self.assertEqual(replay(), (409, 'The clock is not answering'))
+            self.assertEqual(replays, [])
+            preferences.delivered('arcade', True)
+            self.assertEqual(replay(), (200, None))
+            self.assertEqual(replays, [check])
+        finally:
+            server.shutdown()
+
     def test_no_bundle_means_no_hidden_one_offs(self):
         locks = lockbox.Lockbox(Path(self.dir.name) / 'history.json', Path(self.dir.name) / 'none.bin')
         self.assertIsNone(locks.pick(self.data(at(10, 7)), at(10, 7)))
@@ -521,7 +577,9 @@ class FifthAccountTests(unittest.TestCase):
     def test_a_restart_remembers_when_each_account_last_worked(self):
         from token_tv.state import news_of
         store = UsageStore([{'key': 'a', 'alias': 'A', 'provider': 'codex'}], fetch=lambda _: None)
-        earlier = time.time() - 60
+        now = time.time()
+        today = time.mktime(time.localtime(now)[:3] + (0, 0, 0, 0, 0, -1))
+        earlier = now - min(60, (now - today) / 2)  # earlier today, even a minute after midnight
         store.restore({'accounts': {'a': {'rose_at': earlier, 'active_since': earlier - 3600}}})
         previous = dict(store.rows['a'], windows=[{'label': 'WEEK', 'used_percent': 10}], status='ok', fetched_at=earlier)
         row = {'status': 'ok', 'fetched_at': time.time(), 'windows': [{'label': 'WEEK', 'used_percent': 11}]}

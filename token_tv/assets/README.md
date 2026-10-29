@@ -46,9 +46,9 @@ it by hand in the same colours.
 ## Antigravity mascot (Anti)
 
 `antigravity-logo.png` holds the Antigravity logo's 12 × 10 blocks, one pixel each. Arcade draws Anti from
-it at 2 × 2, adding a chin row under the mouth, a ghost's hem along the feet, bean eyes and a cat's mouth;
-`antigravity-pixel.png` is that sprite for the dashboard. Anti's maze is drawn after the old arcade halls,
-with none of their characters.
+it at 2 × 2, adding a chin row under the mouth, bean eyes with a white glint, a cat's mouth and pink cheeks,
+with the last row of its legs half height (no feet); `antigravity-pixel.png` is that sprite for the dashboard.
+Anti's maze is drawn after the old arcade halls, with none of their characters.
 
 ## Names and marks
 

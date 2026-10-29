@@ -52,6 +52,7 @@ class DisplayTests(unittest.TestCase):
                 calls.append(("POST", self.path, body))
                 self.send_response(200)
                 self.end_headers()
+                self.wfile.write(b"Upload Success")  # the SD_PRO's own answer
         server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
         thread = threading.Thread(target=server.serve_forever)
         thread.start()
@@ -203,7 +204,10 @@ def sd_pro_clock(state, calls):
                 others = sum(len(d) for name, d in state["files"].items() if name != part.get_filename())
                 room = state["total"] - state["base"] - others  # a full clock keeps what fits, and still says OK
                 state["files"][part.get_filename()] = data[:len(data) // 2] if state.get("drop") else data[:room]
-            self.reply({"ok": True})
+            body = b"Upload Success"
+            self.send_response(200)
+            self.end_headers()
+            self.wfile.write(body)
     return Handler
 
 
@@ -267,16 +271,19 @@ class SlotTests(unittest.TestCase):
             self.assertEqual(len(self.show(display, b"GIF-BROKEN")), 1)  # not taken as there: sent again
             self.assertEqual(self.state["files"][display.active], b"GIF-BROKEN")
 
-    def test_with_room_to_spare_a_send_is_three_requests_and_the_list_is_read_once(self):
-        # Every request holds the clock's animation: upload and two toggles, no read back.
+    def test_a_send_is_four_requests_and_read_back_before_it_is_switched_on(self):
+        # Every request holds the clock's animation: upload, read back, two toggles; a picture already there is two.
         with serve(sd_pro_clock(self.state, self.calls)) as url:
             display = PhotoDisplay(url)
             self.show(display, b"GIF-A")
             for image in (b"GIF-B", b"GIF-C"):
                 start = len(self.calls)
                 self.show(display, image)
-                self.assertEqual([c[0] for c in self.calls[start:]], ["POST", "GET", "GET"])
-            self.assertEqual(sum(c[1] == "/photo/list" for c in self.calls), 2)  # the first send, and its activation
+                self.assertEqual([c[1].split("?")[0] for c in self.calls[start:]],
+                                 ["/photo/upload", "/photo/list", "/photo/toggle", "/photo/toggle"])
+            start = len(self.calls)
+            self.show(display, b"GIF-B")
+            self.assertEqual([c[1].split("?")[0] for c in self.calls[start:]], ["/photo/toggle", "/photo/toggle"])
 
     def test_after_a_lost_answer_the_clock_is_listed_and_activated_again_never_written_while_enabled(self):
         with serve(sd_pro_clock(self.state, self.calls)) as url:
@@ -343,15 +350,18 @@ class SlotTests(unittest.TestCase):
             display.listed_at -= 601
             self.assertEqual(len(self.show(display, b"GIF-A")), 1)  # seen as gone: sent again, not switched to
 
-    def test_a_restart_on_a_full_clock_writes_over_the_gif_that_is_on(self):
+    def test_a_restart_on_a_full_clock_sends_nothing_and_says_it_is_full(self):
+        from token_tv.device import ClockFull
         self.state["files"].update({"tokentv.gif": b"G" * 10, "tokentv-b.gif": b"B" * 1000})
         self.state["enabled"] = {"tokentv-b.gif"}
         self.state["total"] = self.state["base"] + 3 + 10 + 1000 + 20000
         with serve(sd_pro_clock(self.state, self.calls)) as url:
             display = PhotoDisplay(url)
-            self.show(display, b"GIF-NEW")
-            self.assertEqual(self.state["files"]["tokentv-b.gif"], b"GIF-NEW")
-            self.assertEqual(self.state["enabled"], {"tokentv-b.gif"})
+            with self.assertRaises(ClockFull) as full:
+                self.show(display, b"GIF-NEW")
+        self.assertIn("kB more needed", str(full.exception))
+        self.assertEqual(self.state["files"]["tokentv-b.gif"], b"B" * 1000)  # the one playing is never written
+        self.assertFalse(any(method == "POST" for method, _ in self.calls))
 
     def test_the_third_slot_is_written_only_while_room_is_kept(self):
         self.state["files"].update({"tokentv-b.gif": b"B", "tokentv-c.gif": b"C"})
@@ -362,7 +372,7 @@ class SlotTests(unittest.TestCase):
                 self.show(display, image)
             self.assertEqual(self.state["files"]["tokentv-c.gif"], b"C")
 
-    def test_a_third_slot_only_while_the_owner_keeps_room_and_a_full_clock_still_updates(self):
+    def test_a_third_slot_only_while_the_owner_keeps_room_and_a_clock_filled_meanwhile_keeps_its_picture(self):
         self.state["total"] = self.state["base"] + 200000
         with serve(sd_pro_clock(self.state, self.calls)) as url:
             display = PhotoDisplay(url)
@@ -371,13 +381,15 @@ class SlotTests(unittest.TestCase):
             self.assertNotIn("tokentv-c.gif", self.state["files"])  # two slots, taken in turn
             self.assertEqual((self.state["files"]["tokentv.gif"], self.state["files"]["tokentv-b.gif"]), (b"GIF-B", b"GIF-C"))
             # The owner's new photos fill the clock: the send that no longer fits is caught and not shown, and the
-            # next one, seeing no room for a second copy, writes over the one shown, as before slots.
+            # next one sees there is no room and sends nothing; the picture on the clock is never written.
+            from token_tv.device import ClockFull
             self.state["files"]["owner.jpg"] = b"x" * (200000 - 10)
             with self.assertRaises(ValueError):
                 self.show(display, b"GIF-D")
             self.assertEqual(self.state["enabled"], {"tokentv-b.gif"})
-            self.show(display, b"GIF-D")
-            self.assertEqual(self.state["files"]["tokentv-b.gif"], b"GIF-D")
+            with self.assertRaises(ClockFull):
+                self.show(display, b"GIF-D")
+            self.assertEqual(self.state["files"]["tokentv-b.gif"], b"GIF-C")
             self.assertEqual(self.state["enabled"], {"tokentv-b.gif"})
 
 
@@ -556,3 +568,33 @@ class FindClockTests(unittest.TestCase):
         with patch.object(device, "local_prefixes", return_value=["192.168.7"]), \
                 patch.object(device, "clock_model", side_effect=lambda url, timeout: "sdpro" if url.endswith(".42") else None):
             self.assertEqual(device.find_clocks(), ["http://192.168.7.42"])
+
+
+class LinkTests(unittest.TestCase):
+    def test_the_clock_is_reached_directly_even_with_a_proxy_set(self):
+        state, calls = {"files": {}, "enabled": set(), "total": 3000000, "base": 1500000}, []
+        with serve(sd_pro_clock(state, calls)) as url, patch.dict("os.environ", {"HTTP_PROXY": "http://127.0.0.1:9", "http_proxy": "http://127.0.0.1:9", "NO_PROXY": "", "no_proxy": ""}):
+            self.assertEqual(PhotoDisplay(url).listed(), {})
+        self.assertEqual(calls, [("GET", "/photo/list")])
+
+    def test_a_device_that_answers_but_not_as_a_clock_is_told_apart(self):
+        from token_tv.device import NotAClock
+        with serve(answering(200, b"<html>printer</html>")) as url:
+            with self.assertRaises(NotAClock):
+                PhotoDisplay(url).listed()
+
+
+class UploadAnswerTests(unittest.TestCase):
+    def test_an_upload_taken_by_something_else_is_not_a_clock(self):
+        from token_tv.device import NotAClock
+        class Handler(BaseHTTPRequestHandler):
+            def log_message(self, *args):
+                return
+            def do_POST(self):
+                self.rfile.read(int(self.headers["Content-Length"]))
+                self.send_response(200)
+                self.end_headers()
+                self.wfile.write(b"<html>router login</html>")
+        with serve(Handler) as url:
+            with self.assertRaises(NotAClock):
+                PhotoDisplay(url).upload("tokentv.gif", b"GIF89a")

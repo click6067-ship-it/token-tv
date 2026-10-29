@@ -5,11 +5,15 @@ import dataclasses
 import hashlib
 import json
 import os
+import socket
+import sys
+import tempfile
 import threading
 import time
 from http.client import HTTPException
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from urllib.error import HTTPError
 from urllib.parse import parse_qs, urlparse
 
 from token_tv.device import FILES, BackupMismatch, open_display
@@ -41,20 +45,77 @@ RESCAN_SECONDS = 1800  # and then at most this often while it stays lost (a cloc
 
 
 def relocate(current, find=None):
-    """The clock's new address when exactly one clock answers on this network and not at `current`, else None."""
+    """The clock's new address when exactly one clock answers on this network and not at `current` (however that
+    is spelt), else None. Each address gets 8 s: a clock busy playing can take that long to answer."""
     if find is None:
-        from token_tv.device import find_clocks as find
+        from token_tv.device import find_clocks
+        find = lambda: find_clocks(timeout=8)  # noqa: E731
     found = find()
-    return found[0] if len(found) == 1 and found[0] != current else None
+    return found[0] if len(found) == 1 and not same_place(found[0], current) else None
 
 
-LOCKS = []  # open lock files, held for the life of the process
+def same_place(a, b):
+    """Whether two clock addresses name the same host and port (localhost and 127.0.0.1, :80 or none)."""
+    if not a or not b:
+        return a == b
+    places = []
+    for url in (a, b):
+        parsed = urlparse(url)
+        try:
+            host = socket.gethostbyname(parsed.hostname or '')
+        except OSError:
+            host = parsed.hostname
+        places.append((host, parsed.port or 80))
+    return places[0] == places[1]
 
 
-def hold_lock(state_dir):
-    """One TokenTV per config: two would both drive the clock and the same state files. False if one runs."""
+def lost_search_due(polls, scanned, now):
+    """Look for a clock that stopped answering after 3, 6, 12 and 24 polls, then every RESCAN_SECONDS."""
+    return polls in (3, 6, 12, 24) or (polls > 24 and (scanned is None or now - scanned > RESCAN_SECONDS))
+
+
+PROBLEMS = {  # what the dashboard says when the clock is not taking pictures
+    'no_answer': 'The clock at {address} does not answer: is it on, and on this Wi-Fi?',
+    'not_a_clock': 'Something else answers at {address} now; TokenTV is looking for the clock.',
+    'clock_full': '{detail}. Delete a photo on its album page.',
+    'short_copy': 'The clock kept only part of the last picture; TokenTV sends it again.',
+    'other_clock': 'This clock is not the one TokenTV saved its settings from.',
+    'error': 'The clock answered with an error ({detail}).',
+    'other_tokentv': 'Another TokenTV on this computer drives the clock at {address}; this one leaves it alone.',
+}
+
+
+def problem_of(error):
+    """The reason a picture did not reach the clock, for the dashboard: one of PROBLEMS."""
+    from token_tv.device import ClockFull, NotAClock
+    if isinstance(error, ClockFull):
+        return 'clock_full'
+    if isinstance(error, NotAClock):
+        return 'not_a_clock'
+    if isinstance(error, BackupMismatch):
+        return 'other_clock'
+    if isinstance(error, ValueError) and 'whole picture' in str(error):
+        return 'short_copy'
+    if isinstance(error, (json.JSONDecodeError, KeyError)):  # it answered, but not with a clock's lists
+        return 'not_a_clock'
+    if isinstance(error, HTTPError):
+        return 'not_a_clock' if error.code == 404 else 'error'
+    if isinstance(error, (OSError, HTTPException)):
+        return 'no_answer'
+    return 'error'
+
+
+LOCKS = {}  # open lock files by path, held for the life of the process (a clock's until another replaces it)
+
+
+def hold_lock(state_dir, name="live.lock"):
+    """One TokenTV per config: two would both drive the clock and the same state files. False if one runs; OSError
+    if the lock file cannot be made at all."""
+    path = state_dir / name
+    if path in LOCKS:  # this process holds it already
+        return True
     state_dir.mkdir(parents=True, exist_ok=True)
-    handle = open(state_dir / "live.lock", "a+")
+    handle = open(path, "a+")
     try:
         if os.name == "nt":
             import msvcrt
@@ -65,8 +126,44 @@ def hold_lock(state_dir):
     except OSError:
         handle.close()
         return False
-    LOCKS.append(handle)
+    LOCKS[path] = handle
     return True
+
+
+def clock_lock(url, strict=False):
+    """Where the lock for the clock at `url` lives: the system's temporary folder (one per user, so another
+    account's folder is never in the way), named after the address the name resolves to now. With `strict`, None
+    when it does not resolve now: a passing name-lookup hiccup is no move."""
+    parsed = urlparse(url)
+    try:
+        host = socket.gethostbyname(parsed.hostname or '')
+    except OSError:
+        if strict:
+            return None
+        host = parsed.hostname or ''
+    key = hashlib.sha256(f"{host}:{parsed.port or 80}".encode()).hexdigest()[:16]
+    user = f"-{os.getuid()}" if hasattr(os, "getuid") else ""  # Windows and macOS temp folders are per user already
+    return Path(tempfile.gettempdir()) / f"token-tv{user}" / f"clock-{key}.lock"
+
+
+def hold_clock(url):
+    """One TokenTV per clock, whatever its config: two would write over each other's playing GIF. The lock's path
+    (keep it: the name may point elsewhere later), or None if another TokenTV holds it. A lock that cannot be made
+    at all (a full or read-only temporary folder) is no reason not to run."""
+    path = clock_lock(url)
+    try:
+        return path if hold_lock(path.parent, path.name) else None
+    except OSError as error:
+        print(f"TokenTV could not lock the clock in {path.parent} ({error.strerror or error}); it runs without "
+              f"that check.", flush=True)
+        return path
+
+
+def let_go(path):
+    """Give up the clock lock at `path` (from hold_clock), for another TokenTV to drive that clock."""
+    handle = LOCKS.pop(path, None)
+    if handle:
+        handle.close()
 
 
 def write_json(path, data):
@@ -89,6 +186,16 @@ def load_original(device, backup_path):
     return original
 
 
+def plain(url):
+    """The clock's address as it speaks: plain http (0.3.1 saved an https:// one as it was typed)."""
+    return 'http://' + url[8:] if isinstance(url, str) and url[:8].lower() == 'https://' else url
+
+
+def start_command():
+    from token_tv.cli import cmd
+    return cmd("start")  # written the way this person runs TokenTV
+
+
 def mismatch_message(error, backup_path):
     return (f"{error} Nothing was changed on the clock and {backup_path} was kept. If the clock was offline "
             "when TokenTV started, start TokenTV again. If you replaced the clock, put the old one back to "
@@ -104,11 +211,12 @@ class DisplayPreferences:
         self.status = 'queued' if config.get('device_url') else 'preview_only'
         self.lock = threading.Lock()
         self.changed = threading.Event()
+        self.trouble = None  # why pictures do not reach the clock now, for the dashboard
 
     def snapshot(self):
         with self.lock:
             return {'style': self.style, 'applied_style': self.applied_style,
-                    'status': self.status, 'styles': list(STYLES)}
+                    'status': self.status, 'styles': list(STYLES), 'problem': self.trouble}
 
     def set_style(self, style):
         if style not in STYLES:
@@ -128,6 +236,15 @@ class DisplayPreferences:
             write_json(self.path, updated)
             self.config = updated
 
+    def problem(self, reason, address=None, detail=''):
+        """What keeps pictures from the clock now (a PROBLEMS key), since when; None once one arrives again."""
+        with self.lock:
+            if reason is None:
+                self.trouble = None
+            elif not self.trouble or self.trouble['reason'] != reason:
+                text = PROBLEMS[reason].format(address=urlparse(address or '').netloc or address, detail=detail)
+                self.trouble = {'reason': reason, 'since': int(time.time()), 'text': text}
+
     def delivered(self, style, success):
         with self.lock:
             if success:
@@ -135,12 +252,36 @@ class DisplayPreferences:
             self.status = ('queued' if style != self.style else 'ok' if success else 'error')
 
 
-def handler(store, preferences=None, locks=None, replays=None, wake=None):
+class QuietServer(ThreadingHTTPServer):
+    """A browser that closes a page mid-answer is not an error worth a traceback in the terminal or the log."""
+    def handle_error(self, request, client_address):
+        if isinstance(sys.exc_info()[1], ConnectionError):
+            return
+        super().handle_error(request, client_address)
+
+
+LOCAL_NAMES = ('127.0.0.1', 'localhost', '::1')
+
+
+def handler(store, preferences=None, locks=None, replays=None, wake=None, local_only=True):
     class Handler(BaseHTTPRequestHandler):
         def log_message(self, *args):
             return
 
+        def foreign_host(self):
+            """True, having answered 403, when a dashboard on this computer only is asked by another name: a web
+            page that renamed its own address to 127.0.0.1 (DNS rebinding) must not read or change anything."""
+            if not local_only:
+                return False
+            host = urlparse('//' + (self.headers.get('Host') or '')).hostname or ''
+            if host in LOCAL_NAMES:
+                return False
+            self.send_error(403, 'This dashboard answers only as 127.0.0.1 or localhost')
+            return True
+
         def do_GET(self):
+            if self.foreign_host():
+                return
             url = urlparse(self.path)
             path = url.path
             snapshot = store.snapshot()
@@ -194,6 +335,8 @@ def handler(store, preferences=None, locks=None, replays=None, wake=None):
             self.wfile.write(body)
 
         def do_POST(self):
+            if self.foreign_host():
+                return
             if urlparse(self.path).path == '/collection/replay':
                 self.replay_request()
                 return
@@ -241,8 +384,13 @@ def handler(store, preferences=None, locks=None, replays=None, wake=None):
             except (ValueError, UnicodeError):
                 self.send_error(400, 'Choose a scene you have found')
                 return
-            if preferences is not None and preferences.snapshot().get('style') != 'arcade':
-                self.send_error(409, 'Scenes play on the Arcade face: switch the clock to Arcade first')
+            shown = preferences.snapshot() if preferences is not None else {}
+            refusal = ('No clock connected' if shown.get('status') == 'preview_only' else
+                       'The clock is not answering' if shown.get('status') == 'error' else
+                       'Waiting for the clock' if preferences is not None and shown.get('applied_style') is None else
+                       'Switch the clock to Arcade first' if preferences is not None and shown.get('style') != 'arcade' else '')
+            if refusal:  # short: the dashboard puts it on the button as it is
+                self.reply(409, json.dumps({'error': refusal}).encode())
                 return
             replays.append(check)
             if wake:
@@ -253,7 +401,7 @@ def handler(store, preferences=None, locks=None, replays=None, wake=None):
 
 def main():
     parser = argparse.ArgumentParser(description="TokenTV live account display")
-    parser.add_argument("--config", required=True, help="Credential-free account metadata")
+    parser.add_argument("--config", help="Credential-free account metadata (default: the one `token-tv start` uses)")
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=8787)
     parser.add_argument("--once", action="store_true")
@@ -261,17 +409,44 @@ def main():
     parser.add_argument("--state-dir", default=".runtime")
     parser.add_argument("--restore-display", action="store_true")
     args = parser.parse_args()
+    if args.config is None:
+        from token_tv.cli import default_config
+        args.config = default_config()
     config = load_config(args.config)
+    config["device_url"] = plain(config.get("device_url"))
     if config.get("font"):
         os.environ["TOKEN_TV_FONT"] = config["font"]
     state_dir = Path(args.state_dir)
+    held = {'path': None}  # the clock lock this run holds, as it was taken
     if not (args.once or args.restore_display):
-        if not hold_lock(state_dir):
-            raise SystemExit("TokenTV is already running with this config on this computer.")
-        pid_file = state_dir / "live.pid"
+        try:
+            free = hold_lock(state_dir)
+        except OSError as error:
+            raise SystemExit(f"TokenTV cannot write its state folder {state_dir} ({error.strerror or error}).")
+        if not free:
+            try:
+                where = (state_dir / "live.url").read_text().strip()
+            except OSError:
+                where = ''
+            raise SystemExit("TokenTV is already running with this config on this computer" +
+                             (f": {where}" if where else "."))
+        with socket.socket() as probe:  # the dashboard's port before anything touches the clock
+            try:
+                probe.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+                probe.bind((args.host, args.port))
+            except OSError as error:
+                raise SystemExit(f"Port {args.port} is in use on this computer ({error.strerror or error}). "
+                                 f"Pass another with --port, or use {start_command()}, which picks a free one.")
+        held['path'] = config.get("device_url") and hold_clock(config["device_url"])
+        if config.get("device_url") and not held['path']:
+            raise SystemExit(f"Another TokenTV already drives the clock at {config['device_url']} "
+                             f"(with another config). One clock takes one TokenTV.")
+        pid_file, url_file = state_dir / "live.pid", state_dir / "live.url"
         pid_file.write_text(str(os.getpid()))  # how `autostart off` ends it on Windows; gone again at exit
-        atexit.register(lambda: pid_file.unlink(missing_ok=True))
-    device = open_display(config["device_url"]) if config.get("device_url") else None
+        url_file.write_text(f"http://{'127.0.0.1' if args.host in ('0.0.0.0', '') else args.host}:{args.port}")
+        atexit.register(lambda: (pid_file.unlink(missing_ok=True), url_file.unlink(missing_ok=True)))
+    # The clock's model is asked in the background, so a clock that hangs never keeps the dashboard from opening.
+    device = open_display(config["device_url"]) if config.get("device_url") and args.restore_display else None
     backup_path = state_dir / "display-original.json"
     if args.restore_display:
         if not device or not backup_path.is_file():
@@ -305,6 +480,53 @@ def main():
 
     shown = {'at': None, 'loop': None}  # when the clock's GIF started, and its loop
     lost = {'polls': 0, 'scanned': None}  # polls in a row the clock did not answer, and when it was last looked for
+    refused = {'url': None}  # a clock another TokenTV drives, said once
+
+    def follow_clock():
+        """The clock to drive: the address in the config, read again each minute (`start` finding the clock, or
+        `start --device-url`, while this runs). With none there, no clock: one on this network may be someone else's."""
+        nonlocal device, last_upload
+        try:
+            wanted = plain(load_config(args.config).get("device_url"))
+        except (OSError, ValueError):
+            return
+        if refused['url'] and wanted != refused['url']:  # what was refused is no longer asked for
+            refused['url'] = None
+            preferences.problem(None)
+        here = wanted and clock_lock(wanted, strict=True)
+        elsewhere = bool(device and here and here != held['path'])  # the same name points at another address now
+        if (device is None) != (not wanted) or (device and not same_place(wanted, device.base_url)) or elsewhere:
+            path = wanted and hold_clock(wanted)
+            if wanted and not path:
+                if refused['url'] != wanted:
+                    refused['url'] = wanted
+                    print(f"Another TokenTV already drives the clock at {wanted}; this one leaves it alone.", flush=True)
+                preferences.problem('other_tokentv', wanted)
+                if device:  # the config names another clock now (or this name reaches the other's): let this one go
+                    let_go(held['path'])
+                    device, held['path'] = None, None
+                    with preferences.lock:
+                        preferences.status = "preview_only"
+                return
+            try:
+                fresh = open_display(wanted) if wanted else None
+            except ValueError as error:  # an address edited into the config by hand
+                if path != held['path']:
+                    let_go(path)
+                if refused['url'] != wanted:
+                    refused['url'] = wanted
+                    print(f"TokenTV cannot use the clock address {wanted!r} in the config: {error}.", flush=True)
+                return
+            if held['path'] and held['path'] != path:
+                let_go(held['path'])
+            held['path'] = path or None
+            device, last_upload, refused['url'] = fresh, None, None
+            with preferences.lock:
+                preferences.config["device_url"] = wanted
+                preferences.status = "queued" if wanted else "preview_only"
+                preferences.applied_style = None  # nothing on this clock from this run yet
+                preferences.trouble = None
+            print(f"TokenTV drives the clock at {wanted} now." if wanted else "TokenTV runs without a clock now.", flush=True)
 
     def cycle(refresh=True, egg=None):
         """Read (if `refresh`), draw and upload; True once the clock has the picture. A new picture for a looping
@@ -312,6 +534,8 @@ def main():
         one-off's first picture goes at once."""
         nonlocal original, last_upload, device
         delivered = False
+        if refresh and not args.once:
+            follow_clock()
         if refresh:
             store.refresh()
         snapshot = store.snapshot()
@@ -357,16 +581,30 @@ def main():
                     last_upload = (name, digest)
                 write_json(state_dir / "display-receipt.json", {"at": int(time.time()), "style": style, "uploads": receipts})
                 preferences.delivered(style, True)
+                # Pictures arrive; a clock asked for that another TokenTV drives is still worth saying.
+                preferences.problem('other_tokentv' if refused['url'] else None, refused['url'])
                 delivered = True
                 lost['polls'] = 0
             except (OSError, ValueError, KeyError, HTTPException) as error:
+                silent = swapped = False
                 if isinstance(error, BackupMismatch):
-                    print(mismatch_message(error, backup_path), flush=True)
-                if isinstance(error, (OSError, HTTPException)):  # no answer, or another device answers there now
+                    again = open_display(device.base_url)  # guessed while the clock was off? ask it again
+                    silent = again.guessed  # still off: nothing is known yet, so nothing to say about its backup
+                    if type(again) is not type(device):
+                        device, swapped = again, True
+                        preferences.changed.set()  # the clock it really is: send to it now, not at the next poll
+                    elif not silent:
+                        print(mismatch_message(error, backup_path), flush=True)
+                reason = 'no_answer' if silent else problem_of(error)
+                if not swapped:
+                    preferences.problem(reason, device.base_url, str(error) if reason in ('clock_full', 'error') else '')
+                if reason in ('no_answer', 'not_a_clock'):  # no answer, or another device answers there now
                     lost['polls'] += 1
-                    if lost['polls'] >= LOST_POLLS and (lost['scanned'] is None or
-                                                       time.monotonic() - lost['scanned'] > RESCAN_SECONDS):
+                    if lost_search_due(lost['polls'], lost['scanned'], time.monotonic()):
                         lost['scanned'] = time.monotonic()
+                        again = open_display(device.base_url)  # the same address, maybe now an Ultra that was off
+                        if type(again) is not type(device):
+                            device = again
                         moved = relocate(device.base_url)
                         candidate = moved and open_display(moved)
                         try:
@@ -374,13 +612,21 @@ def main():
                                 candidate.check_backup(original)  # the same kind of clock, or it is not ours
                         except BackupMismatch:
                             candidate = None
+                        path = candidate and hold_clock(moved)
+                        if candidate and not path:  # another TokenTV drives the clock there
+                            preferences.problem('other_tokentv', moved)
+                            candidate = None
                         if candidate:
+                            if held['path'] != path:
+                                let_go(held['path'])
+                            held['path'] = path
                             device = candidate
                             preferences.set_device(moved)
                             lost['polls'] = 0
+                            preferences.changed.set()  # send to it now, not at the next poll
                             print(f"TokenTV found the clock at its new address {moved}.", flush=True)
                 write_json(state_dir / "display-receipt.json", {"at": int(time.time()), "style": style, "status": "error", "phase": phase,
-                           "uploads": receipts, "http_status": getattr(error, "code", None)})
+                           "reason": reason, "uploads": receipts, "http_status": getattr(error, "code", None)})
                 preferences.delivered(style, False)
         snapshot['display'] = preferences.snapshot()
         write_json(state_dir / "snapshot.json", snapshot)
@@ -415,6 +661,11 @@ def main():
             print("TokenTV easter egg skipped.", flush=True)
 
     def poll():
+        nonlocal device
+        try:
+            device = open_display(config["device_url"]) if config.get("device_url") else None
+        except ValueError:
+            pass  # an address edited into the config by hand: follow_clock says what is wrong with it
         next_refresh = 0
         while not stopping.is_set():
             preferences.changed.clear()
@@ -462,10 +713,16 @@ def main():
                     play(egg, mark=False)
             preferences.changed.wait(max(0, next_refresh - time.monotonic()))
 
+    try:  # the dashboard's port first: if another program has it, stop before touching the clock
+        local = args.host in LOCAL_NAMES  # bound to this computer only: answer only by its own names
+        server = QuietServer((args.host, args.port), handler(store, preferences, locks, replays, preferences.changed, local))
+    except OSError as error:
+        raise SystemExit(f"Port {args.port} is in use on this computer ({error.strerror or error}). "
+                         f"Pass another with --port, or use {start_command()}, which picks a free one.")
     thread = threading.Thread(target=poll, daemon=True)
     thread.start()
     try:
-        with ThreadingHTTPServer((args.host, args.port), handler(store, preferences, locks, replays, preferences.changed)) as server:
+        with server:
             print(f"TokenTV live listening at http://{args.host}:{args.port}", flush=True)
             server.serve_forever()
     except KeyboardInterrupt:

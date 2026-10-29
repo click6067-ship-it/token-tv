@@ -89,49 +89,55 @@ def lerp(a, b, t):
     return a + (b - a) * max(0, min(1, t))
 
 
-def ease(t):
-    t = max(0, min(1, t))
-    return t * t * (3 - 2 * t)
+# Anti's joy at a reset, frame by frame at 12 a second: the pellets pop in, it looks up at them, crouches, hops and
+# hangs in the air a moment (antigravity), floats down, hops once more, sways, then bounces happily to the end.
+JOY_POP, JOY_BOUNCE = 8, 50  # the frames the pellets pop in and the bouncing starts
+JOY_LIFT = {14: 2, 15: 4, 16: 6, 17: 7, 18: 8, 19: 8, 20: 9, 21: 9, 22: 8, 23: 8, 24: 7, 25: 5, 26: 3, 27: 1,
+            31: 2, 32: 3, 33: 3, 34: 2}
+JOY_SQUASH = (12, 13, 28, 29, 35, 36)
+JOY_SWAY = {38: -1, 39: -1, 40: 0, 41: 1, 42: 1, 43: 0, 44: -1, 45: -1, 46: 0, 47: 1}
+
+
+def anti_joy(frame, draw, box, f, left):
+    """Reset: on the open floor the pellets pop in, up to what is really left (`left`: all four after a 5-hour
+    reset; None leaves them out), and Anti hops for joy."""
+    x, y = box[:2]
+    arcade.anti_maze(draw, box, f, 1, left, 'floor', pellets=False)
+    if left is not None and f >= JOY_POP:
+        arcade.anti_pellets(draw, box, left, pop=f - JOY_POP if f < JOY_POP + 3 else None)
+        count = max(0.0, min(1.0, left)) * 4
+        if JOY_POP + 2 <= f < JOY_POP + 4:  # a sparkle round each that came back
+            reach = 2 * (f - JOY_POP - 1)
+            for px_, py_ in list(reversed(arcade.ANTI_PELLETS))[:int(count) + (count % 1 > .05)]:
+                for ux, uy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+                    for d in (4 + reach, 5 + reach):
+                        draw.point((x + px_ + ux * d, y + py_ + uy * d), fill=(255, 255, 255))
+    if f >= JOY_BOUNCE:
+        arcade.anti_bounce(frame, draw, box, f - JOY_BOUNCE, arcade.FRAMES - JOY_BOUNCE, {'mood': 'happy'})
+        return
+    if f < JOY_POP + 4 or f >= JOY_BOUNCE - 2:
+        art = arcade.anti_art('normal', dy=-1 if JOY_POP <= f < JOY_POP + 4 else 0)  # looking up as they pop in
+    else:
+        art = arcade.anti_art('happy', pose='squash' if f in JOY_SQUASH else 'stand')
+    arcade.anti_stand(frame, box, art, JOY_LIFT.get(f, 0), JOY_SWAY.get(f, 0))
 
 
 def anti_event(frame, draw, box, f, happy, points=200, left=None):
-    """Anti's reset and full, in the old arcade's terms (`f` at 12 a second). Reset: PLAYER ONE, READY!, its body
-    grows back round its eyes, it leaves the house by the door and the pellets come back one by one, up to what is
-    really left (`left`, None to leave them out). Full: wide-eyed and blue, flashing, eaten (only the points stay
-    a moment), the eyes rush home, and a little star: it used it all."""
+    """Anti's reset and full (`f` at 12 a second). Reset: its joy (anti_joy). Full, in the old arcade's terms:
+    wide-eyed and blue, flashing, eaten (only the points stay a moment), the eyes rush home, and a little star: it
+    used it all."""
+    if happy:
+        anti_joy(frame, draw, box, f, left)
+        return
     x, y, w, h = box
     hx, hy = x + arcade.ANTI_HOME[0], y + arcade.ANTI_HOME[1] + 2
     art = arcade.anti_art
-    if happy:
-        refill = 0 if f < 56 else min(4, (f - 56) // 6 + 1)
-        shown = None if left is None else min(left, refill / 4)
-        arcade.anti_maze(draw, box, f, 1, shown, house=True, door=f < 36, pellets=left is not None)
-        if f < 24:
-            pixel_text(draw, (x + 60, y + 13), 'PLAYER ONE', scale=1, color=(0, 255, 255), align='center')
-        if 6 <= f < 36:
-            pixel_text(draw, (x + 60, y + 22), 'READY!', scale=1, color=(255, 255, 0), align='center')
-        if f < 12:
-            paste(frame, art('eaten', 'none'), hx, hy)
-        elif f < 24:  # the body comes back round the eyes
-            paste(frame, art('normal', 'logo') if f % 4 < 2 else art('eaten', 'none'), hx, hy)
-        elif f < 36:
-            paste(frame, art('happy', 'logo'), hx, hy)
-        elif f < 56:  # up through the door
-            paste(frame, art('normal', 'logo', (f // 6) % 2, 0, -1), hx, lerp(hy, y + 9, ease((f - 36) / 19)))
-        else:
-            paste(frame, art('happy' if f < 100 else 'normal', 'logo', (f // 6) % 2),
-                  hx + 20 * math.sin(2 * math.pi * (f - 56) / 64), y + 9)
-        if left is not None and 56 <= f < 56 + 6 * math.ceil(left * 4) and (f - 56) % 6 < 2:  # each glints as it comes back
-            px_, py_ = arcade.ANTI_PELLETS[3 - min(3, (f - 56) // 6)]
-            draw.point((x + px_, y + py_ - 5), fill=(255, 255, 255))
-            draw.point((x + px_ + 5, y + py_), fill=(255, 255, 255))
-        return
-    arcade.anti_maze(draw, box, f, 1, left, house=True, pellets=left is not None)
+    arcade.anti_maze(draw, box, f, 1, left, 'house', pellets=left is not None)
     if f < 24:
-        paste(frame, art('wide_scared', 'scared', (f // 3) % 2), hx, y + 9)
+        paste(frame, art('wide_scared', 'scared'), hx, y + 9)
     elif f < 48:
         lit = (f // 4) % 2
-        paste(frame, art('wide_flash' if lit else 'wide_scared', 'flash' if lit else 'scared', (f // 3) % 2), hx, y + 9)
+        paste(frame, art('wide_flash' if lit else 'wide_scared', 'flash' if lit else 'scared'), hx, y + 9)
     elif f < 62:  # eaten: only the points stay a moment
         pixel_text(draw, (x + 60, y + 17), str(points), scale=1, color=(0, 255, 255), align='center')
     elif f < 70:  # the eyes rush home, the fastest thing in the scene

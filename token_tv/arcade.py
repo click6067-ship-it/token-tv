@@ -193,7 +193,11 @@ REST_MOVES = {'look': ('look',), 'stretch': ('sway', 'turn'), 'rare': ('dance', 
 FLOW_MOVES = {'codex': {'look': 'drift', 'stretch': 'yawn', 'rare': 'drift'},
               'grok': {'look': 'gaze', 'stretch': 'wander', 'rare': 'wander'},
               'copilot': {'look': 'look', 'stretch': 'hop', 'rare': 'hop'},
-              'antigravity': {'look': 'look', 'stretch': 'bob', 'rare': 'look'}}
+              'antigravity': {'look': 'arch', 'stretch': 'float', 'rare': 'umbrella'}}
+# Between moves the others nap; Anti stays awake by day, bouncing softly, and sleeps the night through (NIGHT_HOURS)
+# spread out like a blanket.
+STILL = {'antigravity': 'bounce'}
+NIGHT_REST = {'antigravity': 'blanket'}
 
 
 def rest_step(provider, now):
@@ -1224,24 +1228,41 @@ def copilot_scene(frame, draw, box, f, span, active, s, plan, centre=.5):
 
 # --- Anti (Antigravity) -------------------------------------------------------------------------
 # Antigravity is Anti, a ghost made of its logo: the logo's 12 x 10 blocks (assets/antigravity-logo.png) at
-# 2 x 2, one chin row under the mouth, a ghost's hem along its feet, bean eyes and a cat's mouth. It lives in a
-# maze after the old arcade halls (none of their characters, only the maze, the dots and the pellets): at work it
-# patrols the loop round the centre wall, eyes on the next turn; at rest it waits in the house behind the pink
-# door; the four power pellets are what is left of its 5 hours. Near the limit it turns blue, like a frightened
-# ghost: slow and backing off at work, hiding its face at rest.
+# 2 x 2, one chin row under the mouth, the last row of its legs half height (no feet), bean eyes with a white
+# glint, a cat's mouth and pink cheeks. It lives in a maze after the old arcade halls (none of their characters,
+# only the maze, the dots and the pellets); the four power pellets are what is left of its 5 hours. At work it
+# patrols the loop round the centre wall, eyes on the next turn. At rest it stays on the open floor and plays with
+# its arch, a minute at a time (REST_FLOW): a soft bounce while still, a tunnel the dots roll through when it looks
+# round, a float that beams a dot up when it stretches, now and then an umbrella against the Codex rain; at night
+# it sleeps spread out like a blanket. Near the limit it turns blue, like a frightened ghost: slow and backing off
+# at work, hiding its face at rest.
 
 ANTI_NAVY, ANTI_PEACH, ANTI_RED = (14, 16, 30), (255, 184, 174), (255, 0, 0)
+ANTI_GLINT, ANTI_CHEEK = (255, 255, 255), (255, 120, 150)
 ANTI_SCARED, ANTI_FLASH = (33, 33, 222), (222, 222, 255)
 MAZE_WALL, MAZE_DOT, MAZE_BG, MAZE_DOOR = (33, 33, 222), (255, 184, 174), (2, 2, 8), (255, 184, 255)
 ANTI_CHIN = ((10, (88, 149, 216)), (11, (88, 149, 216)), (12, (86, 125, 221)), (13, (86, 125, 221)))
-ANTI_FEET = frozenset((x, 19) for x in (0, 1, 2, 3, 20, 21, 22, 23))
+ANTI_CHEEKS = ((7, 7), (8, 7), (15, 7), (16, 7))
 BEAN, BEAN_SHUT, CAT_MOUTH = ('XX', 'XX', 'XX'), ('XX',), ('X.X.X', '.X.X.')
 DOT_EYE, SMILE_EYE, ZED = ('XX', 'XX'), ('.X.', 'X.X'), ('XXX', '..X', '.X.', 'X..', 'XXX')
+# Its poses: how tall each of the logo's ten block rows is drawn (two pixels, the legs' last row one: no feet),
+# and how far the lower rows' halves move apart. A squash takes a pixel out of the legs as it lands; asleep it
+# lies low and wide like a blanket, a breath in lifting it a pixel.
+ANTI_POSES = {'stand': ((2, 2, 2, 2, 2, 2, 2, 2, 2, 1), {}),
+              'squash': ((2, 2, 2, 2, 2, 2, 2, 1, 2, 1), {}),
+              'blanket': ((1, 1, 2, 2, 2, 1, 1, 1, 1, 1), {6: 1, 7: 1, 8: 2, 9: 2}),
+              'blanket_in': ((1, 1, 2, 2, 2, 2, 1, 1, 1, 1), {6: 1, 7: 1, 8: 2, 9: 2})}
 # The patrol: the sprite's corner round the centre wall, and the pellets, used from the top left round to the
 # bottom left (what is left sits in the last corners).
 ANTI_LOOP = ((3, 9), (93, 9), (93, 41), (3, 41))
 ANTI_PELLETS = ((15, 19), (105, 19), (105, 51), (15, 51))
-ANTI_HOME = (48, 36)  # Anti in the house
+ANTI_HOME = (48, 36)  # Anti in the house, where its one-offs find it
+ANTI_FLOOR, ANTI_MID = 58, 60  # at rest: the row it stands on, on the open floor, and its middle
+ANTI_MOVE = 30  # frames: a move takes the first half of a turn when that half is this long, else the whole turn
+ANTI_MAT, ANTI_MAT_EDGE, ZED_INK = (236, 236, 246), (190, 190, 214), (230, 230, 240)
+ANTI_BEAM, ANTI_MOTE = ((92, 206, 196), (56, 146, 150), (34, 92, 104)), (236, 255, 250)
+ANTI_FLOAT = {6: 1, 7: 2, 8: 3, 9: 4, 10: 5, 11: 5, 42: 5, 43: 4, 44: 2, 45: 1}  # its lift rising and settling
+ANTI_RAIN = (5, 9, 14, 18, 23, 27, 32, 36, 41, 45, 50, 53, 57, 62, 66, 70, 74, 79, 83, 88, 92, 97, 101, 106, 110, 114)
 
 
 def grid_stamp(draw, x, y, rows, ink):
@@ -1256,29 +1277,32 @@ def wavy(draw, x0, x1, y, ink):
         draw.point((xx, y + (i // 2) % 2), fill=ink)
 
 
-def anti_face(draw, face, dx=0, dy=0):
-    """Anti's faces on its 24 x 20 sprite, eyes looking (dx, dy): 'normal' (beans and the cat's mouth), 'blink' or
-    'sleep', 'happy' (^ ^), 'curious' (dots), 'roll' (dots rolled up), 'scared', 'wide_scared' and 'low_scared'
-    (hiding) with their 'flash' versions, and 'eaten' (the eyes alone)."""
+def anti_face(draw, face, dx=0, dy=0, ox=0, oy=0):
+    """Anti's faces, eyes looking (dx, dy), on its sprite at (ox, oy): 'normal' (beans with a white glint),
+    'blink' or 'sleep', 'happy' (^ ^), 'curious' (dots with a glint), 'roll' (dots rolled up), each with the cat's
+    mouth and pink cheeks; 'scared', 'wide_scared' and 'low_scared' (hiding) with their 'flash' versions, and
+    'eaten' (the eyes alone), without."""
+    stamp = lambda x, y, rows, ink: grid_stamp(draw, ox + x, oy + y, rows, ink)
+    if face in ('normal', 'curious', 'blink', 'sleep', 'roll', 'happy'):
+        for x, y in ANTI_CHEEKS:  # first: eyes looking down and aside go over a cheek
+            draw.point((ox + x, oy + y), fill=ANTI_CHEEK)
+        stamp(10, 8, CAT_MOUTH, ANTI_NAVY)
     if face in ('normal', 'curious'):
-        eye = BEAN if face == 'normal' else DOT_EYE
-        grid_stamp(draw, 9 + dx, 4 + dy, eye, ANTI_NAVY)
-        grid_stamp(draw, 13 + dx, 4 + dy, eye, ANTI_NAVY)
-        grid_stamp(draw, 10, 8, CAT_MOUTH, ANTI_NAVY)
+        for x in (9, 13):
+            stamp(x + dx, 4 + dy, BEAN if face == 'normal' else DOT_EYE, ANTI_NAVY)
+            draw.point((ox + x + dx, oy + 4 + dy), fill=ANTI_GLINT)
     elif face in ('blink', 'sleep'):
-        grid_stamp(draw, 9 + dx, 5, BEAN_SHUT, ANTI_NAVY)
-        grid_stamp(draw, 13 + dx, 5, BEAN_SHUT, ANTI_NAVY)
-        grid_stamp(draw, 10, 8, CAT_MOUTH, ANTI_NAVY)
+        stamp(9 + dx, 5, BEAN_SHUT, ANTI_NAVY)
+        stamp(13 + dx, 5, BEAN_SHUT, ANTI_NAVY)
     elif face == 'roll':
-        grid_stamp(draw, 9, 3, DOT_EYE, ANTI_NAVY)
-        grid_stamp(draw, 13, 3, DOT_EYE, ANTI_NAVY)
-        grid_stamp(draw, 10, 8, CAT_MOUTH, ANTI_NAVY)
+        stamp(9, 3, DOT_EYE, ANTI_NAVY)
+        stamp(13, 3, DOT_EYE, ANTI_NAVY)
     elif face == 'happy':
-        grid_stamp(draw, 8, 4, SMILE_EYE, ANTI_NAVY)
-        grid_stamp(draw, 13, 4, SMILE_EYE, ANTI_NAVY)
+        stamp(8, 4, SMILE_EYE, ANTI_NAVY)
+        stamp(13, 4, SMILE_EYE, ANTI_NAVY)
     elif face == 'eaten':
-        grid_stamp(draw, 9 + dx, 4 + dy, BEAN, ANTI_PEACH)
-        grid_stamp(draw, 13 + dx, 4 + dy, BEAN, ANTI_PEACH)
+        stamp(9 + dx, 4 + dy, BEAN, ANTI_PEACH)
+        stamp(13 + dx, 4 + dy, BEAN, ANTI_PEACH)
     else:
         ink = ANTI_RED if face.endswith('flash') else ANTI_PEACH
         if face.startswith('wide'):
@@ -1288,8 +1312,8 @@ def anti_face(draw, face, dx=0, dy=0):
         else:
             eyes, mouth = ((9, 5), (13, 5)), (8, 15, 8)
         for ex, ey in eyes:
-            draw.rectangle((ex, ey, ex + 1, ey + 1), fill=ink)
-        wavy(draw, *mouth, ink)
+            draw.rectangle((ox + ex, oy + ey, ox + ex + 1, oy + ey + 1), fill=ink)
+        wavy(draw, ox + mouth[0], ox + mouth[1], oy + mouth[2], ink)
 
 
 @functools.lru_cache(maxsize=None)
@@ -1298,10 +1322,13 @@ def anti_logo():
 
 
 @functools.lru_cache(maxsize=1024)
-def anti_art(face='normal', body='logo', step=0, dx=0, dy=0, flip=False, scale=1):
-    """Anti, 24 x 20 at scale 1: its logo body ('logo', 'scared' blue, 'flash' pale, or 'none' for the eyes alone),
-    the hem stepping with `step`, the face looking (dx, dy), upside down with `flip`."""
-    art = Image.new('RGBA', (24, 20))
+def anti_art(face='normal', body='logo', dx=0, dy=0, flip=False, scale=1, pose='stand'):
+    """Anti, 24 x 19 standing at scale 1: its logo body ('logo', 'scared' blue, 'flash' pale, or 'none' for the
+    eyes alone) in one of its poses (ANTI_POSES), the face looking (dx, dy), upside down with `flip`."""
+    heights, spread = ANTI_POSES[pose]
+    tops = [sum(heights[:k]) for k in range(len(heights))]
+    pad = max(spread.values(), default=0)
+    art = Image.new('RGBA', (24 + 2 * pad, sum(heights)))
     draw = ImageDraw.Draw(art)
     if body != 'none':
         logo = anti_logo()
@@ -1309,33 +1336,39 @@ def anti_art(face='normal', body='logo', step=0, dx=0, dy=0, flip=False, scale=1
         for by in range(logo.height):
             for bx in range(logo.width):
                 colour = logo.getpixel((bx, by))
-                if not colour[3]:
-                    continue
-                for px_ in (2 * bx, 2 * bx + 1):
-                    for py_ in (2 * by, 2 * by + 1):
-                        if (px_, py_) not in ANTI_FEET or (px_ + step) % 2 == 0:  # the hem, alternate pixels
-                            draw.point((px_, py_), fill=tone or colour[:3])
+                if colour[3]:
+                    left = pad + 2 * bx + (spread.get(by, 0) if bx >= logo.width // 2 else -spread.get(by, 0))
+                    draw.rectangle((left, tops[by], left + 1, tops[by] + heights[by] - 1), fill=tone or colour[:3])
         for cx, colour in ANTI_CHIN:
-            draw.point((cx, 10), fill=tone or colour)
-    anti_face(draw, face, dx, dy)
+            draw.point((pad + cx, tops[5]), fill=tone or colour)
+    anti_face(draw, face, dx, dy, pad, tops[2] - 4)
     if flip:
         art = art.transpose(Image.Transpose.FLIP_TOP_BOTTOM)
-    return art.resize((24 * scale, 20 * scale), Image.Resampling.NEAREST) if scale != 1 else art
+    return art.resize((art.width * scale, art.height * scale), Image.Resampling.NEAREST) if scale != 1 else art
 
 
-def anti_pellets(draw, box, left, label=''):
+@functools.lru_cache(maxsize=None)
+def anti_crown(pose='stand'):
+    """{column: the top row of Anti's body there} in a pose: where rain falling on it lands."""
+    alpha = anti_art(pose=pose).getchannel('A')
+    columns = ((xx, alpha.crop((xx, 0, xx + 1, alpha.height)).getbbox()) for xx in range(alpha.width))
+    return {xx: box[1] for xx, box in columns if box}
+
+
+def anti_pellets(draw, box, left, label='', pop=None):
     """The gauge: a power pellet in each corner for every 25% left of the 5 hours, the last one smaller as it
-    runs down; used ones leave a faint mark, so the four places always read. They never blink."""
+    runs down; used ones leave a faint mark, so the four places always read. They never blink. `pop` (0, 1, 2)
+    draws them popping in: small, larger, a size too big."""
     x, y, w, h = box
     count = 0 if left is None else max(0.0, min(1.0, left)) * 4
     full, part = int(count), count - int(count)
     for i in range(4):
         px_, py_ = ANTI_PELLETS[3 - i]
         px_, py_ = x + px_, y + py_
-        if i < full:
-            draw.ellipse((px_ - 3, py_ - 3, px_ + 3, py_ + 3), fill=MAZE_DOT)
-        elif i == full and part > .05:
-            r = 2 if part >= .5 else 1
+        r = 3 if i < full else (2 if part >= .5 else 1) if i == full and part > .05 else 0
+        if r and pop is not None:
+            r = (min(r, 1), min(r, 2), r + 1)[pop]
+        if r:
             draw.ellipse((px_ - r, py_ - r, px_ + r, py_ + r), fill=MAZE_DOT)
         else:
             draw.point((px_, py_), fill=(90, 70, 80))
@@ -1343,21 +1376,22 @@ def anti_pellets(draw, box, left, label=''):
         gauge_label(draw, x + 1, y + 1, label)
 
 
-def anti_maze(draw, box, f, s, left, house=False, label='', wall=MAZE_WALL, door=True, pellets=True):
-    """The still maze: an outer wall, rows of dots, and in the middle the centre wall (work) or the house with
-    its pink door (rest), with the pellets (left out where the scene cannot know the reading: a gauge may go
-    missing for a scene, never show a wrong value)."""
+def anti_maze(draw, box, f, s, left, middle='wall', label='', wall=MAZE_WALL, door=True, pellets=True):
+    """The still maze: an outer wall, rows of dots, and in the middle the centre wall ('wall', at work), the house
+    with its pink door ('house') or the open floor ('floor', at rest: Anti stands where the bottom row of dots
+    was), with the pellets (left out where the scene cannot know the reading: a gauge may go missing for a scene,
+    never show a wrong value)."""
     x, y, w, h = box
     draw.rectangle((x, y, x + w - 1, y + h - 1), fill=MAZE_BG)
     draw.rounded_rectangle((x + 1, y + 7, x + 118, y + 63), radius=4, outline=wall)
-    if house:
+    if middle == 'house':
         draw.rectangle((x + 44, y + 31, x + 76, y + 59), outline=wall)
         draw.rectangle((x + 45, y + 32, x + 75, y + 58), outline=wall)
         draw.rectangle((x + 54, y + 31, x + 66, y + 32), fill=MAZE_DOOR if door else MAZE_BG)
-    else:
+    elif middle == 'wall':
         draw.rounded_rectangle((x + 29, y + 31, x + 91, y + 39), radius=3, outline=wall)
     for dx in range(30, 92, 6):
-        for dy in (19, 51):
+        for dy in (19,) if middle == 'floor' else (19, 51):
             draw.rectangle((x + dx, y + dy, x + dx + 1, y + dy + 1), fill=MAZE_DOT)
     for dy in (31, 37):
         for dx in (15, 105):
@@ -1393,39 +1427,168 @@ def anti_left(plan, row=None):
     return None if used is None else 1 - used / 100
 
 
+def maze_dot(draw, x, y, shine=None):
+    """A maze dot, 2 x 2, at (x, y); `shine` (0-3) puts a white glint on one corner, turning as the dot rolls."""
+    draw.rectangle((x, y, x + 1, y + 1), fill=MAZE_DOT)
+    if shine is not None:
+        cx, cy = ((0, 0), (1, 0), (1, 1), (0, 1))[shine % 4]
+        draw.point((x + cx, y + cy), fill=ANTI_GLINT)
+
+
+def anti_stand(frame, box, art, lift=0, sx=0):
+    """Anti's `art` on the open floor in the middle of the maze, `lift` above it and `sx` aside; its top left."""
+    x, y = box[0] + ANTI_MID - art.width // 2 + sx, box[1] + ANTI_FLOOR + 1 - art.height - lift
+    paste(frame, art, x, y)
+    return x, y
+
+
+def beat(f, n, period):
+    """Frame `f` of an `n`-frame piece in a beat of about `period` frames, fitted a whole number of times into
+    the piece so that it loops: (which beat, how far into it, from 0 up to `period`)."""
+    count = max(1, round(n / period))
+    at = f * count / n
+    return int(at), at % 1 * period
+
+
+def anti_bounce(frame, draw, box, f, n, plan=None):
+    """Still: a soft 2 px bounce about every 1.5 s, the legs squashed a pixel as it lands, a blink in the air every
+    other one (^ ^ all along with plenty left)."""
+    k, t = beat(f, n, 18)
+    happy = isinstance(plan, dict) and plan.get('mood') == 'happy'
+    face = 'happy' if happy else 'blink' if k % 2 and 8 <= t < 10 else 'normal'
+    lift = round(2 * math.sin(math.pi * (t - 2) / 14)) if 3 <= t < 15 else 0
+    anti_stand(frame, box, anti_art(face, pose='squash' if t < 2 else 'stand'), lift)
+
+
+def anti_blanket(frame, draw, box, f, n, plan=None):
+    """Asleep at night: spread low and wide over its mat like a blanket, eyes shut, a slow breath lifting the
+    cover a pixel, one small z drifting up."""
+    x, y = box[:2]
+    draw.rectangle((x + 44, y + ANTI_FLOOR - 1, x + 75, y + ANTI_FLOOR), fill=ANTI_MAT)
+    draw.line((x + 44, y + ANTI_FLOOR, x + 75, y + ANTI_FLOOR), fill=ANTI_MAT_EDGE)
+    _, t = beat(f, n, 36)
+    left, top = anti_stand(frame, box, anti_art('sleep', pose='blanket_in' if t >= 20 else 'blanket'))
+    if t < 30:
+        grid_stamp(draw, left + 18 + int(t // 10), top - 6 - int(t // 3), ZED, ZED_INK)
+
+
+def anti_arch(frame, draw, box, f, n, plan=None):
+    """Looking round: a train of three dots rolls along the floor and through under its arch (the legs hide them
+    going in and out); its eyes follow them, and while they are inside it giggles (^ ^) and wiggles."""
+    x, y = box[:2]
+    _, t = beat(f, n, 36)
+    lead = t / 36 * 86  # one train a beat, in at x 24 and out at x 96, so a piece starts and ends with the floor clear
+    spots = [round(lead) - 7 * i + 24 for i in range(3)]
+    for spot in spots:
+        if 24 <= spot < 96:
+            maze_dot(draw, x + spot, y + ANTI_FLOOR - 1, shine=spot // 2)
+    middle = spots[1]
+    if 50 <= middle <= 68:
+        anti_stand(frame, box, anti_art('happy'), 1 if (f // 2) % 2 else 0)
+    else:
+        anti_stand(frame, box, anti_art('normal', dx=-1 if middle < ANTI_MID else 1, dy=1))
+
+
+def anti_float(frame, draw, box, f, n, plan=None):
+    """Stretching, the antigravity way: it floats up like a little UFO and shines a beam down from its arch; the
+    dot under it drifts up in the light, twinkles there while Anti beams (^ ^), drops back, and Anti settles with
+    a squash. Its 48 drawn frames (4 s) are fitted to the piece."""
+    x, y = box[:2]
+    g = int(f * 48 / n)
+    lift = ANTI_FLOAT.get(g, 6 + (g - 12) // 6 % 2 if 12 <= g < 42 else 0)  # hovering, bobbing every half second
+    cx, top, bottom = x + ANTI_MID, y + 52 - lift, y + ANTI_FLOOR
+    if 12 <= g < 40:  # the beam: a narrow cone from just under the arch's top, brightest there, and a pool below
+        for row in range(top, bottom + 1 if g > 12 else (top + bottom) // 2 + 1):
+            p = (row - top) / (bottom - top)
+            half = 1.5 + 3.5 * p
+            draw.line((round(cx - .5 - half), row, round(cx - .5 + half), row), fill=ANTI_BEAM[min(2, int(p * 3))])
+        if g > 12:
+            draw.line((cx - 8, bottom, cx + 6, bottom), fill=ANTI_BEAM[1])
+            for k in range(3):  # motes rising in the light
+                my = bottom - 1 - (g + 3 * k) % 9 * (bottom - top - 2) // 9
+                p = (my - top) / (bottom - top)
+                draw.point((round(cx - .5 + (-2, .5, 2.5)[k] * (.4 + .6 * p)), my), fill=ANTI_MOTE)
+    low, high = ANTI_FLOOR - 1, 53 - lift  # the dot on the floor, and up in the arch
+    dot_y = (low if g < 14 or g >= 42 else low + (high - low) * (g - 13) / 16 if g < 30 else high if g < 36
+             else high + (low - high) * (g - 35) / 6)
+    dot_y = y + min(low, round(dot_y))
+    maze_dot(draw, cx - 1, dot_y)
+    face = 'happy' if 24 <= g < 36 else 'blink' if g in (3, 4) else 'normal'
+    anti_stand(frame, box, anti_art(face, dy=1 if face == 'normal' else 0, pose='squash' if g == 46 else 'stand'),
+               lift)
+    if 30 <= g < 36 and g % 2 == 0:  # the dot twinkles up in the arch
+        draw.point((cx - 2, dot_y - 1), fill=ANTI_GLINT)
+        draw.point((cx + 1, dot_y - 1), fill=ANTI_GLINT)
+
+
+def anti_umbrella(frame, draw, box, f, n, plan=None):
+    """Now and then it rains, Codex blue, over the maze, and Anti's arch is an umbrella for the dot under it:
+    drops splash on its head and shoulders, none get under the arch, the dot stays dry. It looks up at the rain,
+    down at its dot, and blinks."""
+    x, y = box[:2]
+    maze_dot(draw, x + ANTI_MID - 1, y + ANTI_FLOOR - 1)
+    g = f * 36 / n
+    look = -1 if g < 16 else 0 if g < 18 or g >= 34 else 1
+    left, top = anti_stand(frame, box, anti_art('blink' if 26 <= g < 28 else 'normal', dy=look))
+    crown = anti_crown()
+    speed = 54 * max(1, round(n / 18)) / n  # a fall from the top wall to the floor in about 1.5 s
+    for k, col in enumerate(ANTI_RAIN):
+        phase = k * 23 % 54
+        stop = top + crown[x + col - left] if x + col - left in crown else y + ANTI_FLOOR + 1
+        for late in (0, 1):  # a splash for the two frames after it lands
+            hit = y + 8 + (phase + speed * (f - 1 - late)) % 54  # where the drop's head was then; it is 3 px long
+            if hit + 2 < stop <= hit + 2 + speed:
+                for side in (-1 - late, 1 + late):
+                    if 2 < col + side < 117:
+                        draw.point((x + col + side, stop - 1 - late), fill=RAIN_SHADES[0])
+        drop = round(y + 8 + (phase + speed * f) % 54)
+        if drop + 2 < stop:
+            draw.line((x + col, drop, x + col, min(drop + 2, stop - 1)), fill=RAIN_SHADES[1])
+
+
+def anti_fret(frame, draw, box, f, n, plan=None):
+    """Nearly out, at rest: blue, bobbing fast where it stands, hiding its face."""
+    anti_stand(frame, box, anti_art('low_scared', 'scared'), 1 + round(math.sin(2 * math.pi * f / 6)))
+
+
+ANTI_RESTS = {'bounce': anti_bounce, 'arch': anti_arch, 'float': anti_float, 'umbrella': anti_umbrella,
+              'blanket': anti_blanket, 'fret': anti_fret}
+
+
+def anti_rest(frame, draw, box, f, span, plan):
+    """This minute's move (scene_plan) and then the still bounce, or sleep: the move in the first half of a long
+    turn, the whole of a short one. Each piece starts and ends standing still, so the loop meets its start."""
+    move, still = plan.get('idle', ('bounce', 'bounce')) if isinstance(plan, dict) else ('bounce', 'bounce')
+    half = span // 2
+    if move != still and half >= ANTI_MOVE:
+        piece, f, n = (move, f, half) if f < half else (still, f - half, span - half)
+    else:
+        piece, n = move, span
+    ANTI_RESTS.get(piece, anti_bounce)(frame, draw, box, f, max(1, n), plan)
+
+
 def anti_scene(frame, draw, box, f, span, active, s, plan, centre=.5):
     x, y, w, h = box
     worried = isinstance(plan, dict) and plan.get('mood') == 'worried'
     happy = isinstance(plan, dict) and plan.get('mood') == 'happy'
     label = plan.get('anti_label', '') if isinstance(plan, dict) and s == 1 else ''
-    anti_maze(draw, box, f, s, anti_left(plan), house=not active, label=label, pellets=anti_left(plan) is not None)
-    if active and worried:  # frightened: blue, backing and forth along the top, slowly
+    left = anti_left(plan)
+    if not active:  # at rest on the open floor; the pellets go on last, so no rain hides the gauge
+        anti_maze(draw, box, f, s, left, 'floor', pellets=False)
+        anti_rest(frame, draw, box, f, span, plan)
+        if left is not None:
+            anti_pellets(draw, box, left, label)
+        return
+    anti_maze(draw, box, f, s, left, label=label, pellets=left is not None)
+    if worried:  # frightened: blue, backing and forth along the top, slowly
         t = f / span
-        px_ = x + 20 + 50 * (1 - math.cos(2 * math.pi * t)) / 2
-        paste(frame, anti_art('scared', 'scared', (f // 3) % 2), px_, y + 9)
+        paste(frame, anti_art('scared', 'scared'), x + 20 + 50 * (1 - math.cos(2 * math.pi * t)) / 2, y + 9)
         return
-    if active:  # the patrol: one round of the loop a turn, eyes on the way ahead
-        lengths = 2 * (abs(ANTI_LOOP[1][0] - ANTI_LOOP[0][0]) + abs(ANTI_LOOP[2][1] - ANTI_LOOP[1][1]))
-        px_, py_, ux, uy = anti_on_loop(f / span * lengths)
-        face = 'happy' if happy else 'blink' if f % 36 in (30, 31) else 'normal'
-        paste(frame, anti_art(face, 'logo', (f // 6) % 2, ux if face == 'normal' else 0, uy if face == 'normal' else 0),
-              x + px_, y + py_)
-        return
-    hx, hy = x + ANTI_HOME[0], y + ANTI_HOME[1]
-    idle = idle_now(plan, f, span)
-    if idle == 'fret':  # frightened at rest: blue in the house, bobbing fast, hiding its face
-        paste(frame, anti_art('low_scared', 'scared', (f // 3) % 2), hx, hy + round(math.sin(2 * math.pi * f / 6)))
-    elif idle == 'look':  # looking round: one side, the other, up at the door, down
-        dx, dy = ((-1, 0), (1, 0), (0, -1), (0, 1))[min(3, int(f / max(1, span / 2) * 4)) % 4]
-        paste(frame, anti_art('happy' if happy else 'curious', 'logo', 0, dx, dy), hx, hy - (1 if dy < 0 else 0))
-    elif idle == 'bob':  # awake, bobbing gently, a blink every three seconds
-        face = 'happy' if happy else 'blink' if f % 36 in (30, 31) else 'normal'
-        paste(frame, anti_art(face, 'logo', 0), hx, hy + round(2 * math.sin(2 * math.pi * f / 24)))
-    else:  # asleep: a slow breath and the z's
-        paste(frame, anti_art('sleep', 'logo', 0), hx, hy + 2 + round(math.sin(2 * math.pi * f / 36)))
-        t = f % 36
-        if t < 30:
-            grid_stamp(draw, hx + 22 + t // 9, hy - 6 - t // 3, ZED, (230, 230, 240))
+    # the patrol: one round of the loop a turn, eyes on the way ahead
+    lengths = 2 * (abs(ANTI_LOOP[1][0] - ANTI_LOOP[0][0]) + abs(ANTI_LOOP[2][1] - ANTI_LOOP[1][1]))
+    px_, py_, ux, uy = anti_on_loop(f / span * lengths)
+    face = 'happy' if happy else 'blink' if f % 36 in (30, 31) else 'normal'
+    paste(frame, anti_art(face, dx=ux if face == 'normal' else 0, dy=uy if face == 'normal' else 0), x + px_, y + py_)
 
 
 SCENES = {'claude': claude_scene, 'codex': codex_scene, 'grok': grok_scene, 'copilot': copilot_scene,
@@ -1449,7 +1612,7 @@ def info(row, now, value=None):
 
 
 IDLE_SETS = {'codex': ('nap', 'drift', 'yawn'), 'grok': ('nap', 'wander', 'gaze'), 'copilot': ('nap', 'look', 'hop'),
-             'antigravity': ('nap', 'look', 'bob')}
+             'antigravity': ('bounce', 'arch', 'float', 'umbrella', 'blanket')}
 
 
 def mood(used):
@@ -1494,9 +1657,12 @@ def scene_plan(row, now, span=FRAMES / FPS):
             plan['idle'] = (named[0], named[-1])
     elif row['provider'] == 'claude':
         plan['moves'] = idle_plan(row, now, span)
+    elif row['provider'] in NIGHT_REST and time.localtime(stamp).tm_hour in NIGHT_HOURS:
+        plan['idle'] = (NIGHT_REST[row['provider']],) * 2
     elif row['provider'] in FLOW_MOVES:
         step, _ = rest_step(row['provider'], now)
-        plan['idle'] = (FLOW_MOVES[row['provider']][step], 'nap') if step else ('nap', 'nap')
+        still = STILL.get(row['provider'], 'nap')
+        plan['idle'] = (FLOW_MOVES[row['provider']][step], still) if step else (still, still)
     if plan['mood'] == 'worried' and row['provider'] in IDLE_SETS:  # nearly out: each frets its own way
         plan['idle'] = ('fret', 'fret')  # (Clawd paces, in its own scene)
     return plan

@@ -135,7 +135,7 @@ class CatalogTest(unittest.TestCase):
         self.assertLessEqual({t['id'] for t in data['themes']}, set(STYLES))  # a fork may add Local faces
         # Existing public issues stay mapped; new faces have no voting issue yet.
         self.assertEqual({t['id']: t['like_issue'] for t in data['themes']},
-                         {'pixel': 1, 'digital': 2, 'neon': 3, 'retro': 4, 'hud': 5, 'space': 6, 'gameboy': None})
+                         {'pixel': 1, 'digital': 2, 'neon': 3, 'retro': 4, 'hud': 5, 'space': 6, 'gameboy': None, 'arcade': None, 'retro-dual': None})
         votes = catalog.load_votes()
         self.assertTrue(set(votes['counts']) <= {str(t['like_issue']) for t in data['themes']})
         self.assertTrue(all(v['fetched_at'] for v in votes['counts'].values()))  # every count is dated
