@@ -37,7 +37,7 @@ class LockboxTests(unittest.TestCase):
                  lockbox.seal(salt, {'codex:crossed_70'}, content('jump'), chance=1, cooldown_days=7),
                  lockbox.seal(salt, {'codex:active'}, content('legendary', 'legend'), chance=1, cooldown_days=28),
                  lockbox.seal(salt, {'weekend=yes'}, content('maybe'), chance=.05, cooldown_days=7)]
-        self.bundle.write_text(json.dumps({'salt': salt.hex(), 'boxes': boxes}))
+        self.bundle.write_text(json.dumps({'salt': salt.hex(), 'boxes': boxes}), encoding='utf-8')
         self.rolls = []
         self.box = lambda: lockbox.Lockbox(Path(self.dir.name) / 'history.json', self.bundle,
                                            roll=lambda: self.rolls.pop(0) if self.rolls else 0.0)
@@ -51,7 +51,7 @@ class LockboxTests(unittest.TestCase):
         return out
 
     def test_the_bundle_says_nothing_readable_about_what_opens_a_box(self):
-        text = self.bundle.read_text()
+        text = self.bundle.read_text(encoding='utf-8')
         for word in ('hour', 'minute', 'jump', 'late', 'legendary', 'codex'):
             self.assertNotIn(word, text)
 
@@ -117,7 +117,7 @@ class LockboxTests(unittest.TestCase):
         salt = b'0123456789abcdef'
         boxes = [lockbox.seal(salt, {'claude:idle'}, content('one', 'rare'), chance=.5, cooldown_days=3),
                  lockbox.seal(salt, {'codex:idle'}, content('two', 'rare'), chance=.5, cooldown_days=3)]
-        self.bundle.write_text(json.dumps({'salt': salt.hex(), 'boxes': boxes}))
+        self.bundle.write_text(json.dumps({'salt': salt.hex(), 'boxes': boxes}), encoding='utf-8')
         locks = self.box()
         now = at(12)
         data = snapshot(now, [('claude_a', 'A', 'claude', [('WEEK', 50, 3 * D)]), ('codex_a', 'B', 'codex', [('WEEK', 50, 3 * D)])])
@@ -196,8 +196,8 @@ class LockboxTests(unittest.TestCase):
         locks.pick(self.data(at(10, 7)), at(10, 7))
         check = locks.collection()['found'][0]['check']
         config = Path(self.dir.name) / 'config.json'
-        config.write_text(json.dumps({'display_style': 'arcade', 'accounts': [{'key': 'codex_a', 'alias': 'A', 'provider': 'codex'}]}))
-        preferences = live.DisplayPreferences(config, json.loads(config.read_text()))
+        config.write_text(json.dumps({'display_style': 'arcade', 'accounts': [{'key': 'codex_a', 'alias': 'A', 'provider': 'codex'}]}), encoding='utf-8')
+        preferences = live.DisplayPreferences(config, json.loads(config.read_text(encoding='utf-8')))
         store = UsageStore([{'key': 'codex_a', 'alias': 'A', 'provider': 'codex'}], fetch=lambda _: None)
         replays = []
         server = live.QuietServer(('127.0.0.1', 0), live.handler(store, preferences, locks, replays, threading.Event()))
@@ -221,8 +221,8 @@ class LockboxTests(unittest.TestCase):
         check = locks.collection()['found'][0]['check']
         config = Path(self.dir.name) / 'config.json'
         config.write_text(json.dumps({'display_style': 'arcade', 'device_url': 'http://127.0.0.1:9',
-                                      'accounts': [{'key': 'codex_a', 'alias': 'A', 'provider': 'codex'}]}))
-        preferences = live.DisplayPreferences(config, json.loads(config.read_text()))
+                                      'accounts': [{'key': 'codex_a', 'alias': 'A', 'provider': 'codex'}]}), encoding='utf-8')
+        preferences = live.DisplayPreferences(config, json.loads(config.read_text(encoding='utf-8')))
         store = UsageStore([{'key': 'codex_a', 'alias': 'A', 'provider': 'codex'}], fetch=lambda _: None)
         replays = []
         server = live.QuietServer(('127.0.0.1', 0), live.handler(store, preferences, locks, replays, threading.Event()))
@@ -284,9 +284,10 @@ class FactTests(unittest.TestCase):
 
     def test_a_reading_brings_its_news(self):
         readings = [(70, 1), (85, 1), (88, 0)]  # a third and fourth reading follow
-        def fetch(_):
+        start = time.time() - 600
+        def fetch(_):  # a minute apart, as polls are: Windows' clock can give two quick readings the same time
             used, count = readings.pop(0)
-            return {'key': 'a', 'alias': 'A', 'provider': 'codex', 'status': 'ok', 'fetched_at': time.time(),
+            return {'key': 'a', 'alias': 'A', 'provider': 'codex', 'status': 'ok', 'fetched_at': start + 60 * (3 - len(readings)),
                     'windows': [{'label': 'WEEK', 'used_percent': used, 'resets_at': None}],
                     'reset_credits': {'count': count, 'expires_at': time.time() + 3600}}
         store = UsageStore([{'key': 'a', 'alias': 'A', 'provider': 'codex'}], fetch=fetch)
@@ -334,6 +335,7 @@ class ReviewFixTests(unittest.TestCase):
             found = lockbox.facts(data, lockbox.History(Path(directory) / 'h.json'), now)['copilot_a']
             self.assertFalse({'copilot:idle', 'copilot:active'} & found)
 
+    @unittest.skipUnless(hasattr(time, 'tzset'), 'needs time.tzset, which Windows lacks')
     def test_a_streak_counts_calendar_weeks_across_a_clock_change(self):
         import os
         saved = os.environ.get('TZ')
@@ -354,7 +356,7 @@ class ReviewFixTests(unittest.TestCase):
 
     @unittest.skipUnless((Path(__file__).resolve().parents[1] / 'pyproject.toml').exists(), 'a source copy without packaging')
     def test_the_bundle_is_packaged(self):
-        self.assertIn('"*.bin"', (Path(__file__).resolve().parents[1] / 'pyproject.toml').read_text())
+        self.assertIn('"*.bin"', (Path(__file__).resolve().parents[1] / 'pyproject.toml').read_text(encoding='utf-8'))
 
 
 class TimingTests(unittest.TestCase):

@@ -59,21 +59,21 @@ class AntigravityTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / 'config.json'
             account = {'key': 'anti_a', 'alias': 'ANTI A', 'provider': 'antigravity', 'email': 'owner@example.com'}
-            path.write_text(json.dumps({'accounts': [account]}))
+            path.write_text(json.dumps({'accounts': [account]}), encoding='utf-8')
             with self.assertRaises(ValueError):  # CodexBar owns the login
                 load_config(path)
-            path.write_text(json.dumps({'accounts': [dict(account, codexbar_command='codexbar')]}))
+            path.write_text(json.dumps({'accounts': [dict(account, codexbar_command='codexbar')]}), encoding='utf-8')
             loaded = load_config(path)['accounts'][0]
             self.assertEqual(codexbar_entry([APP, AGY], loaded)[0], AGY)  # its own entry by default
             old = dict(account, provider='gemini', codexbar_command='codexbar', codexbar_provider='gemini')
-            path.write_text(json.dumps({'accounts': [old]}))
+            path.write_text(json.dumps({'accounts': [old]}), encoding='utf-8')
             loaded = load_config(path)['accounts'][0]
             self.assertEqual(loaded['provider'], 'antigravity')  # an old Gemini account is Anti now
             self.assertEqual(codexbar_entry([APP, AGY], loaded)[0], APP)
             older = dict(account, provider='gemini', codexbar_url='http://127.0.0.1:8080/usage?provider=gemini')
-            path.write_text(json.dumps({'accounts': [older]}))
+            path.write_text(json.dumps({'accounts': [older]}), encoding='utf-8')
             self.assertEqual(codexbar_entry([APP, AGY], load_config(path)['accounts'][0])[0], APP)  # still its Gemini
-            path.write_text(json.dumps({'accounts': [dict(account, codexbar_command='codexbar', codexbar_provider='cursor')]}))
+            path.write_text(json.dumps({'accounts': [dict(account, codexbar_command='codexbar', codexbar_provider='cursor')]}), encoding='utf-8')
             with self.assertRaises(ValueError):
                 load_config(path)
 
@@ -96,11 +96,11 @@ class AntigravityTests(unittest.TestCase):
             path = Path(directory) / 'snapshot.json'
             row = {'provider': 'antigravity', 'alias': 'ANTI A', 'status': 'ok', 'fetched_at': time.time() - 30,
                    'windows': [w for w in normalize_codexbar(CLI)]}
-            path.write_text(json.dumps({'accounts': {'anti_a': row}}))
+            path.write_text(json.dumps({'accounts': {'anti_a': row}}), encoding='utf-8')
             account = {'key': 'anti_a', 'alias': 'ANTI A', 'provider': 'antigravity', 'snapshot_file': str(path)}
             self.assertEqual([w['label'] for w in imported_row(account)['windows']], ['DAY'])
             row.update(provider='codex', reset_credits={'count': 2, 'expires_at': 2_000_000_000})
-            path.write_text(json.dumps({'accounts': {'anti_a': row}}))
+            path.write_text(json.dumps({'accounts': {'anti_a': row}}), encoding='utf-8')
             self.assertEqual(imported_row(dict(account, provider='codex'))['reset_credits'], {'count': 2, 'expires_at': 2_000_000_000})
 
     def test_old_names_keep_their_letter_and_full_counts_its_streak(self):

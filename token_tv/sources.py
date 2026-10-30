@@ -112,7 +112,7 @@ class RPC:
 
 
 def load_config(path):
-    data = json.loads(Path(path).read_text())
+    data = json.loads(Path(path).read_text(encoding="utf-8"))
     if set(data) - {"accounts", "device_url", "poll_seconds", "font", "display_style"}:
         raise ValueError("Unsupported configuration field")
     if data.get('display_style', 'pixel') not in STYLES:
@@ -191,7 +191,7 @@ def claude_token(root):
     """Access token from the CLI home's file, or on macOS from the login Keychain (read only)."""
     path = root / ".credentials.json"
     if path.is_file() or sys.platform != "darwin":
-        return json.loads(path.read_text())["claudeAiOauth"]["accessToken"]
+        return json.loads(path.read_text(encoding="utf-8"))["claudeAiOauth"]["accessToken"]
     user = os.environ.get("USER") or "claude-code-user"
     for service in keychain_services(root):
         result = subprocess.run(["security", "find-generic-password", "-a", user, "-w", "-s", service],
@@ -375,7 +375,7 @@ def logged_in_email(provider, home, why=None):
 
 
 def grok_identity(account):
-    data = json.loads((Path(account["source_home"]).expanduser() / "auth.json").read_text())
+    data = json.loads((Path(account["source_home"]).expanduser() / "auth.json").read_text(encoding="utf-8"))
     emails = set()
     def scan(value):
         if isinstance(value, dict):
@@ -394,7 +394,7 @@ def grok_identity(account):
 
 
 def imported_row(account):
-    data = json.loads(Path(account["snapshot_file"]).expanduser().read_text())
+    data = json.loads(Path(account["snapshot_file"]).expanduser().read_text(encoding="utf-8"))
     row = data["accounts"][account["key"]]
     provider = "antigravity" if row.get("provider") == "gemini" else row.get("provider")  # from before Anti
     if provider != account["provider"] or row.get("alias") != account["alias"]:

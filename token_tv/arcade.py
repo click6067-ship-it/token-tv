@@ -131,10 +131,10 @@ def gauge(draw, x, y, width, height, used, old=False):
 @functools.lru_cache(maxsize=1)
 def clawd_data():
     """Clawd's animations; the hidden scenes' own few, where this copy has them, from clawd-eggs.json."""
-    data = json.loads((ASSETS / 'clawd.json').read_text())
+    data = json.loads((ASSETS / 'clawd.json').read_text(encoding='utf-8'))
     extra = ASSETS / 'clawd-eggs.json'
     if extra.exists():
-        data.update(json.loads(extra.read_text()))
+        data.update(json.loads(extra.read_text(encoding='utf-8')))
     return data
 
 

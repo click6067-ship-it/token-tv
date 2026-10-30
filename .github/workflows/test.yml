@@ -1,0 +1,76 @@
+name: Test
+
+# The tests, the npm launcher and a command TokenTV prints, on Linux, macOS and Windows: the author checks on Linux
+# only, so this is where a Mac or Windows break shows up first.
+
+on:
+  push:
+    branches: [main, "ci/**"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - if: runner.os == 'Linux'
+        run: sudo apt-get install -y -q fonts-dejavu-core
+      - run: python -m pip install -q Pillow
+      - run: python -B -m unittest discover -s tests
+
+      - name: The npm launcher from a packed copy, as `npx token-tv` runs it
+        run: |
+          npm pack --silent --pack-destination "$RUNNER_TEMP"
+          (cd "$RUNNER_TEMP" && mkdir npm && tar -xzf token-tv-*.tgz -C npm)  # relative: Git Bash's tar takes D: for a host
+          node "$RUNNER_TEMP/npm/package/bin/token-tv.js" --version
+          node "$RUNNER_TEMP/npm/package/bin/token-tv.js" --version  # the second run reuses the first's copy
+          if ls "$RUNNER_TEMP/npm/package" | grep -E '^build$|egg-info'; then echo "built inside the npm folder"; exit 1; fi
+
+      - name: A config in a folder with a space, and the command TokenTV prints for it
+        run: |
+          python -m pip install -q .
+          dir="$RUNNER_TEMP/Kim Minji"
+          token-tv setup --yes --codex-email a@example.com --config "$dir/config.json" | tee "$RUNNER_TEMP/setup.out"
+          next=$(sed -n 's/^Next: \(.*\)   (separate.*/\1/p' "$RUNNER_TEMP/setup.out")
+          echo "running: $next"
+          eval "$next" > "$RUNNER_TEMP/next.out" 2>&1 || true  # no login here: doctor says what is missing
+          cat "$RUNNER_TEMP/next.out"
+          if grep -q "No config at" "$RUNNER_TEMP/next.out"; then echo "the printed command lost the config path"; exit 1; fi
+          grep -q "a@example.com\|codex" "$RUNNER_TEMP/next.out"
+
+      - name: Sample faces render from the installed package
+        run: cd "$RUNNER_TEMP" && token-tv demo
+
+      - name: Start with the computer for real (a LaunchAgent on macOS, the Startup folder on Windows), then stop
+        if: runner.os != 'Linux'
+        run: |
+          cfg="$RUNNER_TEMP/Kim Minji/config.json"
+          token-tv autostart on --config "$cfg"
+          token-tv autostart status --config "$cfg" | tee "$RUNNER_TEMP/status.out"
+          grep -q "starts with this computer" "$RUNNER_TEMP/status.out"
+          url_file="$RUNNER_TEMP/Kim Minji/state/live.url"
+          for i in $(seq 1 60); do [ -s "$url_file" ] && curl -sf "$(cat "$url_file")/display" > "$RUNNER_TEMP/display.json" && break; sleep 2; done
+          cat "$RUNNER_TEMP/display.json"
+          grep -q '"status"' "$RUNNER_TEMP/display.json"
+          token-tv autostart off --config "$cfg"
+          sleep 5
+          if curl -sf "$(cat "$url_file" 2>/dev/null || echo http://127.0.0.1:8787)/display"; then echo "still running after off"; exit 1; fi
+          token-tv autostart status --config "$cfg" | grep -q "does not start"

@@ -509,7 +509,7 @@ class UltraTests(unittest.TestCase):
     def test_mismatched_backup_is_kept_and_the_clock_is_not_touched(self):
         with tempfile.TemporaryDirectory() as folder, serve(ultra_clock(self.state, self.calls)) as url:
             backup = Path(folder) / "display-original.json"
-            backup.write_text(json.dumps(SD_PRO_BACKUP))
+            backup.write_text(json.dumps(SD_PRO_BACKUP), encoding="utf-8")
             saved = backup.read_bytes()
             display = open_display(url)
             # Live cycle: refuse before any capture, upload or new backup.
@@ -518,7 +518,7 @@ class UltraTests(unittest.TestCase):
             # --restore-display: a clear message instead of a KeyError traceback.
             config = Path(folder) / "config.json"
             config.write_text(json.dumps({"device_url": url, "accounts": [
-                {"key": "claude", "alias": "Claude", "provider": "claude", "email": "owner@example.com"}]}))
+                {"key": "claude", "alias": "Claude", "provider": "claude", "email": "owner@example.com"}]}), encoding="utf-8")
             with patch("sys.argv", ["token-tv", "--config", str(config), "--state-dir", folder, "--restore-display"]):
                 with self.assertRaises(SystemExit) as stop:
                     live.main()
@@ -534,13 +534,13 @@ class UltraTests(unittest.TestCase):
             backup = Path(folder) / "display-original.json"
             display = open_display(url)
             self.assertEqual(live.load_original(display, backup), ULTRA_BACKUP)
-            self.assertEqual(json.loads(backup.read_text()), ULTRA_BACKUP)
+            self.assertEqual(json.loads(backup.read_text(encoding="utf-8")), ULTRA_BACKUP)
             self.state["theme"] = 3
             start = len(self.calls)
             self.assertEqual(live.load_original(display, backup), ULTRA_BACKUP)
             self.assertEqual(self.calls[start:], [])
             # SD_PRO backups have no model key and keep working unchanged.
-            backup.write_text(json.dumps(SD_PRO_BACKUP))
+            backup.write_text(json.dumps(SD_PRO_BACKUP), encoding="utf-8")
             self.assertEqual(live.load_original(PhotoDisplay(url), backup), SD_PRO_BACKUP)
             self.assertEqual(self.calls[start:], [])
 

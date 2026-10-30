@@ -1,3 +1,4 @@
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -54,15 +55,15 @@ class AutostartTests(unittest.TestCase):
 
     def test_a_failed_reinstall_puts_the_working_entry_back(self):
         working = autostart.entry(['/old/python', '-m', 'token_tv', 'start'], 'systemd')
-        (self.folder / 'token-tv.service').write_text(working)
+        (self.folder / 'token-tv.service').write_text(working, encoding='utf-8')
         failed = mock.Mock(returncode=1, stdout='', stderr='no bus')
         with self.placed('systemd'), mock.patch.object(autostart, 'run', return_value=failed):
             with self.assertRaises(OSError):
                 autostart.install(self.folder / 'config.json')
-        self.assertEqual((self.folder / 'token-tv.service').read_text(), working)
+        self.assertEqual((self.folder / 'token-tv.service').read_text(encoding='utf-8'), working)
 
     def test_a_stop_that_fails_keeps_the_entry_so_off_can_be_tried_again(self):
-        (self.folder / 'token-tv.service').write_text(autostart.entry(['/py', '-m', 'token_tv', 'start'], 'systemd'))
+        (self.folder / 'token-tv.service').write_text(autostart.entry(['/py', '-m', 'token_tv', 'start'], 'systemd'), encoding='utf-8')
         failed = mock.Mock(returncode=1, stdout='', stderr='Failed to stop')
         with self.placed('systemd'), mock.patch.object(autostart, 'run', return_value=failed):
             with self.assertRaises(OSError):
@@ -72,8 +73,8 @@ class AutostartTests(unittest.TestCase):
     def test_windows_off_ends_the_copy_running_now(self):
         config = self.folder / 'config.json'
         (self.folder / 'state').mkdir()
-        (self.folder / 'state' / 'live.pid').write_text('4242')
-        (self.folder / 'TokenTV.vbs').write_text(autostart.entry(['pythonw', '-m', 'token_tv', 'start', '--config', str(config)], 'startup'))
+        (self.folder / 'state' / 'live.pid').write_text('4242', encoding='utf-8')
+        (self.folder / 'TokenTV.vbs').write_text(autostart.entry(['pythonw', '-m', 'token_tv', 'start', '--config', str(config)], 'startup'), encoding='utf-8')
         python = mock.Mock(returncode=0, stdout='"pythonw.exe","4242","Console","1","40,000 K"', stderr='')
         with self.placed('startup'), mock.patch.object(autostart, 'run', return_value=python), mock.patch('os.kill') as kill:
             self.assertIn('stopped', autostart.remove())
@@ -83,8 +84,8 @@ class AutostartTests(unittest.TestCase):
     def test_windows_off_never_ends_another_program_that_took_the_number(self):
         config = self.folder / 'config.json'
         (self.folder / 'state').mkdir()
-        (self.folder / 'state' / 'live.pid').write_text('4242')
-        (self.folder / 'TokenTV.vbs').write_text(autostart.entry(['pythonw', '-m', 'token_tv', 'start', '--config', str(config)], 'startup'))
+        (self.folder / 'state' / 'live.pid').write_text('4242', encoding='utf-8')
+        (self.folder / 'TokenTV.vbs').write_text(autostart.entry(['pythonw', '-m', 'token_tv', 'start', '--config', str(config)], 'startup'), encoding='utf-8')
         other = mock.Mock(returncode=0, stdout='"notepad.exe","4242","Console","1","9,000 K"', stderr='')
         with self.placed('startup'), mock.patch.object(autostart, 'run', return_value=other), mock.patch('os.kill') as kill:
             self.assertIn('Task Manager', autostart.remove())
@@ -111,11 +112,12 @@ class AutostartTests(unittest.TestCase):
             self.assertEqual(autostart.how(), 'token-tv')
         with mock.patch('sys.prefix', '/proj/.venv'), mock.patch('shutil.which', return_value=None), \
                 mock.patch.object(autostart.Path, 'exists', return_value=True):
-            self.assertEqual(autostart.how(), '/proj/.venv/bin/token-tv')  # a venv not on PATH: its full path
+            folder = 'Scripts' if sys.platform == 'win32' else 'bin'
+            self.assertEqual(autostart.how(), str(Path('/proj/.venv') / folder / 'token-tv'))  # a venv not on PATH: its full path
 
     def test_on_status_off_with_systemd(self):
         config = self.folder / 'config.json'
-        config.write_text('{}')
+        config.write_text('{}', encoding='utf-8')
         done = mock.Mock(returncode=0, stdout='', stderr='')
         with self.placed('systemd'), mock.patch.object(autostart, 'run', return_value=done) as run:
             self.assertEqual(autostart.status(), 'off')
@@ -128,14 +130,14 @@ class AutostartTests(unittest.TestCase):
 
     def test_an_entry_written_by_something_else_is_left_alone(self):
         foreign = self.folder / 'token-tv.service'
-        foreign.write_text('[Service]\nExecStart=/opt/mine\n')
+        foreign.write_text('[Service]\nExecStart=/opt/mine\n', encoding='utf-8')
         with self.placed('systemd'), mock.patch.object(autostart, 'run') as run:
             self.assertEqual(autostart.status(), 'other')
             with self.assertRaises(OSError):
                 autostart.install(self.folder / 'config.json')
             self.assertIn('leaving it alone', autostart.remove())
             run.assert_not_called()
-        self.assertEqual(foreign.read_text(), '[Service]\nExecStart=/opt/mine\n')
+        self.assertEqual(foreign.read_text(encoding='utf-8'), '[Service]\nExecStart=/opt/mine\n')
 
     def test_a_failed_systemctl_leaves_no_entry(self):
         failed = mock.Mock(returncode=1, stdout='', stderr='Failed to connect to bus')

@@ -104,7 +104,7 @@ class CatalogTest(unittest.TestCase):
 
     def test_corrupt_vote_file_means_unavailable_not_zero(self):
         path = Path(tempfile.mkdtemp()) / 'votes.json'
-        path.write_text('{"counts": ')
+        path.write_text('{"counts": ', encoding='utf-8')
         votes = catalog.load_votes(path)
         self.assertEqual(votes['counts'], {})
         self.assertIsNone(votes['last_attempt_at'])
@@ -114,7 +114,7 @@ class CatalogTest(unittest.TestCase):
         path.write_text(json.dumps({'last_attempt_at': 'yesterday', 'counts': {
             '11': {'count': 5, 'status': 'fresh', 'fetched_at': 'not a time'},  # unreadable -> unavailable
             '12': {'count': 5, 'status': 'fresh'},                              # fresh without time -> unavailable
-            '14': {'count': 7, 'status': 'stale'}}}))                           # old count, time unknown
+            '14': {'count': 7, 'status': 'stale'}}}), encoding='utf-8')                           # old count, time unknown
         votes = catalog.load_votes(path)
         self.assertIsNone(votes['last_attempt_at'])
         themes = {t['id']: t for t in listed(votes=votes)['themes']}
@@ -131,7 +131,7 @@ class CatalogTest(unittest.TestCase):
         self.assertEqual((mine['local'], mine['needs_update']), (True, False))
 
     def test_bundled_catalog_matches_installed_faces(self):
-        data = catalog.validate_catalog(json.loads(catalog.CATALOG_PATH.read_text()))
+        data = catalog.validate_catalog(json.loads(catalog.CATALOG_PATH.read_text(encoding='utf-8')))
         self.assertLessEqual({t['id'] for t in data['themes']}, set(STYLES))  # a fork may add Local faces
         # Existing public issues stay mapped; new faces have no voting issue yet.
         self.assertEqual({t['id']: t['like_issue'] for t in data['themes']},
@@ -148,7 +148,7 @@ class CatalogTest(unittest.TestCase):
         self.assertEqual({t['id'] for t in data['themes'] if t['local']}, set(STYLES))
 
     def test_package_version_matches_pyproject(self):
-        self.assertIn(f'version = "{__version__}"', (ROOT / 'pyproject.toml').read_text())
+        self.assertIn(f'version = "{__version__}"', (ROOT / 'pyproject.toml').read_text(encoding='utf-8'))
 
 
 class RefreshTest(unittest.TestCase):

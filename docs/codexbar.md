@@ -25,6 +25,23 @@ window, or the Gemini app's 5-hour and weekly limits); a config that still says 
 as Antigravity. Neither has been checked with a real account yet.
 CodexBar's macOS app has not been tried.
 
+## Claude in the browser only, on a Mac (experimental)
+
+Signed in to claude.ai in the browser but no Claude Code? On a Mac, CodexBar can read that login's 5-hour and
+weekly limits from the browser (Safari, Chrome and its relatives, or Firefox), and TokenTV reads them from CodexBar.
+TokenTV itself never touches browser cookies. Nobody here has tried this on a real Mac yet: tell us how it goes.
+
+1. `brew install --cask codexbar`, open CodexBar and turn on Claude (usage source Auto or Web).
+2. In CodexBar: Settings > Advanced > Install CLI.
+3. In a terminal: `codexbar cookie refresh --provider claude --allow-keychain-prompt`, and allow the Keychain
+   prompt (for Safari, give the terminal Full Disk Access instead).
+4. Check `codexbar usage --provider claude --format json` shows a session and a weekly window.
+5. `npx token-tv start`: it finds CodexBar and sets up the account.
+
+What to know: the browser route uses claude.ai pages that are not a public API, so it can break until CodexBar
+catches up, and a Cloudflare check can block it. A Claude Free account has no 5-hour or weekly limit to show.
+There is no such route on Windows or Linux, and for ChatGPT in the browser CodexBar shows only Codex limits.
+
 ## Config
 
 ```json

@@ -18,7 +18,7 @@ FIXTURES = Path(__file__).parent / "fixtures" / "codexbar"
 
 
 def fixture(name):
-    return json.loads((FIXTURES / name).read_text())
+    return json.loads((FIXTURES / name).read_text(encoding="utf-8"))
 
 
 def ran(stdout, code=0):
@@ -64,7 +64,7 @@ class NormalizeTests(unittest.TestCase):
 
 class FetchTests(unittest.TestCase):
     def test_cli_command_line_and_row(self):
-        stdout = (FIXTURES / "usage-claude-oauth.json").read_text()
+        stdout = (FIXTURES / "usage-claude-oauth.json").read_text(encoding="utf-8")
         with patch("token_tv.sources.subprocess.run", return_value=ran(stdout)) as run:
             row = fetch_account(CLAUDE)
         command = run.call_args.args[0]
@@ -76,7 +76,7 @@ class FetchTests(unittest.TestCase):
         self.assertFalse(row["identity_verified"])
 
     def test_source_flag_is_omitted_unless_configured(self):
-        stdout = (FIXTURES / "usage-codex.json").read_text()
+        stdout = (FIXTURES / "usage-codex.json").read_text(encoding="utf-8")
         with patch("token_tv.sources.subprocess.run", return_value=ran(stdout)) as run:
             row = fetch_account(CODEX)
         self.assertNotIn("--source", run.call_args.args[0])
@@ -86,14 +86,14 @@ class FetchTests(unittest.TestCase):
     def test_source_home_scopes_the_cli_home(self):
         account = dict(CODEX, source_home="/explicit/codex-home")
         with patch.dict("os.environ", {"OPENAI_API_KEY": "DO-NOT-INHERIT"}), \
-                patch("token_tv.sources.subprocess.run", return_value=ran((FIXTURES / "usage-codex.json").read_text())) as run:
+                patch("token_tv.sources.subprocess.run", return_value=ran((FIXTURES / "usage-codex.json").read_text(encoding="utf-8"))) as run:
             fetch_account(account)
         env = run.call_args.kwargs["env"]
-        self.assertEqual(env["CODEX_HOME"], "/explicit/codex-home")
+        self.assertEqual(env["CODEX_HOME"], str(Path("/explicit/codex-home")))
         self.assertNotIn("OPENAI_API_KEY", env)
 
     def test_reported_email_must_match(self):
-        stdout = (FIXTURES / "usage-codex.json").read_text()
+        stdout = (FIXTURES / "usage-codex.json").read_text(encoding="utf-8")
         with patch("token_tv.sources.subprocess.run", return_value=ran(stdout)):
             row = fetch_account(dict(CODEX, email="someone-else@example.com"))
         self.assertEqual((row["status"], row["windows"]), ("identity_mismatch", []))
@@ -123,7 +123,7 @@ class FetchTests(unittest.TestCase):
         self.assertEqual(store.snapshot()["accounts"]["claude_d"]["session_percent"], 8.0)
 
     def test_failed_provider_keeps_no_numbers_and_no_message(self):
-        stdout = (FIXTURES / "usage-claude-cli-error.json").read_text()
+        stdout = (FIXTURES / "usage-claude-cli-error.json").read_text(encoding="utf-8")
         with patch("token_tv.sources.subprocess.run", return_value=ran(stdout, 1)):
             row = fetch_account(dict(CLAUDE, codexbar_source="cli"))
         self.assertEqual((row["status"], row["error_code"], row["windows"]), ("error", "codexbar_provider", []))
@@ -180,13 +180,13 @@ class FetchTests(unittest.TestCase):
         self.assertEqual(row["status"], "identity_mismatch")
 
     def test_provider_absent_from_output(self):
-        with patch("token_tv.sources.subprocess.run", return_value=ran((FIXTURES / "usage-codex.json").read_text())):
+        with patch("token_tv.sources.subprocess.run", return_value=ran((FIXTURES / "usage-codex.json").read_text(encoding="utf-8"))):
             row = fetch_account(CLAUDE)
         self.assertEqual((row["status"], row["error_code"]), ("error", "codexbar_provider_missing"))
 
     def test_store_and_clock_render_from_real_output(self):
-        outputs = {"claude": (FIXTURES / "usage-claude-oauth.json").read_text(),
-                   "codex": (FIXTURES / "usage-codex.json").read_text()}
+        outputs = {"claude": (FIXTURES / "usage-claude-oauth.json").read_text(encoding="utf-8"),
+                   "codex": (FIXTURES / "usage-codex.json").read_text(encoding="utf-8")}
         def fake(command, **kwargs):
             return ran(outputs[command[command.index("--provider") + 1]])
         store = UsageStore([CLAUDE, CODEX])
@@ -206,7 +206,7 @@ class ConfigTests(unittest.TestCase):
         base = {"key": "a", "alias": "A", "provider": "claude", "email": "user@example.com"}
         with tempfile.TemporaryDirectory() as folder:
             path = Path(folder) / "config.json"
-            path.write_text(json.dumps({"accounts": [dict(base, **account)]}))
+            path.write_text(json.dumps({"accounts": [dict(base, **account)]}), encoding="utf-8")
             return load_config(path)
 
     def test_accepts_cli_or_url_for_verified_providers(self):

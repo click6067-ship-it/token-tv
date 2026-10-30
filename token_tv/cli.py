@@ -137,7 +137,7 @@ def setup(args):
         config['device_url'] = device
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
-        with open(path, 'x') as handle:  # 'x' refuses to replace a file created meanwhile
+        with open(path, 'x', encoding='utf-8') as handle:  # 'x' refuses to replace a file created meanwhile
             json.dump(config, handle, indent=2)
             handle.write('\n')
     except OSError as error:
@@ -390,7 +390,11 @@ def start(args):
                       'copilot': '  Copilot:     install CodexBar and sign it in (docs/codexbar.md)\n',
                       'antigravity': '  Antigravity: install CodexBar and sign it in (docs/codexbar.md)\n'}
             codexbar = ('  CodexBar: installed, but it reported no signed-in account (`codexbar usage --format json` '
-                        'shows why)\n' if shutil.which('codexbar') else '')
+                        'shows why)\n' if shutil.which('codexbar') else
+                        '  Claude in the browser only, on a Mac: CodexBar can read it for TokenTV (experimental):\n'
+                        '    brew install --cask codexbar, open it, Settings > Advanced > Install CLI, then\n'
+                        '    codexbar cookie refresh --provider claude --allow-keychain-prompt (docs/codexbar.md)\n'
+                        if sys.platform == 'darwin' and (not only or 'claude' in only) else '')
             print(f'No signed-in {wanted} CLI found on this computer:\n' + ''.join(f'  {r}\n' for r in reasons) +
                   'TokenTV reads your limits through the official command-line tools; signing in on claude.ai or\n'
                   'chatgpt.com in a browser is not enough.\n' +
@@ -411,7 +415,7 @@ def start(args):
         if device:
             config['device_url'] = device
         path.parent.mkdir(parents=True, exist_ok=True)
-        with open(path, 'x') as handle:
+        with open(path, 'x', encoding='utf-8') as handle:
             json.dump(config, handle, indent=2)
             handle.write('\n')
         print(f'Saved {path} (emails and paths only, no secrets).')
@@ -472,8 +476,8 @@ def codexbar_accounts(only, have, interactive):
 
     def ask_codexbar(provider):
         account = {'provider': provider, 'codexbar_command': 'codexbar'}
-        if provider == 'claude':
-            account['codexbar_source'] = 'oauth'  # its default fails on Linux (docs/codexbar.md)
+        if provider == 'claude' and sys.platform != 'darwin':
+            account['codexbar_source'] = 'oauth'  # its default fails on Linux; on a Mac it reads the browser first
         try:
             data = codexbar_payload(account)
         except (SourceError, OSError, subprocess.SubprocessError):
@@ -517,9 +521,9 @@ def save_clock(path, config, address):
 def update_config(path, **changes):
     """Write these keys into the config as it is on disk now: a running TokenTV may have just saved another key
     (the face picked on its dashboard, say), and an older copy here must not undo it."""
-    current = json.loads(path.read_text())
+    current = json.loads(path.read_text(encoding='utf-8'))
     current.update(changes)
-    path.write_text(json.dumps(current, indent=2) + '\n')
+    path.write_text(json.dumps(current, indent=2) + '\n', encoding='utf-8')
 
 
 def refuses_only(path, config, only):
@@ -564,7 +568,7 @@ def add(args):
     config.setdefault('accounts', []).append({
         'key': key, 'alias': f'{args.provider.upper()} {letter}', 'provider': args.provider, 'email': email,
         'source_home': str(path.parent / 'homes' / key)})  # its own login; the everyday one stays as it is
-    path.write_text(json.dumps(config, indent=2) + '\n')
+    path.write_text(json.dumps(config, indent=2) + '\n', encoding='utf-8')
     print(f'Added {args.provider.upper()} {letter} ({email}) to {path}.')
     if args.no_login:
         print(f'Sign it in later with: {cmd(f"connect --account {key}")}')

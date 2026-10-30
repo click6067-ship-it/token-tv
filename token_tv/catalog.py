@@ -53,7 +53,7 @@ def validate_catalog(data):
 
 
 def load_catalog(path=None):
-    return validate_catalog(json.loads(Path(path or CATALOG_PATH).read_text()))
+    return validate_catalog(json.loads(Path(path or CATALOG_PATH).read_text(encoding='utf-8')))
 
 
 def parse_time(text):
@@ -70,7 +70,7 @@ def load_votes(path=None):
     A broken file, a bad count or an unreadable count time means unknown, never zero.
     """
     try:
-        data = json.loads(Path(path or VOTES_PATH).read_text())
+        data = json.loads(Path(path or VOTES_PATH).read_text(encoding='utf-8'))
         counts = {}
         for issue, value in data['counts'].items():
             count, status, stamp = value.get('count'), value.get('status'), value.get('fetched_at')

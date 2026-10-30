@@ -29,10 +29,10 @@ class CopilotTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / 'config.json'
             account = {'key': 'copilot_a', 'alias': 'COPILOT A', 'provider': 'copilot', 'email': 'owner@example.com'}
-            path.write_text(json.dumps({'accounts': [account]}))
+            path.write_text(json.dumps({'accounts': [account]}), encoding='utf-8')
             with self.assertRaises(ValueError):
                 load_config(path)
-            path.write_text(json.dumps({'accounts': [dict(account, codexbar_command='codexbar')]}))
+            path.write_text(json.dumps({'accounts': [dict(account, codexbar_command='codexbar')]}), encoding='utf-8')
             self.assertEqual(load_config(path)['accounts'][0]['provider'], 'copilot')
 
     def test_every_face_draws_a_copilot_row_and_its_scene_moves(self):

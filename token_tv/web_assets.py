@@ -3,7 +3,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
 WEB = ROOT / 'web'
-HTML = (WEB / 'index.html').read_text()
+HTML = (WEB / 'index.html').read_text(encoding='utf-8')
 ASSETS = {
     '/assets/style.css': (WEB / 'style.css', 'text/css; charset=utf-8'),
     '/assets/app.js': (WEB / 'app.js', 'text/javascript; charset=utf-8'),

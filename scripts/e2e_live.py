@@ -32,7 +32,7 @@ def main():
               "quota_unavailable": sorted(k for k, row in snapshot["accounts"].items() if row["status"] == "quota_unavailable"),
               "expected": len(snapshot["accounts"]), "all_authenticated": not pending, "updated_at": snapshot["updated_at"]}
     if args.output:
-        Path(args.output).write_text(json.dumps(result, indent=2))
+        Path(args.output).write_text(json.dumps(result, indent=2), encoding="utf-8")
     print(json.dumps(result, indent=2))
     if args.require_all and pending:
         raise SystemExit(1)

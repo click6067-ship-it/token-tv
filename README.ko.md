@@ -16,7 +16,7 @@
 
 **필요한 것:**
 - 컴퓨터와 같은 와이파이에 연결된 GeekMagic SmallTV 시계(SD_PRO 또는 Ultra, [호환 시계](docs/hardware-compatibility.md)).
-- Claude Code, Codex, Grok CLI 중 하나를 설치하고 로그인해 둔, 계속 켜 두는 컴퓨터. 브라우저에서 claude.ai나 chatgpt.com에 로그인한 것만으로는 안 됩니다. [Claude Code](https://code.claude.com/docs/ko/quickstart)나 Codex(`npm install -g @openai/codex`)를 설치해 같은 계정으로 로그인하세요.
+- Claude Code, Codex, Grok CLI 중 하나를 설치하고 로그인해 둔, 계속 켜 두는 컴퓨터. 브라우저에서 claude.ai나 chatgpt.com에 로그인한 것만으로는 안 됩니다. [Claude Code](https://code.claude.com/docs/ko/quickstart)나 Codex(`npm install -g @openai/codex`)를 설치해 같은 계정으로 로그인하세요. Mac이라면 브라우저의 Claude 로그인도 [CodexBar](docs/codexbar.md#claude-in-the-browser-only-on-a-mac-experimental)를 거쳐 쓸 수 있습니다(실험 단계).
 - `npx`를 쓸 [Node](https://nodejs.org/). 다른 것은 필요 없습니다. Python이 필요하면 런처가 알아서 받아 옵니다.
 
 Windows에서는 claude·codex가 로그인된 쪽(Windows 또는 WSL)에서 실행하세요. Node를 설치한 Windows에서 바로 돌리는 게 가장 간단하고, WSL은 마지막 터미널을 닫으면 곧 꺼집니다.  

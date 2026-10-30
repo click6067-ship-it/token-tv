@@ -29,7 +29,7 @@ class DisplayStyleTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / 'config.json'
             config = {'accounts': [account], 'display_style': 'pixel'}
-            path.write_text(json.dumps(config))
+            path.write_text(json.dumps(config), encoding='utf-8')
             prefs = DisplayPreferences(path, config)
             server = ThreadingHTTPServer(('127.0.0.1', 0), handler(store, prefs))
             thread = threading.Thread(target=server.serve_forever)
@@ -102,7 +102,7 @@ class DisplayStyleTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / 'config.json'
             config = {'accounts': [{'key': 'a', 'alias': 'CLAUDE A', 'provider': 'claude', 'email': 'owner@example.com'}], 'display_style': 'unknown'}
-            path.write_text(json.dumps(config))
+            path.write_text(json.dumps(config), encoding='utf-8')
             with self.assertRaises(ValueError):
                 load_config(path)
 

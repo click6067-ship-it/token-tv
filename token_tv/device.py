@@ -60,7 +60,8 @@ class PhotoDisplay:
         self.free = 0  # bytes free on the clock, likewise
         self.listed_at = 0  # when the list was last read
         self.held = {}  # slot -> (sha256, bytes) of the GIF put there and seen to arrive whole
-        self.last_used = {}  # slot -> when it was last shown, so the one longest unused is written next
+        self.last_used = {}  # slot -> the turn it was last shown in, so the one longest unused is written next
+        self.turns = 0  # a count, not a clock: Windows' clock can give two quick switches the same time
 
     def request(self, path, data=None, headers=None):
         # Straight to the clock: it is on this network, so a proxy set for the internet must not stand between.
@@ -178,7 +179,8 @@ class PhotoDisplay:
             self.active, self.sizes = None, None
             raise
         self.active = name
-        self.last_used[name] = time.monotonic()
+        self.turns += 1
+        self.last_used[name] = self.turns
 
     def show(self, original, name, image, digest):
         """Put a picture on the clock and make it the one shown; returns receipts for what was sent."""
@@ -322,7 +324,7 @@ def local_addresses():
         probe.close()
     tools = [["ipconfig"]] if sys.platform == "win32" else [["ip", "-4", "-o", "addr", "show"], ["ifconfig"]]
     try:
-        if "microsoft" in Path("/proc/version").read_text().lower():
+        if "microsoft" in Path("/proc/version").read_text(encoding="utf-8").lower():
             tools.append(["ipconfig.exe"])
     except OSError:
         pass

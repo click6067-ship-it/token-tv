@@ -62,7 +62,7 @@ def main():
         print(text, end='')
         return
     temp = VOTES_PATH.with_suffix('.tmp')
-    temp.write_text(text)
+    temp.write_text(text, encoding='utf-8')
     temp.replace(VOTES_PATH)
     print(f'Wrote {VOTES_PATH} ({sum(v["status"] == "fresh" for v in out["counts"].values())} counted now, attempt at {out["last_attempt_at"]})')
 

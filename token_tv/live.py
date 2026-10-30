@@ -170,7 +170,7 @@ def write_json(path, data):
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
     temporary = path.with_suffix(path.suffix + ".tmp")
-    temporary.write_text(json.dumps(data, ensure_ascii=False, separators=(",", ":")))
+    temporary.write_text(json.dumps(data, ensure_ascii=False, separators=(",", ":")), encoding='utf-8')
     os.chmod(temporary, 0o600)
     temporary.replace(path)
 
@@ -178,7 +178,7 @@ def write_json(path, data):
 def load_original(device, backup_path):
     """Return the clock's original state; save it first only if no backup exists yet."""
     if backup_path.is_file():
-        original = json.loads(backup_path.read_text())
+        original = json.loads(backup_path.read_text(encoding='utf-8'))
         device.check_backup(original)  # a backup from another kind of clock is kept and nothing is sent
         return original
     original = device.capture()
@@ -425,7 +425,7 @@ def main():
             raise SystemExit(f"TokenTV cannot write its state folder {state_dir} ({error.strerror or error}).")
         if not free:
             try:
-                where = (state_dir / "live.url").read_text().strip()
+                where = (state_dir / "live.url").read_text(encoding='utf-8').strip()
             except OSError:
                 where = ''
             raise SystemExit("TokenTV is already running with this config on this computer" +
@@ -442,8 +442,8 @@ def main():
             raise SystemExit(f"Another TokenTV already drives the clock at {config['device_url']} "
                              f"(with another config). One clock takes one TokenTV.")
         pid_file, url_file = state_dir / "live.pid", state_dir / "live.url"
-        pid_file.write_text(str(os.getpid()))  # how `autostart off` ends it on Windows; gone again at exit
-        url_file.write_text(f"http://{'127.0.0.1' if args.host in ('0.0.0.0', '') else args.host}:{args.port}")
+        pid_file.write_text(str(os.getpid()), encoding='utf-8')  # how `autostart off` ends it on Windows; gone again at exit
+        url_file.write_text(f"http://{'127.0.0.1' if args.host in ('0.0.0.0', '') else args.host}:{args.port}", encoding='utf-8')
         atexit.register(lambda: (pid_file.unlink(missing_ok=True), url_file.unlink(missing_ok=True)))
     # The clock's model is asked in the background, so a clock that hangs never keeps the dashboard from opening.
     device = open_display(config["device_url"]) if config.get("device_url") and args.restore_display else None
@@ -451,7 +451,7 @@ def main():
     if args.restore_display:
         if not device or not backup_path.is_file():
             parser.error("A display and its original state backup are required")
-        original = json.loads(backup_path.read_text())
+        original = json.loads(backup_path.read_text(encoding='utf-8'))
         try:
             device.check_backup(original)
         except BackupMismatch as error:
@@ -461,7 +461,7 @@ def main():
         return
     store = UsageStore(config["accounts"], min_fetch_seconds=MIN_FETCH_SECONDS)
     try:  # when each account last worked, from the last run
-        store.restore(json.loads((state_dir / "snapshot.json").read_text()))
+        store.restore(json.loads((state_dir / "snapshot.json").read_text(encoding='utf-8')))
     except (OSError, ValueError):
         pass
     preferences = DisplayPreferences(args.config, config)

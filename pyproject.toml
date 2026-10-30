@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "token-tv"
-version = "0.3.2"
+version = "0.3.3"
 description = "Your AI usage limits on a $5 desk clock: Claude, Codex, Grok, Copilot and Antigravity on a 240x240 Wi-Fi clock"
 readme = "README.md"
 license = "MIT"

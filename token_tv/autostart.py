@@ -121,9 +121,14 @@ def xml(text):
     return text.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
 
 
+def read(path):
+    data = path.read_bytes()
+    return data.decode('utf-16' if data[:2] in (b'\xff\xfe', b'\xfe\xff') else 'utf-8', errors='replace')
+
+
 def ours(path):
     try:
-        return MARK in path.read_text(errors='replace')
+        return MARK in read(path)
     except OSError:
         return False
 
@@ -148,12 +153,14 @@ def install(config):
     if path.exists() and not ours(path):
         raise OSError(f'{path} exists and was not written by TokenTV; leaving it alone')
     argv = command(config)
-    before = path.read_text() if path.exists() else None
+    before = path.read_bytes() if path.exists() else None
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(entry(argv, kind))
+    # wscript reads a script as UTF-16 when it starts with a byte-order mark, else in the system's code page,
+    # which cannot hold every user name in a path; systemd and launchd read UTF-8.
+    path.write_text(entry(argv, kind), encoding='utf-16' if kind == 'startup' else 'utf-8')
 
     def undo(reason):  # put back what was there, so a failed try is not taken for a working entry
-        path.write_text(before) if before is not None else path.unlink()
+        path.write_bytes(before) if before is not None else path.unlink()
         raise OSError(reason)
     if kind == 'systemd':
         for step in (['systemctl', '--user', 'daemon-reload'], ['systemctl', '--user', 'enable', '--now', path.name],
@@ -197,7 +204,7 @@ def remove():
         gone = 'No such process' in done.stderr or 'Could not find' in done.stderr  # already stopped
         if done.returncode and not gone:
             raise OSError((done.stderr or done.stdout).strip() or 'launchctl failed')
-    text = path.read_text(errors='replace')
+    text = read(path)
     path.unlink()
     if kind == 'systemd':
         run(['systemctl', '--user', 'daemon-reload'])
@@ -205,7 +212,7 @@ def remove():
         config = next((line.split(':', 1)[1].strip() for line in text.splitlines() if line.startswith("' config:")), '')
         pid_file = Path(config).parent / 'state' / 'live.pid' if config else None
         try:
-            pid = int(pid_file.read_text())
+            pid = int(pid_file.read_text(encoding='utf-8'))
             shown = run(['tasklist', '/FI', f'PID eq {pid}', '/FO', 'CSV', '/NH']).stdout.lower()
             if 'python' not in shown:  # that number now belongs to another program, or to nothing
                 raise ValueError(pid)

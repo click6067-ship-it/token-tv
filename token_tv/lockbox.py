@@ -101,7 +101,7 @@ class History:
     def __init__(self, path):
         self.path = Path(path)
         try:
-            self.data = json.loads(self.path.read_text())
+            self.data = json.loads(self.path.read_text(encoding='utf-8'))
         except (OSError, ValueError):
             self.data = {}
         self.data.setdefault('fired', {})
@@ -109,7 +109,7 @@ class History:
     def save(self):
         """Write through a temporary file, so a crash mid-write keeps the old history."""
         spare = self.path.with_suffix('.tmp')
-        spare.write_text(json.dumps(self.data))
+        spare.write_text(json.dumps(self.data), encoding='utf-8')
         os.replace(spare, self.path)
 
     def observe(self, snapshot, now):
@@ -275,7 +275,7 @@ class Lockbox:
         self.roll = roll
         self.undo = None  # what the last pick changed, until it is known to have played
         try:
-            loaded = json.loads(Path(bundle).read_text())
+            loaded = json.loads(Path(bundle).read_text(encoding='utf-8'))
             self.salt, self.boxes = bytes.fromhex(loaded['salt']), {b['check']: b for b in loaded['boxes']}
         except (OSError, ValueError, KeyError):
             self.salt, self.boxes = b'', {}

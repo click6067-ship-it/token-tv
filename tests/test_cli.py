@@ -2,6 +2,7 @@ import contextlib
 import io
 import json
 import os
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -29,16 +30,16 @@ class CliTest(unittest.TestCase):
         code, out, _ = run('setup', '--config', str(self.config), '--yes',
                            '--claude-email', 'a@example.com', '--device-url', 'http://10.0.0.9/')
         self.assertEqual(code, 0)
-        data = json.loads(self.config.read_text())
+        data = json.loads(self.config.read_text(encoding='utf-8'))
         self.assertEqual(data['device_url'], 'http://10.0.0.9')
         self.assertEqual(data['accounts'][0], {'key': 'claude_a', 'alias': 'CLAUDE A', 'provider': 'claude',
                                                'email': 'a@example.com', 'source_home': '~/.claude'})
         sources.load_config(self.config)  # the daemon accepts what setup writes
-        before = self.config.read_text()
+        before = self.config.read_text(encoding='utf-8')
         code, _, err = run('setup', '--config', str(self.config), '--yes', '--codex-email', 'b@example.com')
         self.assertEqual(code, 1)
         self.assertIn('never overwrites', err)
-        self.assertEqual(self.config.read_text(), before)
+        self.assertEqual(self.config.read_text(encoding='utf-8'), before)
 
     def test_setup_without_accounts_fails_and_writes_nothing(self):
         code, _, err = run('setup', '--config', str(self.config), '--yes')
@@ -50,13 +51,13 @@ class CliTest(unittest.TestCase):
         home = self.tmp / 'codex-home'
         self.config.write_text(json.dumps({'accounts': [
             {'key': 'codex_a', 'alias': 'CODEX A', 'provider': 'codex', 'email': 'b@example.com',
-             'source_home': str(home)}]}))
+             'source_home': str(home)}]}), encoding='utf-8')
         with mock.patch.object(cli, 'cli_path', return_value='/usr/bin/codex'):
             code, out, _ = run('doctor', '--config', str(self.config))
             self.assertEqual(code, 1)
             self.assertIn('token-tv connect --config', out)
             home.mkdir()
-            (home / 'auth.json').write_text('{}')  # existence only; doctor never opens it
+            (home / 'auth.json').write_text('{}', encoding='utf-8')  # existence only; doctor never opens it
             code, out, _ = run('doctor', '--config', str(self.config))
         self.assertEqual(code, 0)
         self.assertIn('not verified', out)
@@ -77,7 +78,7 @@ class CliTest(unittest.TestCase):
     def test_doctor_never_calls_an_unchecked_keychain_ready(self):
         self.config.write_text(json.dumps({'accounts': [
             {'key': 'claude_a', 'alias': 'CLAUDE A', 'provider': 'claude', 'email': 'a@example.com',
-             'source_home': str(self.tmp / 'empty')}]}))
+             'source_home': str(self.tmp / 'empty')}]}), encoding='utf-8')
         with mock.patch.object(cli, 'cli_path', return_value='/usr/bin/claude'), \
                 mock.patch.object(cli.sys, 'platform', 'darwin'):
             code, out, _ = run('doctor', '--config', str(self.config))
@@ -87,7 +88,7 @@ class CliTest(unittest.TestCase):
     def test_doctor_checks_codexbar_instead_of_a_login_file(self):
         self.config.write_text(json.dumps({'accounts': [
             {'key': 'claude_a', 'alias': 'CLAUDE A', 'provider': 'claude', 'email': 'a@example.com',
-             'codexbar_command': str(self.tmp / 'missing-codexbar'), 'codexbar_source': 'oauth'}]}))
+             'codexbar_command': str(self.tmp / 'missing-codexbar'), 'codexbar_source': 'oauth'}]}), encoding='utf-8')
         code, out, _ = run('doctor', '--config', str(self.config))
         self.assertEqual(code, 1)
         self.assertIn('install the CodexBar CLI', out)
@@ -104,7 +105,7 @@ class CliTest(unittest.TestCase):
         self.assertIn('live check ERROR', out)
 
     def test_broken_config_gets_a_sentence_not_a_traceback(self):
-        self.config.write_text('{"accounts": [')
+        self.config.write_text('{"accounts": [', encoding='utf-8')
         for command in ('doctor', 'run'):
             code, _, err = run(command, '--config', str(self.config))
             self.assertEqual(code, 1)
@@ -114,7 +115,7 @@ class CliTest(unittest.TestCase):
         code, out, _ = run('setup', '--config', str(self.config), '--yes',
                            '--codex-email', 'a@example.com', '--codex-email', 'b@example.com')
         self.assertEqual(code, 0)
-        a, b = json.loads(self.config.read_text())['accounts']
+        a, b = json.loads(self.config.read_text(encoding='utf-8'))['accounts']
         self.assertEqual((a['key'], a['source_home']), ('codex_a', '~/.codex'))
         self.assertEqual((b['key'], b['alias'], b['source_home']),
                          ('codex_b', 'CODEX B', str(self.tmp / 'homes' / 'codex_b')))
@@ -123,7 +124,7 @@ class CliTest(unittest.TestCase):
 
     def test_setup_isolate_never_points_at_the_everyday_home(self):
         run('setup', '--config', str(self.config), '--yes', '--isolate', '--claude-email', 'a@example.com')
-        self.assertNotEqual(json.loads(self.config.read_text())['accounts'][0]['source_home'], '~/.claude')
+        self.assertNotEqual(json.loads(self.config.read_text(encoding='utf-8'))['accounts'][0]['source_home'], '~/.claude')
 
     def test_bad_clock_address_is_rejected_before_writing(self):
         for bad in ('ftp://clock', 'http://', 'http://clock/photo', 'http://clock:99999'):
@@ -134,7 +135,7 @@ class CliTest(unittest.TestCase):
         self.assertEqual(cli.device_address('http://10.0.0.9:8080/'), 'http://10.0.0.9:8080')
         code, _, _ = run('setup', '--config', str(self.config), '--yes', '--claude-email', 'a@example.com',
                          '--device-url', '192.168.0.50')  # a bare address, as start takes it
-        self.assertEqual((code, json.loads(self.config.read_text())['device_url']), (0, 'http://192.168.0.50'))
+        self.assertEqual((code, json.loads(self.config.read_text(encoding='utf-8'))['device_url']), (0, 'http://192.168.0.50'))
 
     def test_doctor_without_config_points_to_start(self):
         code, _, err = run('doctor', '--config', str(self.config))
@@ -188,11 +189,11 @@ class ConnectGuardTest(unittest.TestCase):
         from token_tv import connect
         home = Path(tempfile.mkdtemp())
         (home / '.codex').mkdir()
-        (home / '.codex' / 'auth.json').write_text('{}')
+        (home / '.codex' / 'auth.json').write_text('{}', encoding='utf-8')
         config = home / 'config.json'
         config.write_text(json.dumps({'accounts': [{'key': 'codex_a', 'alias': 'CODEX A', 'provider': 'codex',
-                                                     'email': 'a@example.com', 'source_home': '~/.codex'}]}))
-        with mock.patch.dict(os.environ, {'HOME': str(home)}), \
+                                                     'email': 'a@example.com', 'source_home': '~/.codex'}]}), encoding='utf-8')
+        with mock.patch.dict(os.environ, {'HOME': str(home), 'USERPROFILE': str(home)}), \
                 mock.patch.object(connect.subprocess, 'run') as login, \
                 mock.patch.object(connect.sys, 'argv', ['connect', '--config', str(config), '--account', 'codex_a']):
             out = io.StringIO()
@@ -206,7 +207,7 @@ class ConnectGuardTest(unittest.TestCase):
         home = Path(tempfile.mkdtemp())  # no ~/.claude/.credentials.json at all
         config = home / 'config.json'
         config.write_text(json.dumps({'accounts': [{'key': 'claude_a', 'alias': 'CLAUDE A', 'provider': 'claude',
-                                                     'email': 'a@example.com', 'source_home': '~/.claude'}]}))
+                                                     'email': 'a@example.com', 'source_home': '~/.claude'}]}), encoding='utf-8')
         with mock.patch.dict(os.environ, {'HOME': str(home)}), \
                 mock.patch.object(connect.sys, 'platform', 'darwin'), \
                 mock.patch.object(connect.subprocess, 'run') as login, \
@@ -223,11 +224,11 @@ class AddTest(unittest.TestCase):
         from token_tv import connect
         config = Path(tempfile.mkdtemp()) / 'config.json'
         config.write_text(json.dumps({'accounts': [{'key': 'codex_a', 'alias': 'CODEX A', 'provider': 'codex',
-                                                    'email': 'a@example.com', 'source_home': '~/.codex'}]}))
+                                                    'email': 'a@example.com', 'source_home': '~/.codex'}]}), encoding='utf-8')
         with mock.patch.object(connect, 'main') as login:
             code, out, _ = run('add', 'codex', '--email', 'b@example.com', '--config', str(config))
         self.assertEqual(code, 0)
-        added = json.loads(config.read_text())['accounts'][1]
+        added = json.loads(config.read_text(encoding='utf-8'))['accounts'][1]
         self.assertEqual((added['key'], added['alias'], added['email']), ('codex_b', 'CODEX B', 'b@example.com'))
         self.assertEqual(added['source_home'], str(config.parent / 'homes' / 'codex_b'))  # the everyday login untouched
         login.assert_called_once()
@@ -240,9 +241,9 @@ class ConfigWriteTest(unittest.TestCase):
     def test_a_change_from_the_command_line_keeps_what_the_running_copy_saved_meanwhile(self):
         config = Path(tempfile.mkdtemp()) / 'config.json'
         stale = {'display_style': 'pixel', 'accounts': []}
-        config.write_text(json.dumps(dict(stale, display_style='neon')))  # the dashboard switched to neon
+        config.write_text(json.dumps(dict(stale, display_style='neon')), encoding='utf-8')  # the dashboard switched to neon
         cli.save_clock(config, dict(stale), '192.168.0.9')
-        saved = json.loads(config.read_text())
+        saved = json.loads(config.read_text(encoding='utf-8'))
         self.assertEqual((saved['display_style'], saved['device_url']), ('neon', 'http://192.168.0.9'))
 
     def test_printed_commands_carry_a_custom_config(self):
@@ -293,7 +294,7 @@ class StartTest(unittest.TestCase):
     def test_finds_the_clock_on_the_wifi_and_defaults_to_arcade(self):
         code, out, _, _, run = self.start(found=['http://192.168.219.105'])
         self.assertEqual(code, 0)
-        data = json.loads(self.config.read_text())
+        data = json.loads(self.config.read_text(encoding='utf-8'))
         self.assertEqual((data['device_url'], data['display_style']), ('http://192.168.219.105', 'arcade'))
         self.assertIn('Found a clock at 192.168.219.105', out)
         run.assert_called_once()
@@ -301,23 +302,23 @@ class StartTest(unittest.TestCase):
     def test_no_clock_found_runs_the_dashboard_alone(self):
         code, out, _, _, run = self.start()
         self.assertEqual(code, 0)
-        self.assertNotIn('device_url', json.loads(self.config.read_text()))
+        self.assertNotIn('device_url', json.loads(self.config.read_text(encoding='utf-8')))
         self.assertIn('No clock found', out)
 
     def test_started_again_by_hand_it_looks_for_the_clock_but_never_on_its_own(self):
         self.start()  # set up with no clock
-        self.assertNotIn('device_url', json.loads(self.config.read_text()))
+        self.assertNotIn('device_url', json.loads(self.config.read_text(encoding='utf-8')))
         self.start()  # --yes, as the computer starts it: a lone clock on a shared Wi-Fi may be someone else's
         self.scan.assert_not_called()
         with mock.patch('sys.stdin.isatty', return_value=True), mock.patch('builtins.input', return_value=''):
             code, out, _, _, _ = self.start(found=['http://192.168.0.77'], already=True, yes=False)
         self.assertEqual(code, 0)
-        self.assertEqual(json.loads(self.config.read_text())['device_url'], 'http://192.168.0.77')
+        self.assertEqual(json.loads(self.config.read_text(encoding='utf-8'))['device_url'], 'http://192.168.0.77')
         self.assertIn('Found a clock at 192.168.0.77', out)
 
     def test_an_https_address_is_kept_as_the_http_the_clock_speaks(self):
         self.start('--device-url', 'https://192.168.0.50')
-        self.assertEqual(json.loads(self.config.read_text())['device_url'], 'http://192.168.0.50')
+        self.assertEqual(json.loads(self.config.read_text(encoding='utf-8'))['device_url'], 'http://192.168.0.50')
 
     def test_an_address_given_is_not_searched_for(self):
         self.start('--device-url', '192.168.0.50')
@@ -327,10 +328,11 @@ class StartTest(unittest.TestCase):
         both = {'claude': 'me@example.com', 'codex': 'me@example.org'}
         code, _, _, _, _ = self.start('--only', 'codex', '--face', 'pixel', '--device-url', '10.0.0.5', emails=both)
         self.assertEqual(code, 0)
-        data = json.loads(self.config.read_text())
+        data = json.loads(self.config.read_text(encoding='utf-8'))
         self.assertEqual([a['provider'] for a in data['accounts']], ['codex'])
         self.assertEqual(data['display_style'], 'pixel')
 
+    @unittest.skipIf(sys.platform == 'win32', 'the stand-in codexbar is a script with a #! line')
     def test_a_codexbar_user_is_set_up_from_what_codexbar_reads(self):
         import os, stat, sys
         folder = Path(tempfile.mkdtemp())
@@ -344,12 +346,12 @@ if provider == 'codex':
 if provider == 'claude':
     print(json.dumps([{{'provider': 'claude', 'error': {{'message': 'not signed in'}}}}])); sys.exit(1)
 print(json.dumps([{{'provider': provider, 'usage': usage}}]))
-""")
+""", encoding='utf-8')
         fake.chmod(fake.stat().st_mode | stat.S_IXUSR)
         with mock.patch.dict(os.environ, {'PATH': f'{folder}{os.pathsep}{os.environ["PATH"]}'}):
             code, out, _, _, run = self.start('--device-url', '10.0.0.5', emails={'claude': None, 'codex': None})
         self.assertEqual(code, 0)
-        accounts = json.loads(self.config.read_text())['accounts']
+        accounts = json.loads(self.config.read_text(encoding='utf-8'))['accounts']
         self.assertEqual([(a['provider'], a['email'], a['codexbar_command']) for a in accounts],
                          [('codex', 'me@example.org', 'codexbar'), ('copilot', 'not reported by CodexBar', 'codexbar'),
                           ('antigravity', 'not reported by CodexBar', 'codexbar')])
@@ -362,6 +364,15 @@ print(json.dumps([{{'provider': provider, 'usage': usage}}]))
         self.assertEqual(code, 1)
         self.assertIn('install CodexBar', err)
 
+    def test_on_a_mac_a_browser_only_claude_user_is_told_about_codexbar(self):
+        with mock.patch('sys.platform', 'darwin'), mock.patch('shutil.which', return_value=None):
+            code, _, err, _, _ = self.start(emails={'claude': None, 'codex': None})
+        self.assertEqual(code, 1)
+        self.assertIn('Claude in the browser only, on a Mac', err)
+        with mock.patch('sys.platform', 'linux'), mock.patch('shutil.which', return_value=None):
+            _, _, err, _, _ = self.start(emails={'claude': None, 'codex': None})
+        self.assertNotIn('on a Mac', err)
+
     def test_only_a_service_not_signed_in_says_which(self):
         code, _, err, _, run = self.start('--only', 'codex')
         self.assertEqual(code, 1)
@@ -371,12 +382,12 @@ print(json.dumps([{{'provider': provider, 'usage': usage}}]))
     def test_only_naming_more_than_is_signed_in_still_sets_up(self):
         code, _, _, _, run = self.start('--only', 'claude,codex', '--device-url', '10.0.0.5')  # only Claude signed in
         self.assertEqual(code, 0)
-        self.assertEqual([a['provider'] for a in json.loads(self.config.read_text())['accounts']], ['claude'])
+        self.assertEqual([a['provider'] for a in json.loads(self.config.read_text(encoding='utf-8'))['accounts']], ['claude'])
         run.assert_called_once()
 
     def test_already_running_still_refuses_a_conflicting_only_and_switches_the_face(self):
         self.config.write_text(json.dumps({'accounts': [
-            {'key': 'claude_a', 'alias': 'CLAUDE A', 'provider': 'claude', 'email': 'a@example.com', 'source_home': '~/.claude'}]}))
+            {'key': 'claude_a', 'alias': 'CLAUDE A', 'provider': 'claude', 'email': 'a@example.com', 'source_home': '~/.claude'}]}), encoding='utf-8')
         code, _, err, _, _ = self.start('--only', 'codex', already=True)
         self.assertEqual(code, 1)
         self.assertIn('claude as well', err)
@@ -408,7 +419,7 @@ print(json.dumps([{{'provider': provider, 'usage': usage}}]))
         self.saved_config('http://192.168.0.50')
         code, _, _, _, run = self.start('--face', 'neon')
         self.assertEqual(code, 0)
-        self.assertEqual(json.loads(self.config.read_text())['display_style'], 'neon')
+        self.assertEqual(json.loads(self.config.read_text(encoding='utf-8'))['display_style'], 'neon')
         run.assert_called_once()
 
     def test_already_running_opens_it_and_starts_no_second_copy(self):
@@ -466,7 +477,7 @@ print(json.dumps([{{'provider': provider, 'usage': usage}}]))
     def test_only_on_an_existing_config_with_other_services_is_refused(self):
         self.config.write_text(json.dumps({'accounts': [
             {'key': 'claude_a', 'alias': 'CLAUDE A', 'provider': 'claude', 'email': 'a@example.com', 'source_home': '~/.claude'},
-            {'key': 'codex_a', 'alias': 'CODEX A', 'provider': 'codex', 'email': 'b@example.com', 'source_home': '~/.codex'}]}))
+            {'key': 'codex_a', 'alias': 'CODEX A', 'provider': 'codex', 'email': 'b@example.com', 'source_home': '~/.codex'}]}), encoding='utf-8')
         code, _, err, _, run = self.start('--only', 'codex')
         self.assertEqual(code, 1)
         self.assertIn('claude as well', err)
@@ -475,14 +486,14 @@ print(json.dumps([{{'provider': provider, 'usage': usage}}]))
     def test_detects_signed_in_email_and_runs(self):
         code, out, _, detect, run = self.start('--device-url', '192.168.0.50')
         self.assertEqual(code, 0)
-        data = json.loads(self.config.read_text())
+        data = json.loads(self.config.read_text(encoding='utf-8'))
         self.assertEqual([(a['provider'], a['email']) for a in data['accounts']], [('claude', 'me@example.com')])
         self.assertEqual(data['device_url'], 'http://192.168.0.50')  # bare IP is accepted
         run.assert_called_once()
 
     def test_existing_config_skips_detection(self):
         self.config.write_text(json.dumps({'accounts': [{'key': 'codex_a', 'alias': 'CODEX A', 'provider': 'codex',
-                                                         'email': 'b@example.com', 'source_home': '~/.codex'}]}))
+                                                         'email': 'b@example.com', 'source_home': '~/.codex'}]}), encoding='utf-8')
         code, _, _, detect, run = self.start()
         self.assertEqual(code, 0)
         detect.assert_not_called()
@@ -491,7 +502,7 @@ print(json.dumps([{{'provider': provider, 'usage': usage}}]))
     def saved_config(self, device_url):
         config = {'device_url': device_url, 'accounts': [{'key': 'codex_a', 'alias': 'CODEX A', 'provider': 'codex',
                                                           'email': 'b@example.com', 'source_home': '~/.codex'}]}
-        self.config.write_text(json.dumps(config))
+        self.config.write_text(json.dumps(config), encoding='utf-8')
         return config
 
     def test_a_clock_address_given_later_is_kept_in_the_config(self):
@@ -500,11 +511,11 @@ print(json.dumps([{{'provider': provider, 'usage': usage}}]))
         code, out, _, _, run = self.start('--device-url', '192.168.0.77')
         self.assertEqual(code, 0)
         self.assertIn('http://192.168.0.77', out)
-        self.assertEqual(json.loads(self.config.read_text())['device_url'], 'http://192.168.0.77')
+        self.assertEqual(json.loads(self.config.read_text(encoding='utf-8'))['device_url'], 'http://192.168.0.77')
         run.assert_called_once()
-        self.config.write_text(json.dumps({'accounts': json.loads(self.config.read_text())['accounts']}))  # no clock yet
+        self.config.write_text(json.dumps({'accounts': json.loads(self.config.read_text(encoding='utf-8'))['accounts']}))  # no clock yet
         code, _, _, _, run = self.start('--device-url', '10.0.0.9', already=True)  # while one runs: it takes it up
-        self.assertEqual((code, json.loads(self.config.read_text())['device_url']), (0, 'http://10.0.0.9'))
+        self.assertEqual((code, json.loads(self.config.read_text(encoding='utf-8'))['device_url']), (0, 'http://10.0.0.9'))
         code, _, err, _, _ = self.start('--device-url', 'ftp://nope')
         self.assertEqual(code, 1)
 

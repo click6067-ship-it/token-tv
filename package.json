@@ -1,6 +1,6 @@
 {
   "name": "token-tv",
-  "version": "0.3.2",
+  "version": "0.3.3",
   "description": "Your Claude, Codex, Grok, Copilot and Antigravity usage limits on a tiny Wi-Fi desk clock (launcher for the Python package)",
   "license": "MIT",
   "repository": {

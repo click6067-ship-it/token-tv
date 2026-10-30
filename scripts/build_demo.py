@@ -32,19 +32,19 @@ def build(out, site):
     for child in out.iterdir():  # keep the host's project link (.vercel)
         if child.name != '.vercel':
             shutil.rmtree(child) if child.is_dir() else child.unlink()
-    html = (WEB / 'index.html').read_text()
+    html = (WEB / 'index.html').read_text(encoding='utf-8')
     html = html.replace('<html lang="en" data-theme="digital">', '<html lang="en" data-theme="digital" data-demo>', 1)
     html = html.replace('<title>TokenTV · AI usage</title>', '<title>TokenTV · Live demo</title>\n' + META.format(site=site.rstrip('/')), 1)
     html = html.replace('<a class="skip" href="#providers">Skip to usage</a>', '<a class="skip" href="#providers">Skip to usage</a>\n' + BAR, 1)
     assert 'data-demo' in html and 'demo-bar' in html and 'og:image' in html, 'index.html markers changed'
-    (out / 'index.html').write_text(html)
+    (out / 'index.html').write_text(html, encoding='utf-8')
     assets = out / 'assets'
     assets.mkdir()
     for path, (file, _) in ASSETS.items():
         shutil.copy2(file, assets / path.rsplit('/', 1)[1])
     for notice in WEB.glob('*-LICENSE.txt'):
         shutil.copy2(notice, assets / notice.name)
-    (out / 'demo-snapshot.json').write_text(json.dumps(snapshot(), separators=(',', ':')))
+    (out / 'demo-snapshot.json').write_text(json.dumps(snapshot(), separators=(',', ':')), encoding='utf-8')
     frames = out / 'frames'
     frames.mkdir()
     rendered = snapshot(time.time())
@@ -55,8 +55,8 @@ def build(out, site):
         (frames / name).write_bytes(image)
         paths[style] = f'/frames/{name}'
     display = {'style': 'arcade', 'applied_style': 'arcade', 'status': 'preview_only', 'styles': list(STYLES), 'frames': paths}
-    (out / 'demo-display.json').write_text(json.dumps(display))
-    (out / 'demo-themes.json').write_text(json.dumps(theme_payload()))
+    (out / 'demo-display.json').write_text(json.dumps(display), encoding='utf-8')
+    (out / 'demo-themes.json').write_text(json.dumps(theme_payload()), encoding='utf-8')
     shutil.copy2(ROOT / 'docs' / 'images' / 'social-preview.png', out / 'og.png')
     return sorted(str(p.relative_to(out)) for p in out.rglob('*') if p.is_file() and '.vercel' not in p.parts)
 

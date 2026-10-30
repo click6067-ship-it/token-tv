@@ -65,10 +65,10 @@ class ThemesEndpointTests(unittest.TestCase):
         spec.loader.exec_module(module)
         out = Path(tempfile.mkdtemp()) / 'site'
         module.build(out, 'https://example.com')
-        themes = json.loads((out / 'demo-themes.json').read_text())
+        themes = json.loads((out / 'demo-themes.json').read_text(encoding='utf-8'))
         from token_tv.display import STYLES
         self.assertEqual({t['id'] for t in themes['themes'] if t['installed']}, set(STYLES))  # adding a face needs no test edit
-        html = (out / 'index.html').read_text()
+        html = (out / 'index.html').read_text(encoding='utf-8')
         self.assertIn('data-demo', html)
         self.assertIn('id="gallery"', html)
         self.assertNotIn('★', html)  # no star request in the demo bar
@@ -78,8 +78,8 @@ class GalleryTests(unittest.TestCase):
     def setUp(self):
         from pathlib import Path
         web = Path(__file__).resolve().parents[1] / 'token_tv' / 'web'
-        self.html = (web / 'index.html').read_text()
-        self.js = (web / 'app.js').read_text()
+        self.html = (web / 'index.html').read_text(encoding='utf-8')
+        self.js = (web / 'app.js').read_text(encoding='utf-8')
 
     def test_dashboard_has_visible_gallery_with_neutral_links(self):
         panel_start = self.html.index('id="clock-panel"')

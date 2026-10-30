@@ -16,7 +16,7 @@ Your Claude and Codex usage limits (plus Grok, and Copilot or Antigravity throug
 
 **What you need:**
 - A GeekMagic SmallTV (SD_PRO or Ultra) on your Wi-Fi ([which ones work](https://github.com/click6067-ship-it/token-tv/blob/main/docs/hardware-compatibility.md)).
-- A computer that stays on, where Claude Code, Codex or the Grok CLI is installed and signed in. A claude.ai or chatgpt.com login in the browser is not enough: install [Claude Code](https://code.claude.com/docs/en/quickstart) or Codex (`npm install -g @openai/codex`) and sign in with the same account.
+- A computer that stays on, where Claude Code, Codex or the Grok CLI is installed and signed in. A claude.ai or chatgpt.com login in the browser is not enough: install [Claude Code](https://code.claude.com/docs/en/quickstart) or Codex (`npm install -g @openai/codex`) and sign in with the same account. On a Mac, Claude in the browser can do through [CodexBar](https://github.com/click6067-ship-it/token-tv/blob/main/docs/codexbar.md#claude-in-the-browser-only-on-a-mac-experimental) (experimental).
 - [Node](https://nodejs.org/), for `npx`. Nothing else: the launcher brings its own Python if it needs one.
 
 On Windows, run it on the side where your claude or codex is signed in: Windows itself with Node is simplest, and WSL stops soon after its last terminal closes.  

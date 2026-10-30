@@ -43,14 +43,14 @@ class LiveTests(unittest.TestCase):
     def test_configuration_rejects_secret_fields(self):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "config.json"
-            path.write_text(json.dumps({"accounts": [{"key": "a", "alias": "A", "provider": "claude", "password": "DO-NOT-USE"}]}))
+            path.write_text(json.dumps({"accounts": [{"key": "a", "alias": "A", "provider": "claude", "password": "DO-NOT-USE"}]}), encoding="utf-8")
             with self.assertRaises(ValueError):
                 load_config(path)
 
     def test_grok_owner_identity_must_match_expected_email(self):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "auth.json"
-            path.write_text(json.dumps({"issuer::client": {"email": "owner@example.com", "key": "NEVER-EXPORT", "refresh_token": "NEVER-EXPORT"}}))
+            path.write_text(json.dumps({"issuer::client": {"email": "owner@example.com", "key": "NEVER-EXPORT", "refresh_token": "NEVER-EXPORT"}}), encoding="utf-8")
             self.assertEqual(grok_identity({"source_home": directory}), "owner@example.com")
             account = {"key": "g", "alias": "G", "provider": "grok", "source_home": directory, "email": "wrong@example.com"}
             with patch("token_tv.sources.grok_payload") as billing:
@@ -101,7 +101,7 @@ class LiveTests(unittest.TestCase):
             path = Path(directory) / "bridge.json"
             row = {"key": "a", "alias": "A", "provider": "claude", "status": "ok", "fetched_at": time.time(), "identity_verified": True,
                    "windows": [{"label": "WEEK", "used_percent": 31, "resets_at": None, "duration_minutes": 10080}]}
-            path.write_text(json.dumps({"accounts": {"a": row}}))
+            path.write_text(json.dumps({"accounts": {"a": row}}), encoding="utf-8")
             account = {"key": "a", "alias": "A", "provider": "claude", "email": "owner@example.com", "source_home": str(Path(directory)/"absent"), "fallback_snapshot_file": str(path)}
             actual = fetch_account(account)
             self.assertEqual(actual["source"], "laptop")
@@ -260,8 +260,8 @@ class GuardTests(unittest.TestCase):
     def test_a_lock_folder_it_cannot_write_is_no_reason_to_stop(self):
         import contextlib, io, os, tempfile
         from token_tv import live
-        if hasattr(os, 'geteuid') and os.geteuid() == 0:
-            self.skipTest('root writes anywhere')
+        if hasattr(os, 'geteuid') and os.geteuid() == 0 or os.name == 'nt':
+            self.skipTest('root writes anywhere, and Windows has no read-only folders')
         folder = Path(tempfile.mkdtemp())
         folder.chmod(0o555)  # another account's folder, say
         self.addCleanup(folder.chmod, 0o755)
