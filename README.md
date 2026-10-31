@@ -9,7 +9,7 @@
 <p align="center"><a href="https://youtube.com/shorts/FN5DLILYiI0"><img src="https://raw.githubusercontent.com/click6067-ship-it/token-tv/main/docs/images/real-clock.gif" width="176" alt="TokenTV on a real clock (16 seconds; the full video is on YouTube)"></a> <img src="https://raw.githubusercontent.com/click6067-ship-it/token-tv/main/docs/images/arcade.gif" width="220" alt="The animated Arcade face (sample data): Clawd, the Codex cloud, Grok, Copilot and Anti at work, each picture also a gauge"> <img src="https://raw.githubusercontent.com/click6067-ship-it/token-tv/main/docs/images/four-faces-grid.png" width="204" alt="Four of the faces: Digital, Neon, Pixel Retro and Sci-Fi HUD (sample data)"></p>
 <p align="center"><img src="https://raw.githubusercontent.com/click6067-ship-it/token-tv/main/docs/images/real-clock.jpg" width="600" alt="Digital, Pixel Retro and Sci-Fi HUD on the real clock"></p>
 
-Turn a ~$5 AliExpress clock (GeekMagic SmallTV) into a physical AI usage dashboard (Claude, Codex, grok, antigravity, copilot). No firmware flashing.
+Turn a ~$5 AliExpress clock (GeekMagic SmallTV) into a physical AI usage dashboard. No firmware flashing.
 
 **Live demo:** [token-tv.vercel.app](https://token-tv.vercel.app)  
 **YouTube:** [https://www.youtube.com/shorts/FN5DLILYiI0](https://youtube.com/shorts/FN5DLILYiI0)  
