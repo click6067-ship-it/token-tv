@@ -18,7 +18,8 @@ from token_tv.sample import D, H, snapshot  # noqa: E402
 CAST = [('claude', 'CLAUDE A', [('5H', 38, 3 * H), ('WEEK', 61, 3 * D)]), ('codex', 'CODEX A', [('WEEK', 47, 4 * D)]),
         ('grok', 'GROK A', [('BUDGET', 52, 12 * D)]), ('copilot', 'COPILOT A', [('MONTH', 46, 9 * D)]),
         ('antigravity', 'ANTI A', [('5H', 30, 2 * H)])]
-SHOWN = 48  # frames of each, a little over three seconds
+SHOWN = 21  # pictures of each: three seconds at the clock's pace
+CLOCK_MS = 140  # how long a SmallTV shows each picture (filmed 2026-10-31), so the page moves as the clock does
 SCALE = 2
 
 
@@ -43,7 +44,7 @@ def main():
         palette = sheet.quantize(colors=256, method=Image.Quantize.MEDIANCUT)
     indexed = [f.quantize(palette=palette, dither=Image.Dither.NONE) for f in frames]
     out = ROOT / 'docs' / 'images' / 'arcade.gif'
-    indexed[0].save(out, save_all=True, append_images=indexed[1:], duration=arcade.FRAME_MS, loop=0, disposal=1,
+    indexed[0].save(out, save_all=True, append_images=indexed[1:], duration=CLOCK_MS, loop=0, disposal=1,
                     optimize=False)
     print(f'{out} {out.stat().st_size // 1024} KB, {len(frames)} frames')
 

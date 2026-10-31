@@ -14,7 +14,7 @@ The third image marks Codex as an old reading and gives Grok no data.
 
 ## Run it (no clock, no login, no fork)
 
-Checked on Linux (2026-10-04). Python 3.10+.
+Checked on Linux (2026-10-04). Python 3.11+.
 
 ```bash
 git clone https://github.com/click6067-ship-it/token-tv && cd token-tv

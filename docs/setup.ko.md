@@ -43,6 +43,12 @@ token-tv run                  # 대시보드 http://127.0.0.1:8787, 시계 구�
 
 클론에서는 `python3 -m venv .venv && .venv/bin/pip install .`로 같은 명령을 `.venv/bin/token-tv`로 쓸 수 있습니다.
 
+**업데이트:** `npx token-tv update`(또는 `uvx token-tv update`)가 백그라운드로 도는 TokenTV를 최신 릴리스로 바꿔
+다시 켭니다. 설정과 로그인은 그대로입니다. 새 릴리스가 나오면 대시보드에 작게 알려 줍니다(PyPI를 하루 한 번 확인,
+설정에 `"update_check": false`면 끔). 새 화면과 지원 시계는 [릴리스](https://github.com/click6067-ship-it/token-tv/releases)로
+나옵니다. 받아 보려면 Watch → Custom → Releases. 로그인 정보는 내 컴퓨터에만 있습니다: TokenTV는 각 서비스의 CLI가
+저장한 로그인으로 사용량만 묻고, 시계는 그림만 받습니다.
+
 <p align="center"><img src="images/usage-examples.png" alt="사용량이 적을 때, 바쁠 때, 한도에 가까울 때의 Digital 화면(샘플 데이터)"></p>
 
 <details>
@@ -96,7 +102,7 @@ AI에게 바꿔 달라고 하면 됩니다. 시계 화면은 240×240 픽셀을 
 - 순정 펌웨어에 사진 앨범 페이지가 있는 GeekMagic **SmallTV** 240×240 Wi-Fi 시계: **SD_PRO**(제작자의 영수증은
   5,650원, 한국 알리익스프레스 할인가이며 가격은 지역마다 다릅니다) 또는 **SmallTV-Ultra**(기여자들이 확인).
   다른 기기는 확인하지 않았습니다.
-- 같은 네트워크에서 계속 켜 두는 컴퓨터. 쓰는 공식 CLI가 로그인돼 있고, Node(또는 Python 3.10+)가 있어야
+- 같은 네트워크에서 계속 켜 두는 컴퓨터. 쓰는 공식 CLI가 로그인돼 있고, Node(또는 Python 3.11+)가 있어야
   합니다.
 
 SD_PRO의 사진 API(`/theme/list`, `/photo/list`, `/photo/upload`)는 제작자의 시계에서 확인했습니다. 다른 펌웨어를
