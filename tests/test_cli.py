@@ -10,6 +10,8 @@ from unittest import mock
 
 from token_tv import cli, sources
 from token_tv.display import STYLES
+sys.path.insert(0, str(Path(__file__).resolve().parent))  # helpers.py, however the tests are run
+from helpers import temp_dir
 
 
 def run(*argv):
@@ -23,7 +25,7 @@ def run(*argv):
 
 class CliTest(unittest.TestCase):
     def setUp(self):
-        self.tmp = Path(tempfile.mkdtemp())
+        self.tmp = temp_dir(self)
         self.config = self.tmp / 'config.json'
 
     def test_setup_writes_metadata_only_and_never_overwrites(self):
@@ -104,6 +106,30 @@ class CliTest(unittest.TestCase):
         self.assertEqual(code, 1)
         self.assertIn('live check ERROR', out)
 
+    def test_doctor_live_names_each_failing_account_and_exits_non_zero(self):
+        self.config.write_text(json.dumps({'accounts': [
+            {'key': 'claude_a', 'alias': 'CLAUDE A', 'provider': 'claude', 'email': 'secret-owner@example.com', 'source_home': '~/.claude'},
+            {'key': 'codex_a', 'alias': 'CODEX A', 'provider': 'codex', 'email': 'secret-owner@example.com', 'source_home': '~/.codex'},
+            {'key': 'copilot_a', 'alias': 'COPILOT A', 'provider': 'copilot', 'email': 'secret-owner@example.com',
+             'codexbar_command': 'codexbar'}]}), encoding='utf-8')
+        rows = {'claude_a': {'status': 'stale', 'error_code': 'http_401', 'identity_verified': True},
+                'codex_a': {'status': 'ok', 'identity_verified': True},
+                'copilot_a': {'status': 'error', 'error_code': 'format_changed', 'identity_verified': False}}
+        with mock.patch.object(cli, 'cli_path', return_value='/usr/bin/x'), \
+                mock.patch('token_tv.sources.fetch_account', side_effect=lambda a: dict(rows[a['key']], key=a['key'])):
+            code, out, err = run('doctor', '--config', str(self.config), '--live')
+        self.assertEqual(code, 1)
+        failing = [line for line in out.splitlines() if line.startswith('failing: ')]
+        self.assertEqual(failing, ['failing: provider=claude alias="CLAUDE A" status=stale error_code=http_401',
+                                   'failing: provider=copilot alias="COPILOT A" status=error error_code=format_changed'])
+        self.assertNotIn('example.com', out + err)
+        rows.update(claude_a={'status': 'ok', 'identity_verified': True}, copilot_a={'status': 'ok', 'identity_verified': True})
+        with mock.patch.object(cli, 'cli_path', return_value='/usr/bin/x'), \
+                mock.patch('token_tv.sources.fetch_account', side_effect=lambda a: dict(rows[a['key']], key=a['key'])):
+            code, out, _ = run('doctor', '--config', str(self.config), '--live')
+        self.assertEqual(code, 0)
+        self.assertNotIn('failing: ', out)
+
     def test_broken_config_gets_a_sentence_not_a_traceback(self):
         self.config.write_text('{"accounts": [', encoding='utf-8')
         for command in ('doctor', 'run'):
@@ -163,7 +189,7 @@ class KeychainTest(unittest.TestCase):
         self.assertEqual(sources.keychain_services(default)[-1], 'Claude Code-credentials')
 
     def test_keychain_is_used_only_on_macos_without_a_file(self):
-        root = Path(tempfile.mkdtemp())
+        root = temp_dir(self)
         with mock.patch.object(sources.sys, 'platform', 'linux'):
             with self.assertRaises(FileNotFoundError):
                 sources.claude_token(root)
@@ -187,7 +213,7 @@ if __name__ == '__main__':
 class ConnectGuardTest(unittest.TestCase):
     def test_everyday_login_is_kept_without_explicit_replace(self):
         from token_tv import connect
-        home = Path(tempfile.mkdtemp())
+        home = temp_dir(self)
         (home / '.codex').mkdir()
         (home / '.codex' / 'auth.json').write_text('{}', encoding='utf-8')
         config = home / 'config.json'
@@ -204,7 +230,7 @@ class ConnectGuardTest(unittest.TestCase):
 
     def test_macos_keychain_login_is_protected_without_a_file(self):
         from token_tv import connect
-        home = Path(tempfile.mkdtemp())  # no ~/.claude/.credentials.json at all
+        home = temp_dir(self)  # no ~/.claude/.credentials.json at all
         config = home / 'config.json'
         config.write_text(json.dumps({'accounts': [{'key': 'claude_a', 'alias': 'CLAUDE A', 'provider': 'claude',
                                                      'email': 'a@example.com', 'source_home': '~/.claude'}]}), encoding='utf-8')
@@ -222,7 +248,7 @@ class ConnectGuardTest(unittest.TestCase):
 class AddTest(unittest.TestCase):
     def test_another_account_gets_its_own_login_and_is_signed_in(self):
         from token_tv import connect
-        config = Path(tempfile.mkdtemp()) / 'config.json'
+        config = temp_dir(self) / 'config.json'
         config.write_text(json.dumps({'accounts': [{'key': 'codex_a', 'alias': 'CODEX A', 'provider': 'codex',
                                                     'email': 'a@example.com', 'source_home': '~/.codex'}]}), encoding='utf-8')
         with mock.patch.object(connect, 'main') as login:
@@ -239,10 +265,11 @@ class AddTest(unittest.TestCase):
 
 class ConfigWriteTest(unittest.TestCase):
     def test_a_change_from_the_command_line_keeps_what_the_running_copy_saved_meanwhile(self):
-        config = Path(tempfile.mkdtemp()) / 'config.json'
+        config = temp_dir(self) / 'config.json'
         stale = {'display_style': 'pixel', 'accounts': []}
         config.write_text(json.dumps(dict(stale, display_style='neon')), encoding='utf-8')  # the dashboard switched to neon
-        cli.save_clock(config, dict(stale), '192.168.0.9')
+        with contextlib.redirect_stdout(io.StringIO()):
+            cli.save_clock(config, dict(stale), '192.168.0.9')
         saved = json.loads(config.read_text(encoding='utf-8'))
         self.assertEqual((saved['display_style'], saved['device_url']), ('neon', 'http://192.168.0.9'))
 
@@ -276,7 +303,7 @@ class PortTest(unittest.TestCase):
 
 class StartTest(unittest.TestCase):
     def setUp(self):
-        self.config = Path(tempfile.mkdtemp()) / 'config.json'
+        self.config = temp_dir(self) / 'config.json'
 
     def start(self, *extra, emails=None, found=(), already=False, yes=True):
         from token_tv import live
@@ -285,6 +312,7 @@ class StartTest(unittest.TestCase):
                 mock.patch.object(cli, 'login_state', side_effect=lambda p, h: 'yes' if p != 'grok' else 'no'), \
                 mock.patch('token_tv.sources.logged_in_email', side_effect=lambda p, h, why=None: emails.get(p)) as detect, \
                 mock.patch('token_tv.device.find_clocks', return_value=list(found)) as scan, \
+                mock.patch('token_tv.device.clock_info', return_value=None), \
                 mock.patch.object(cli, 'dashboard_port', return_value=(8787, already)), \
                 mock.patch.object(live, 'main') as run:
             code, out, err = run_cli('start', '--config', str(self.config), *(['--yes'] if yes else []), '--no-browser', *extra)
@@ -335,7 +363,7 @@ class StartTest(unittest.TestCase):
     @unittest.skipIf(sys.platform == 'win32', 'the stand-in codexbar is a script with a #! line')
     def test_a_codexbar_user_is_set_up_from_what_codexbar_reads(self):
         import os, stat, sys
-        folder = Path(tempfile.mkdtemp())
+        folder = temp_dir(self)
         fake = folder / 'codexbar'  # answers like `codexbar usage --provider <p> --format json`
         fake.write_text(f"""#!{sys.executable}
 import json, sys

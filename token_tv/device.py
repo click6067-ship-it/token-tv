@@ -310,6 +310,48 @@ def clock_model(base_url, timeout=3):
     return None
 
 
+# Model and firmware pairs checked on a real clock (docs/hardware-compatibility.md): the SD_PRO's photo-album web UI,
+# which reports no version, and the SmallTV-Ultra on these firmware versions.
+VERIFIED_ULTRA = ('9.0.54', '9.1.54')
+REPORT_URL = 'https://github.com/click6067-ship-it/token-tv/issues/new?template=hardware_compatibility.md'
+
+
+def clock_info(base_url, timeout=3):
+    """{'kind': 'ultra' or 'sdpro', 'model', 'firmware'} as the clock at `base_url` says them, read-only; firmware
+    None when it does not say. None when nothing answers as a clock: a model is never guessed."""
+    def get(path):
+        with DIRECT.open(Request(base_url + path), timeout=timeout) as response:
+            return json.loads(response.read(65536))
+    try:
+        said = get("/v.json")
+        model = said.get("m") if isinstance(said, dict) else None
+        if isinstance(model, str) and model.startswith("SmallTV"):
+            version = said.get("v")
+            return {"kind": "ultra" if model.startswith("SmallTV-Ultra") else "sdpro", "model": model,
+                    "firmware": version if isinstance(version, str) and version.strip() else None}
+    except HTTPError:
+        pass  # an SD_PRO has no /v.json
+    except (OSError, ValueError, AttributeError, HTTPException):
+        return None
+    try:
+        listing = get("/photo/list")
+        if isinstance(listing, dict) and isinstance(listing.get("files"), list) and "total" in listing:
+            return {"kind": "sdpro", "model": "SD_PRO", "firmware": None}
+    except (OSError, ValueError, AttributeError, HTTPException):
+        pass
+    return None
+
+
+def verified(info):
+    """Whether this model and firmware were checked on a real clock."""
+    if not info:
+        return False
+    if info.get("kind") == "sdpro":
+        return info.get("model") == "SD_PRO"  # the SD_PRO web UI, which reports no firmware version
+    found = re.search(r"(?<![\d.])(\d+\.\d+\.\d+)(?![\d.])", info.get("firmware") or "")
+    return info.get("kind") == "ultra" and bool(found) and found.group(1) in VERIFIED_ULTRA
+
+
 def local_addresses():
     """This computer's IPv4 addresses on every network it is on, as its own tools list them (a VPN may hold the
     default route while the clock sits on the Wi-Fi). Under WSL, Windows' addresses too."""

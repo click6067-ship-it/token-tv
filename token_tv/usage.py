@@ -15,6 +15,22 @@ def timestamp(value):
     return None
 
 
+class FormatChanged(ValueError):
+    """A reply in a shape TokenTV does not read: the service changed its format (TokenTV needs an update)."""
+
+
+def part(data, key):
+    """`data[key]` when it is an object, {} when it is missing; FormatChanged when either is something else."""
+    if not isinstance(data, dict):
+        raise FormatChanged(key)
+    value = data.get(key)
+    if value is None:
+        return {}
+    if not isinstance(value, dict):
+        raise FormatChanged(key)
+    return value
+
+
 def window(label, percent, reset=None, duration=None):
     if isinstance(percent, bool) or not isinstance(percent, (int, float)):
         return None
@@ -29,7 +45,7 @@ def window(label, percent, reset=None, duration=None):
 def normalize_claude(data):
     result = []
     for key, label, duration in (("five_hour", "5H", 300), ("seven_day", "WEEK", 10080)):
-        value = data.get(key) or {}
+        value = part(data, key)
         item = window(label, value.get("utilization"), value.get("resets_at"), duration)
         if item:
             result.append(item)
@@ -38,9 +54,9 @@ def normalize_claude(data):
 
 def normalize_codex(data):
     result = []
-    limits = data.get("rateLimits") or {}
+    limits = part(data, "rateLimits")
     for key in ("primary", "secondary"):
-        value = limits.get(key) or {}
+        value = part(limits, key)
         duration = value.get("windowDurationMins")
         if not isinstance(duration, int) or isinstance(duration, bool) or duration <= 0:
             duration = None
@@ -69,12 +85,12 @@ def normalize_codexbar(entry):
     Only the primary and secondary slots: tertiary and extra windows are model-scoped and would
     overwrite the weekly reading if they shared its label."""
     result, labels = [], []
-    usage = entry.get("usage")
+    usage = part(entry, "usage")
     # Copilot's slots carry no length: the primary is the monthly premium-request allowance, the secondary chat.
     unnamed = {"primary": "MONTH", "secondary": "CHAT"} if entry.get("provider") == "copilot" else {}
     for key in ("primary", "secondary"):
-        value = usage.get(key) if isinstance(usage, dict) else None
-        if not isinstance(value, dict):
+        value = part(usage, key)
+        if not value:
             continue
         duration = value.get("windowMinutes")
         if not isinstance(duration, int) or isinstance(duration, bool) or duration <= 0:
@@ -92,19 +108,18 @@ def normalize_codexbar(entry):
 
 
 def normalize_grok(data):
-    config = data.get("config") or {}
+    config = part(data, "config")
     percent = config.get("creditUsagePercent")
-    cycle = config.get("currentPeriod") or {}
+    cycle = part(config, "currentPeriod")
     reset = cycle.get("end") or config.get("billingPeriodEnd")
     item = window("BUDGET", percent, reset)
     if item:
         return [item]
     # CLI credits are a billing budget, not a fabricated web-message quota.
-    limit = (data.get("monthlyLimit") or {}).get("val")
-    used = ((data.get("usage") or {}).get("includedUsed") or {}).get("val")
+    limit = part(data, "monthlyLimit").get("val")
+    used = part(part(data, "usage"), "includedUsed").get("val")
     if isinstance(limit, (int, float)) and limit > 0 and isinstance(used, (int, float)):
-        item = window("BUDGET", used / limit * 100,
-                      (data.get("billingCycle") or {}).get("billingPeriodEnd"))
+        item = window("BUDGET", used / limit * 100, part(data, "billingCycle").get("billingPeriodEnd"))
         if item:
             return [item]
     return []

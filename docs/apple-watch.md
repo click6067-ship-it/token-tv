@@ -20,7 +20,9 @@ token-tv run --host 0.0.0.0        # or the computer's LAN IP, e.g. --host 192.1
 
 On the iPhone, on the same Wi-Fi, open `http://<computer-ip>:8787/watch.json` in Safari. You should
 see JSON like the sample below. Anyone on that network can also open the dashboard and switch the
-clock face, so do not forward this port to the internet.
+clock face, so do not forward this port to the internet. It answers only by the computer's own addresses and
+names (its host name, `name.local`, `localhost`), so a web page that renames itself to your computer
+gets nothing; open it by the computer's IP, as above.
 
 ## 2. Add the complication
 

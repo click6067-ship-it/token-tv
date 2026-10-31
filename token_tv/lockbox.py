@@ -35,6 +35,7 @@ from pathlib import Path
 from PIL import Image
 
 from token_tv.display import ASSETS, shown_windows
+from token_tv.private_files import write_private
 from token_tv.state import ACTIVE_SECONDS, NEWS_SECONDS
 
 BUNDLE = ASSETS / 'eggs.bin'
@@ -49,6 +50,7 @@ PERIOD = {'WEEK': lambda day: '%d-W%02d' % day.isocalendar()[:2], 'MONTH': lambd
           'BUDGET': lambda day: day.strftime('%Y-%m')}
 BACK = {'WEEK': lambda day: day - timedelta(days=7), 'MONTH': lambda day: day.replace(day=1) - timedelta(days=1),
         'BUDGET': lambda day: day.replace(day=1) - timedelta(days=1)}
+LENGTH = {'WEEK': 7 * 86400, 'MONTH': 31 * 86400, 'BUDGET': 31 * 86400}  # a limit's period, at its longest
 PACE = {'rare': 3, 'unique': 8}  # days between two openings of a tier on the clock as a whole
 SPACING = {'rare': 86400, 'unique': 3 * 86400}  # at least this between two of a tier, so they do not clump
 MET_DAYS = 28  # a box shares its tier's pace while its situation has come about this recently
@@ -89,6 +91,13 @@ def daypart(hour):
             return name
 
 
+def window_id(runs, resets_at):
+    """A limit window is known by when it resets, to ten minutes (a reset time can wobble by seconds); a time that
+    rounds to the mark next to a window already seen is that window."""
+    here = round(resets_at / 600)
+    return next((key for key in (str(here), str(here - 1), str(here + 1)) if key in runs), str(here))
+
+
 def same_day(a, b):
     return time.localtime(a)[:3] == time.localtime(b)[:3]
 
@@ -107,19 +116,25 @@ class History:
         self.data.setdefault('fired', {})
 
     def save(self):
-        """Write through a temporary file, so a crash mid-write keeps the old history."""
-        spare = self.path.with_suffix('.tmp')
-        spare.write_text(json.dumps(self.data), encoding='utf-8')
-        os.replace(spare, self.path)
+        """Write through a temporary file, so a crash mid-write keeps the old history; this user's alone."""
+        write_private(self.path, json.dumps(self.data))
 
     def observe(self, snapshot, now):
-        """Note the first run and, for every account, this period's peak of its main limit: the week for a
-        weekly window, the month for a monthly one or a budget."""
+        """Note the first run and, for every account, each period's peak of its main limit: by the window's own
+        reset time when the service gives one (one window across a Sunday night is one window), else by the
+        calendar: the week for a weekly window, the month for a monthly one or a budget."""
         self.data.setdefault('first_run', time.strftime('%Y-%m-%d', time.localtime(now)))
         peaks = self.data.setdefault('peaks', {})
         for row in snapshot.get('accounts', {}).values():
             for w in row.get('windows', []):
                 if row.get('status') != 'ok' or w.get('used_percent') is None or w.get('label') not in PERIOD:
+                    continue
+                if w.get('resets_at'):
+                    runs = self.data.setdefault('cycles', {}).setdefault(row['key'], {}).setdefault(w['label'], {})
+                    here = window_id(runs, w['resets_at'])
+                    runs[here] = max(runs.get(here, 0), w['used_percent'])
+                    for old in sorted(runs, key=int)[:-8]:
+                        del runs[old]
                     continue
                 periods = peaks.setdefault(row['key'], {}).setdefault(w['label'], {})
                 here = PERIOD[w['label']](date.fromtimestamp(now))
@@ -129,7 +144,7 @@ class History:
             for w in row.get('windows', []):  # 5-hour windows have no calendar: each is known by when it resets
                 if row.get('status') == 'ok' and w.get('label') == '5H' and w.get('resets_at') and w.get('used_percent') is not None:
                     runs = self.data.setdefault('five', {}).setdefault(row['key'], {})
-                    here = str(round(w['resets_at'] / 600))  # to ten minutes, as a reset time can wobble
+                    here = window_id(runs, w['resets_at'])
                     runs[here] = max(runs.get(here, 0), w['used_percent'])
                     for old in sorted(runs, key=int)[:-8]:
                         del runs[old]
@@ -146,9 +161,23 @@ class History:
 
     def full_streak(self, key, now):
         """Periods in a row, up to this one, in which the account used its whole limit (the longest of its
-        limits); counted by the calendar, so a clock change cannot double a week."""
+        limits). Windows the service names by their reset time count one each, in a row while no whole window can
+        have gone unseen between two; without reset times, calendar periods, so a clock change cannot double a week."""
         best = 0
+        cycles = self.data.get('cycles', {}).get(key, {})
+        for label, runs in cycles.items():
+            count, later = 0, None
+            for here in sorted(runs, key=int, reverse=True):
+                at = int(here) * 600
+                if later is None and at < now - 600:
+                    break  # the window it is in now has not been seen yet
+                if runs[here] < 100 or (later is not None and later - at >= 2 * LENGTH[label]):
+                    break
+                count, later = count + 1, at
+            best = max(best, count)
         for label, periods in self.data.get('peaks', {}).get(key, {}).items():
+            if label in cycles:
+                continue  # known by reset times now: the calendar would count one window twice
             count, day = 0, date.fromtimestamp(now)
             while periods.get(PERIOD[label](day), 0) >= 100:
                 count, day = count + 1, BACK[label](day)
@@ -261,6 +290,7 @@ class Box:
     after: tuple = ()
     intro: bool = True  # the cut-in at the start; off for the quiet loop that follows
     prop: str = ''  # what it leaves in the scene once played (a base64 PNG), if anything
+    action: str = ''  # what the readout says the pet is doing while it plays, sealed with it
 
 
 def frames_of(strip, height):
@@ -286,7 +316,7 @@ class Lockbox:
         strips = content.get('strips') or [content['strip']]
         after = frames_of(content['after'], content['height']) if content.get('after') else ()
         return Box(content['name'], content['tier'], key, frames_of(strips[variant % len(strips)], content['height']),
-                   content['seconds'], after, prop=content.get('prop', ''))
+                   content['seconds'], after, prop=content.get('prop', ''), action=content.get('action', ''))
 
     def collection(self):
         """The collection book: every box opened so far on this clock (newest first) and how many are still

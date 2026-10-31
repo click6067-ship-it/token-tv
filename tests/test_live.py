@@ -1,3 +1,4 @@
+import sys
 import copy
 import io
 import json
@@ -13,6 +14,8 @@ from token_tv.usage import normalize_claude, normalize_codex, normalize_grok
 from token_tv.sources import fetch_account, load_config, grok_identity, scoped_env
 from token_tv.state import UsageStore
 from token_tv.display import render_page, pages, overview_rows, primary_window
+sys.path.insert(0, str(Path(__file__).resolve().parent))  # helpers.py, however the tests are run
+from helpers import own_tmp, temp_dir
 
 
 class LiveTests(unittest.TestCase):
@@ -188,9 +191,10 @@ class RelocateTests(unittest.TestCase):
 class LockTests(unittest.TestCase):
     def test_one_tokentv_per_config(self):
         import subprocess, sys, tempfile
-        from token_tv.live import hold_lock
-        folder = Path(tempfile.mkdtemp())
+        from token_tv.live import hold_lock, let_go
+        folder = temp_dir(self)
         self.assertTrue(hold_lock(folder))
+        self.addCleanup(let_go, folder / 'live.lock')
         other = subprocess.run([sys.executable, '-c', 'import sys; from pathlib import Path; from token_tv.live import hold_lock; '
                                 'sys.exit(0 if hold_lock(Path(sys.argv[1])) else 3)', str(folder)], capture_output=True)
         self.assertEqual(other.returncode, 3)  # a second process with the same config is refused
@@ -237,9 +241,12 @@ class GuardTests(unittest.TestCase):
 
     def test_one_tokentv_per_clock_whatever_the_config(self):
         import subprocess, sys
-        from token_tv.live import hold_clock
+        from token_tv.live import hold_clock, let_go
+        own_tmp(self)  # the clock locks live in the system's temporary folder
         url = 'http://127.0.0.1:18999'
-        self.assertTrue(hold_clock(url))
+        path = hold_clock(url)
+        self.assertTrue(path)
+        self.addCleanup(let_go, path)
         other = subprocess.run([sys.executable, '-c', 'import sys; from token_tv.live import hold_clock; '
                                 'sys.exit(0 if hold_clock(sys.argv[1]) else 3)', 'http://localhost:18999'], capture_output=True)
         self.assertEqual(other.returncode, 3)  # the same clock by another name, from another process
@@ -247,6 +254,7 @@ class GuardTests(unittest.TestCase):
     def test_a_clock_lock_is_held_once_per_process_and_can_be_let_go(self):
         import subprocess, sys
         from token_tv.live import hold_clock, let_go
+        own_tmp(self)
         url = 'http://127.0.0.1:18998'
         other = [sys.executable, '-c', 'import sys; from token_tv.live import hold_clock; '
                  'sys.exit(0 if hold_clock(sys.argv[1]) else 3)', url]
@@ -262,7 +270,7 @@ class GuardTests(unittest.TestCase):
         from token_tv import live
         if hasattr(os, 'geteuid') and os.geteuid() == 0 or os.name == 'nt':
             self.skipTest('root writes anywhere, and Windows has no read-only folders')
-        folder = Path(tempfile.mkdtemp())
+        folder = temp_dir(self)
         folder.chmod(0o555)  # another account's folder, say
         self.addCleanup(folder.chmod, 0o755)
         said = io.StringIO()

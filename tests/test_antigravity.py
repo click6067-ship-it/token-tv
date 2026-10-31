@@ -144,7 +144,7 @@ class AntigravityTests(unittest.TestCase):
         calm, scared = stage(50, True), stage(95, True, True)
         self.assertGreater(blue(scared), blue(calm) + 100)  # the body itself turns blue
         self.assertGreater(blue(stage(95, False, True)), blue(stage(50, False)) + 100)
-        moved = [ImageChops.difference(calm[0], calm[k]).getbbox() for k in (10, 40, 80)]
+        moved = [ImageChops.difference(calm[0], calm[k // arcade.PLAYBACK]).getbbox() for k in (10, 40, 80)]  # drawn frames
         self.assertTrue(all(moved))  # round the maze
 
     def test_anti_wears_the_v2_face_and_no_feet(self):
@@ -205,7 +205,8 @@ class AntigravityTests(unittest.TestCase):
         def top(image):  # the highest row of Anti, between the top row of dots and the floor
             band = image.crop((96, 44, 144, 120))
             return 44 + next(y for y in range(band.height) if any(band.getpixel((x, y)) != arcade.MAZE_BG for x in range(band.width)))
-        self.assertGreaterEqual(sum(1 for f in frames[12:30] if top(f) <= top(frames[0]) - 16), 6)  # 8 px up for half a second
+        up = frames[12 // arcade.PLAYBACK:30 // arcade.PLAYBACK]  # drawn frames 12-29, as the clock gets them
+        self.assertGreaterEqual(sum(1 for f in up if top(f) <= top(frames[0]) - 16), 6 // arcade.PLAYBACK)  # 8 px up for half a second
 
     def test_every_anti_state_fits_the_upload_alone_and_among_four(self):
         others = [('claude_a', 'CLAUDE A', 'claude', [('5H', 41, 2 * H)]), ('codex_a', 'CODEX A', 'codex', [('WEEK', 47, 4 * D)]),

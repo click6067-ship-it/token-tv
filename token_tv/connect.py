@@ -6,6 +6,7 @@ import subprocess
 import sys
 from pathlib import Path
 
+from token_tv.private_files import private_dir
 from token_tv.sources import exe, fetch_account, load_config, scoped_env
 
 # provider: (everyday CLI home, file present after login)
@@ -69,8 +70,7 @@ def main():
     if not shutil.which(command[0]):
         raise SystemExit(f"The {account['provider']} CLI is not installed on this computer ({command[0]} not found). "
                          "Install it, then run this again.")
-    root.mkdir(parents=True, exist_ok=True)
-    os.chmod(root, 0o700)
+    private_dir(root)  # this login's own folder, 0700 from the start
     print("Sign in as " + account["email"] + ". Enter login codes here, not in chat.", flush=True)
     result = subprocess.run(command, env=scoped_env(account["provider"], root))
     if result.returncode:

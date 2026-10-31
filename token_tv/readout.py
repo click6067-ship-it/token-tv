@@ -1,19 +1,26 @@
 """The Arcade face's readout: the used %, the time to reset and the usage bar under the scene.
 
+'battery' (the owner's pick, 2026-10-31, the default): the pet's name in its colour and what it is doing, then a
+pixel battery of what is left with the reset as a clock time (a picture that stops updating then shows a time that has
+passed, never a countdown that is wrong). One window: a ten-cell battery, the reset under it; two windows (5H and WK):
+two slim five-cell batteries.
+
 Four looks share one layout (the number on the left, the reset time on the right, the bar under them): 'lcd',
 seven-segment digits drawn on the 2 px grid over their faint unlit strokes, with a bar from LCD_BARS (the owner's
 pick, 2026-10-29); 'score', a tall arcade score font with a soft shadow and a rounded bar lit along its top;
 'chips', a squared modern font and twenty 5% chips; 'pixel', the 5 x 7 pixel font and ten cells. Text from a font
 is drawn without smoothing at half size and doubled, so it sits on the clock's 2 px grid like the rest.
 """
+import datetime
 import functools
+import time
 from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageFont
 
 from token_tv.display import pixel_text
 
-STYLE = 'lcd'  # the look in use: 'lcd', 'score', 'chips' or 'pixel'
+STYLE = 'battery'  # the look in use: 'battery', 'lcd', 'score', 'chips' or 'pixel'
 WEB = Path(__file__).with_name('web')
 TEXT, MUTED, PANEL, TRACK = (226, 230, 238), (128, 138, 160), (11, 13, 19), (40, 46, 62)
 BANDS = ((76, 201, 140), (140, 214, 92), (255, 160, 64), (255, 84, 96))  # below 50, 50–79, 80–89, 90+
@@ -369,3 +376,75 @@ def bar_capsule_heat(draw, x, y, w, h, used, old):
 
 LCD_BARS.update({'capsule': bar_capsule_plain, 'capsule_along': bar_capsule_along, 'capsule_lit': bar_capsule_lit,
                  'capsule_heat': bar_capsule_heat})
+
+
+# --- 'battery': the pet, what it does, and a battery of what is left ------------------------------------------------
+PETS = {'claude': ('CLAWD', (217, 132, 94)), 'codex': ('CODEX', (150, 160, 255)), 'grok': ('GROK', (238, 240, 245)),
+        'copilot': ('COPILOT', (120, 190, 255)), 'antigravity': ('ANTI', (90, 170, 255))}
+
+
+def text_width(text, scale):
+    return max(0, len(text) * 6 - 1) * scale
+
+
+def reset_clock(resets_at, now=None):
+    """When a window resets, as a clock time: '16:42' within a day, 'TUE 16:42' further off, '--' when unknown."""
+    if not resets_at:
+        return '--'
+    now = time.time() if now is None else now
+    at = datetime.datetime.fromtimestamp(resets_at)
+    return at.strftime('%H:%M') if resets_at - now < 86400 else at.strftime('%a %H:%M').upper()
+
+
+def battery(draw, x, y, w, h, used, cells, old=False):
+    """A pixel battery of what is left: a 2 px case and nub, `cells` equal cells (the last one filled in part), a lit
+    top edge. Muted when the reading is old; empty when there is none."""
+    draw.rounded_rectangle((x, y, x + w - 1, y + h - 1), radius=3, outline=MUTED, width=2, fill=PANEL)
+    draw.rectangle((x + w, y + h // 2 - 3, x + w + 2, y + h // 2 + 2), fill=MUTED)
+    ix, iy, iw, ih, gap = x + 4, y + 4, w - 8, h - 8, 2
+    cw = (iw - gap * (cells - 1)) / cells
+    left = None if used is None else max(0, 100 - round(used))
+    colour = MUTED if old or used is None else band(used)
+    for k in range(cells):
+        x0 = round(ix + k * (cw + gap))
+        x1 = round(ix + k * (cw + gap) + cw) - 1
+        draw.rectangle((x0, iy, x1, iy + ih - 1), fill=TRACK)
+        part = 0 if left is None else max(0.0, min(1.0, left / 100 * cells - k))
+        if part > 0:
+            fx = x0 + max(1, round((x1 - x0 + 1) * part)) - 1
+            draw.rectangle((x0, iy, fx, iy + ih - 1), fill=colour)
+            draw.rectangle((x0, iy, fx, iy), fill=shade(colour, 1.25))
+            if ih > 6:
+                draw.rectangle((x0, iy + ih - 1, fx, iy + ih - 1), fill=shade(colour, 0.7))
+
+
+def draw_battery(frame, draw, provider, action, rows, now=None):
+    """The battery readout for one account: `rows` are [(window label, used %, resets_at, old?)], one or two."""
+    pet, colour = PETS.get(provider, (provider.upper()[:8], TEXT))
+    pixel_text(draw, (10, 176), pet, scale=2, color=colour)
+    if action:
+        x = 10 + text_width(pet, 2) + 12
+        if x + text_width(action, 2) <= 230:
+            pixel_text(draw, (x, 176), action, scale=2, color=MUTED)
+        else:  # a long name beside a long one: smaller, still on the line
+            pixel_text(draw, (x, 180), action, scale=1, color=MUTED)
+    if len(rows) >= 2:
+        for i, (label, used, resets_at, old) in enumerate(rows[:2]):
+            y = 196 + i * 21
+            pixel_text(draw, (10, y + 4), label, color=MUTED)
+            battery(draw, 24, y, 44, 16, used, 5, old)
+            left = '--' if used is None else f'{max(0, 100 - round(used))}%'
+            pixel_text(draw, (78, y + 1), left, scale=2, color=MUTED if old else TEXT)  # an old one: grey (OLD on top)
+            day, _, clock = reset_clock(resets_at, now).rpartition(' ')
+            pixel_text(draw, (230, y + 1), clock, scale=2, color=TEXT, align='right')
+            if day:  # a day or more off: the weekday small beside the time, so even 100% keeps its room
+                pixel_text(draw, (230 - text_width(clock, 2) - 4, y + 4), day, color=MUTED, align='right')
+        return
+    label, used, resets_at, old = rows[0] if rows else ('', None, None, False)
+    battery(draw, 10, 195, 158, 20, used, 10, old)
+    left = '--' if used is None else f'{max(0, 100 - round(used))}%'
+    pixel_text(draw, (230, 198), left, scale=2, color=MUTED if old else TEXT, align='right')
+    pixel_text(draw, (10, 226), f'{label} OLD' if old else f'{label} LEFT', color=MUTED)
+    at = reset_clock(resets_at, now)
+    pixel_text(draw, (230, 222), at, scale=2, color=TEXT, align='right')
+    pixel_text(draw, (230 - text_width(at, 2) - 6, 226), 'RESET', color=MUTED, align='right')

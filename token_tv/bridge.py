@@ -13,8 +13,10 @@ p=pathlib.Path(sys.argv[1]).expanduser()
 data=json.load(sys.stdin)
 p.parent.mkdir(parents=True,exist_ok=True)
 t=p.with_suffix('.tmp')
-t.write_text(json.dumps(data,ensure_ascii=False,separators=(',',':')), encoding="utf-8")
-os.chmod(t,0o600)
+fd=os.open(t,os.O_WRONLY|os.O_CREAT|os.O_TRUNC,0o600)
+os.fchmod(fd,0o600)
+with os.fdopen(fd,'w',encoding='utf-8') as f:
+    f.write(json.dumps(data,ensure_ascii=False,separators=(',',':')))
 t.replace(p)
 """
 

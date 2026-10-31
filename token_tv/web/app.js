@@ -133,6 +133,8 @@ function buildStarfield() {
  $('#starfield').append(s);
 }
 function resetTime(epoch) {if (!Number.isFinite(epoch) || epoch <= 0) return '—'; let m = Math.ceil((epoch - Date.now() / 1000) / 60); if (m <= 0) return 'Awaiting reset'; return m >= 1440 ? `${Math.floor(m / 1440)}d ${Math.floor(m % 1440 / 60)}h` : `${Math.floor(m / 60)}h ${pad(m % 60)}m`}
+// Why an account has no fresh reading and what to do, in the server's words; '{at}' is a time, written on this clock.
+function reasonText(r) {if (!r || !r.text) return ''; const at = Number.isFinite(r.at) ? new Date(r.at * 1000).toLocaleTimeString('en-GB', {hour:'2-digit', minute:'2-digit'}) : '—'; return r.text.replace('{at}', at)}
 function period(w) {if (!w) return 'QUOTA'; return w.label === 'BUDGET' ? 'CLI BUDGET' : w.label === 'WEEK' ? 'WEEKLY' : w.label === '5H' ? '5-HOUR' : String(w.label || 'QUOTA')}
 function level(v) {return v < 50 ? 'low' : v < 80 ? 'medium' : v < 90 ? 'high' : 'critical'}
 function levelText(v) {return v >= 100 ? 'Limit reached' : v >= 90 ? 'Near limit' : v >= 80 ? 'High usage' : v >= 50 ? 'Moderate' : 'Low usage'}
@@ -204,6 +206,7 @@ function providerCard(provider, accounts) {
  if (checked) {const d = new Date(checked * 1000); when = el('time', d.toLocaleTimeString('en-GB', {hour:'2-digit', minute:'2-digit'}), 'stat-v'); when.dateTime = d.toISOString(); when.title = d.toLocaleString('en-GB')}
  const foot = el('div', undefined, 'card-foot');
  foot.append(stat('Account', a.alias || '—'), stat('Window', primary ? period(primary) : '—'), stat('Source', a.source === 'mini' ? 'This computer' : a.source === 'codexbar' ? 'CodexBar' : a.source ? 'Linked snapshot' : '—'), stat(stale ? 'Last good' : 'Checked', when), stat('Status', el('span', offline ? 'OFFLINE · Previous value' : STATUS[a.status] || 'Unknown', 'row-status stat-v'), 'stat-status'));
+ if (!offline && a.reason) foot.append(el('p', reasonText(a.reason), 'card-reason'));  // why, and what to do, across the foot
  card.append(foot); shell.append(card); return shell;
 }
 function renderAccounts() {
@@ -236,6 +239,8 @@ async function update() {
   $('#notice').textContent = clock ? `Clock: ${clock.text} (since ${new Date(clock.since * 1000).toLocaleTimeString('en-GB', {hour:'2-digit', minute:'2-digit'})})` : staleCount + ' account' + (staleCount === 1 ? ' has' : 's have') + ' an older reading. Check the selected account’s source and last successful update.';
   $('#updated').textContent = data.updated_at ? 'Server checked ' + new Date(data.updated_at * 1000).toLocaleTimeString('en-GB') : 'Waiting for first reading';
   $('#signal').dataset.strength = staleCount ? '2' : '3';
+  const fresh = DEMO ? null : data.update;  // a newer release, from the server's one PyPI look a day
+  $('#update-note').hidden = !fresh?.latest; $('#update-note').textContent = fresh?.latest ? `TokenTV ${fresh.latest} is out · ${fresh.command}` : '';
  } catch {
   offline = true; $('#connection').textContent = 'Server offline'; $('#notice').hidden = false; $('#signal').dataset.strength = '0';
   $('#notice').textContent = snapshot ? 'Connection lost. Showing the last received readings as OLD.' : 'Cannot reach TokenTV. Is token-tv still running?';
@@ -380,7 +385,8 @@ async function paintCollection() {
   const when = new Date(item.first * 1000).toLocaleDateString();
   const play = el('button', 'Replay on clock', 'control'); play.type = 'button';
   play.onclick = async () => {play.disabled = true; try {const r = await fetch('/collection/replay', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({check:item.check})}); play.textContent = r.ok ? 'Playing on the clock' : r.status === 409 ? (await r.json()).error : 'Could not play'} catch {play.textContent = 'Could not play'} setTimeout(() => {play.disabled = false; play.textContent = 'Replay on clock'}, 8000)};
-  li.append(el('span', TIER_NAMES[item.tier] || item.tier, 'tier-badge'), img, el('strong', item.title), el('span', `First seen ${when} · seen ${item.count}×`, 'quiet'), play);
+  const save = el('a', 'Save', 'control'); save.href = `/collection/${item.check}.gif?save=1`; save.download = '';  // the GIF with TokenTV's mark
+  li.append(el('span', TIER_NAMES[item.tier] || item.tier, 'tier-badge'), img, el('strong', item.title), el('span', `First seen ${when} · seen ${item.count}×`, 'quiet'), play, save);
   list.append(li);
  }
  for (let i = 0; i < data.hidden; i++) {const li = el('li', undefined, 'collection-card locked'); li.append(el('span', '???', 'locked-mark'), el('span', 'Not found yet', 'quiet')); list.append(li)}

@@ -1,4 +1,5 @@
 """Use credentials in their owning CLI homes; export only approved fields."""
+import email.utils
 import hashlib
 import json
 import os
@@ -17,11 +18,13 @@ from urllib.error import HTTPError
 from urllib.parse import parse_qs, urlparse
 from urllib.request import Request, urlopen
 
-from token_tv.usage import (normalize_claude, normalize_codex, normalize_codexbar, normalize_grok, reset_credits, timestamp,
-                             window)
+from token_tv.usage import (FormatChanged, normalize_claude, normalize_codex, normalize_codexbar, normalize_grok, part,
+                             reset_credits, timestamp, window)
 from token_tv.display import STYLES
 
 CODEXBAR_SOURCES = {"auto", "web", "cli", "oauth", "api"}
+STALE_SECONDS = 900  # a reading measured longer ago than this is OLD
+SKEW_SECONDS = 300  # how far ahead of this computer another one's clock may run (a CodexBar on another Mac)
 AUTH_WORDS = ("auth", "login", "sign in", "token")
 
 
@@ -34,6 +37,10 @@ class SourceError(Exception):
     def __init__(self, code):
         self.code = code
         super().__init__(code)
+
+
+class Unfresh(SourceError):
+    """A reading whose numbers are right but old ('codexbar_old'), or of unknown age ('freshness_unknown')."""
 
 
 def scoped_env(provider, root):
@@ -113,8 +120,10 @@ class RPC:
 
 def load_config(path):
     data = json.loads(Path(path).read_text(encoding="utf-8"))
-    if set(data) - {"accounts", "device_url", "poll_seconds", "font", "display_style"}:
+    if set(data) - {"accounts", "device_url", "poll_seconds", "font", "display_style", "update_check"}:
         raise ValueError("Unsupported configuration field")
+    if not isinstance(data.get("update_check", True), bool):
+        raise ValueError("update_check is true or false")
     if data.get('display_style', 'pixel') not in STYLES:
         raise ValueError('Unknown display style')
     seen = set()
@@ -173,6 +182,20 @@ def check_codexbar(account):
         raise ValueError("codexbar_source is one of " + ", ".join(sorted(CODEXBAR_SOURCES)) + " and only for codexbar_command")
 
 
+def retry_after(value):
+    """Seconds a Retry-After header asks to wait: a number of seconds or an HTTP date. None when it says neither."""
+    if not isinstance(value, str) or not value.strip():
+        return None
+    value = value.strip()
+    if value.isdigit():
+        return int(value)
+    try:
+        when = email.utils.parsedate_to_datetime(value)
+    except (TypeError, ValueError, IndexError):
+        return None
+    return max(0, int(when.timestamp() - time.time())) if when.tzinfo else None
+
+
 def json_get(url, headers=None):
     with urlopen(Request(url, headers=headers or {}), timeout=20) as response:
         return json.load(response)
@@ -226,7 +249,7 @@ def claude_payload(account):
 
 
 def email_from_profile(profile):
-    for item in (profile.get("account") or {}, profile):
+    for item in (part(profile, "account"), profile):
         for key in ("emailAddress", "email_address", "email"):
             if isinstance(item.get(key), str):
                 return item[key]
@@ -421,7 +444,7 @@ def imported_row(account):
     credits = row.get("reset_credits")  # saved limit resets come across too
     if isinstance(credits, dict) and isinstance(credits.get("count"), int) and not isinstance(credits["count"], bool):
         clean["reset_credits"] = {"count": max(0, credits["count"]), "expires_at": timestamp(credits.get("expires_at"))}
-    if time.time() - fetched > 900:
+    if time.time() - fetched > STALE_SECONDS:
         clean["status"] = "stale"
         clean["error_code"] = "laptop_offline"
     return clean
@@ -443,6 +466,16 @@ def fetch_account(account):
                 raise SourceError("invalid_codexbar_output")
             row["windows"] = normalize_codexbar(entry)
             row["identity_verified"] = verified
+            # CodexBar may answer from its cache: the reading is as old as CodexBar's measurement, not this request.
+            measured, now = timestamp(entry["usage"].get("updatedAt")), time.time()
+            if not row["windows"]:
+                pass  # no numbers, so no age to tell: quota_unavailable below
+            elif not measured or measured > now + SKEW_SECONDS:
+                raise Unfresh("freshness_unknown")
+            else:
+                row["measured_at"] = min(measured, now)
+                if now - measured > STALE_SECONDS:
+                    raise Unfresh("codexbar_old")
         elif account["provider"] == "claude":
             profile, data = claude_payload(account)
             if not identity_matches(account["email"], email_from_profile(profile)):
@@ -463,23 +496,34 @@ def fetch_account(account):
             row["windows"] = normalize_grok(data)
             row["identity_verified"] = True
         row["status"] = "ok" if row["windows"] else "quota_unavailable"
+    except Unfresh as old:  # its numbers stand, marked OLD; with no time to go by, never taken for now
+        row["status"], row["error_code"] = "stale", old.code
     except SourceError as error:
         row["status"] = error.code if error.code in {"auth_required", "identity_mismatch", "stale"} else "error"
         row["error_code"] = error.code
     except HTTPError as error:
         row["status"] = {401: "auth_required", 403: "auth_required", 429: "rate_limited"}.get(error.code, "error")
         row["error_code"] = "http_" + str(error.code)
+        wait = retry_after(error.headers.get("Retry-After")) if error.code in (429, 503) and error.headers else None
+        if wait is not None:  # the service said how long: this account waits that long (state.py bounds it)
+            row["retry_at"] = int(time.time() + wait)
     except FileNotFoundError:
         row["status"] = "auth_required"
+    except FormatChanged:
+        row["status"] = "error"
+        row["error_code"] = "format_changed"
     except (OSError, ValueError, KeyError, TypeError, subprocess.SubprocessError):
         row["status"] = "error"
         row["error_code"] = "source_unavailable"
+    except Exception as error:  # anything else is this account's error, named by its type: a message may hold a secret
+        row["status"] = "error"
+        row["error_code"] = "unexpected:" + type(error).__name__
     row["fetched_at"] = time.time()
     if row["status"] not in {"ok", "quota_unavailable", "identity_mismatch"} and account.get("fallback_snapshot_file"):
         try:
             fallback = imported_row(dict(account, snapshot_file=account["fallback_snapshot_file"]))
             fallback["mini_auth_status"] = row["status"]
             return fallback
-        except (SourceError, OSError, ValueError, KeyError, TypeError):
+        except Exception:  # the laptop's copy unreadable too: this account's own error stands
             pass
     return row

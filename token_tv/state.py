@@ -4,7 +4,7 @@ import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
 
-from token_tv.sources import fetch_account
+from token_tv.sources import STALE_SECONDS, fetch_account
 
 # An account counts as working for this long after its used % last went up. It outlasts the slowest
 # fetch below, so a steady worker keeps running between readings.
@@ -12,6 +12,14 @@ ACTIVE_SECONDS = 600
 # Claude's usage endpoint answers frequent callers with 429s, so its accounts are read at most every
 # five minutes even when the clock refreshes every minute.
 MIN_FETCH_SECONDS = {"claude": 300}
+RETRY_CAP = 6 * 3600  # the longest a provider's Retry-After is waited for
+BACKOFF_CAP = 900  # the longest wait between two tries of a failing account that gave no Retry-After
+
+
+def backoff(failures):
+    """Seconds to wait after `failures` failed readings in a row of an account: none after the first (one poll
+    later, as always), then doubling from a minute up to BACKOFF_CAP."""
+    return 0 if failures < 2 else min(BACKOFF_CAP, 60 * 2 ** (failures - 2))
 
 
 def comparable(previous, row):
@@ -115,6 +123,8 @@ class UsageStore:
         self.fetch = fetch
         self.min_fetch_seconds = min_fetch_seconds or {}
         self.fetched = {}  # account key -> monotonic time of its last fetch
+        self.failures = {}  # account key -> failed readings in a row (rate limited or an error)
+        self.waits = {}  # account key -> (monotonic, wall, asked): not read again before; asked = the service said so
         self.lock = threading.Lock()
         self.updated_at = 0
         self.rows = {a["key"]: {"key": a["key"], "alias": a["alias"], "provider": a["provider"],
@@ -131,19 +141,44 @@ class UsageStore:
                     if isinstance(old.get(field), (int, float)) and not isinstance(old.get(field), bool):
                         self.rows[key][field] = old[field]
 
+    def fetch_one(self, account):
+        """This account's reading. Whatever goes wrong while reading it is its own error, named by its type only (a
+        message may hold a token or a path): the other accounts' readings are kept all the same."""
+        try:
+            row = self.fetch(account)
+            if not (isinstance(row, dict) and row.get("key") == account["key"] and isinstance(row.get("status"), str)
+                    and isinstance(row.get("windows"), list) and isinstance(row.get("fetched_at"), (int, float))):
+                raise TypeError("not a reading of this account")
+            return row
+        except Exception as error:
+            return {"key": account["key"], "alias": account["alias"], "provider": account["provider"], "status": "error",
+                    "error_code": "unexpected:" + type(error).__name__, "windows": [], "fetched_at": time.time(),
+                    "identity_verified": False, "source": self.rows[account["key"]].get("source", "mini")}
+
     def refresh(self):
-        started = time.monotonic()
-        # A few seconds of slack so a five-minute account is not pushed to the next one-minute tick.
-        due = [a for a in self.accounts if a["key"] not in self.fetched
-               or started - self.fetched[a["key"]] + 15 >= self.min_fetch_seconds.get(a["provider"], 0)]
+        started, wall = time.monotonic(), time.time()
+
+        def due(account):
+            """An account told to wait is due once either clock has passed its time (monotonic time may stand still
+            while a computer sleeps); at the time its service gave, even before the account's own minimum. Else a
+            few seconds of slack, so a five-minute account is not pushed to the next one-minute tick."""
+            key = account["key"]
+            mono, at, asked = self.waits.get(key, (0, 0, False))
+            if started < mono and wall < at:
+                return False
+            if asked:
+                return True
+            return key not in self.fetched or started - self.fetched[key] + 15 >= self.min_fetch_seconds.get(account["provider"], 0)
+        due = [a for a in self.accounts if due(a)]
         if not due:
             return
         with ThreadPoolExecutor(max_workers=min(4, len(due))) as executor:
-            rows = list(executor.map(self.fetch, due))
+            rows = list(executor.map(self.fetch_one, due))
         with self.lock:
             for account in due:
                 self.fetched[account["key"]] = started
             for row in rows:
+                self.schedule(row, started, wall)
                 previous = self.rows[row["key"]]
                 row["rose_at"] = row["fetched_at"] if rose(previous, row) else previous.get("rose_at")
                 if rose(previous, row):  # the start of this run of work, kept while it goes on
@@ -160,8 +195,11 @@ class UsageStore:
                                 if row["status"] == "ok" else previous.get("worry"))  # an outage changes nothing
                 event = event_of(previous, row)  # a one-off for the animated faces: fireworks or a flop
                 row["event"], row["event_at"] = (event, row["fetched_at"]) if event else (previous.get("event"), previous.get("event_at"))
+                measured = row.get("measured_at")  # when the source measured it, if not just now
                 if row["status"] in ("ok", "quota_unavailable"):
-                    row["last_success_at"] = row["fetched_at"]
+                    row["last_success_at"] = measured or row["fetched_at"]
+                elif row["status"] == "stale" and row["windows"] and measured and measured >= previous.get("last_success_at", 0):
+                    row["last_success_at"] = measured  # an old reading, but the newest there is: shown as it is, OLD
                 elif row["status"] != "identity_mismatch" and previous.get("windows") and previous.get("last_success_at"):
                     row["error_code"] = row.get("error_code", row["status"])
                     row["status"] = "stale"
@@ -173,13 +211,33 @@ class UsageStore:
                 self.rows[row["key"]] = row
             self.updated_at = int(time.time())
 
+    def schedule(self, row, started, wall):
+        """When a failing account is read next: when its service said (Retry-After, at most RETRY_CAP), else after a
+        backoff that grows with each failure in a row; a reading that works starts it over. Other accounts are
+        never held back by it."""
+        key = row["key"]
+        if row["status"] not in ("rate_limited", "error"):
+            self.failures.pop(key, None)
+            self.waits.pop(key, None)
+            row.pop("retry_at", None)
+            return
+        self.failures[key] = self.failures.get(key, 0) + 1
+        asked = row.get("retry_at")
+        wait = min(RETRY_CAP, max(0, asked - wall)) if isinstance(asked, (int, float)) else backoff(self.failures[key])
+        if wait:
+            self.waits[key] = (started + wait, wall + wait, isinstance(asked, (int, float)))
+            row["retry_at"] = int(wall + wait)  # for the dashboard: 'rate limited until HH:MM'
+        else:
+            self.waits.pop(key, None)
+            row.pop("retry_at", None)
+
     def snapshot(self):
         with self.lock:
             rows = copy.deepcopy(self.rows)
             updated = self.updated_at
         now = time.time()
         for row in rows.values():
-            if row["status"] == "ok" and now - row.get("last_success_at", row["fetched_at"]) > 900:
+            if row["status"] == "ok" and now - row.get("last_success_at", row["fetched_at"]) > STALE_SECONDS:
                 row["status"] = "stale"
                 row.setdefault("error_code", "snapshot_old")
             row["active"] = bool(row.get("rose_at")) and now - row["rose_at"] < ACTIVE_SECONDS

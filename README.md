@@ -11,7 +11,7 @@
 <p align="center"><img src="https://raw.githubusercontent.com/click6067-ship-it/token-tv/main/docs/images/clock-faces.png" alt="Some of the clock faces (sample data)"></p>
 
 Your Claude and Codex usage limits (plus Grok, and Copilot or Antigravity through CodexBar) on a ~$5 Wi-Fi desk clock. No firmware flashing.  
-**New: Arcade**, an animated face where each character's picture is also its gauge, with a few rare scenes that open only when their moment comes on your clock.  
+**New: Arcade**, an animated face where each character's picture is also its gauge, with a few rare scenes that open only when their moment comes on your clock. Under it, what the character is doing, a battery of what is left and the reset time.  
 **Try it:** [live demo](https://token-tv.vercel.app), `npx token-tv demo` or `uvx token-tv demo`, no clock or login needed.
 
 **What you need:**
@@ -27,5 +27,6 @@ service for your usage with the login its own CLI saved, and the clock only ever
 **Make your own face:** no clock needed, start from the [Game Boy example](https://github.com/click6067-ship-it/token-tv/tree/main/examples/gameboy) and ask your AI to change it. [Guide](https://github.com/click6067-ship-it/token-tv/blob/main/docs/clock-faces.md) · [Share it](https://github.com/click6067-ship-it/token-tv/issues/new?template=share_a_face.md)  
 Details: [how it works](https://github.com/click6067-ship-it/token-tv/blob/main/docs/stock-photo-display.md) · [setup](https://github.com/click6067-ship-it/token-tv/blob/main/docs/setup.md) · [compatible clocks](https://github.com/click6067-ship-it/token-tv/blob/main/docs/hardware-compatibility.md) · [CodexBar input](https://github.com/click6067-ship-it/token-tv/blob/main/docs/codexbar.md) · [Apple Watch](https://github.com/click6067-ship-it/token-tv/blob/main/docs/apple-watch.md) · [한국어](https://github.com/click6067-ship-it/token-tv/blob/main/README.ko.md)  
 **Updates:** new faces and supported clocks ship as [releases](https://github.com/click6067-ship-it/token-tv/releases). To get them, use Watch → Custom → Releases.  
+**Update:** `npx token-tv update` (or `uvx token-tv update`) puts the newest release in the background copy's place and keeps your config and logins; the dashboard notes a new release (one PyPI check a day; `"update_check": false` in the config turns it off).  
 
 <p align="center"><a href="https://github.com/click6067-ship-it/token-tv/tree/main/examples/gameboy"><img src="https://raw.githubusercontent.com/click6067-ship-it/token-tv/main/examples/gameboy/comparison.png" width="640" alt="Change a face: original pixel style and a four-colour Game Boy example, rendered from the same sample readings"></a></p>

@@ -5,12 +5,14 @@ from pathlib import Path
 from unittest import mock
 
 from token_tv import __version__, autostart
+sys.path.insert(0, str(Path(__file__).resolve().parent))  # helpers.py, however the tests are run
+from helpers import temp_dir
 
 
 class AutostartTests(unittest.TestCase):
     """TokenTV keeps running after the terminal closes, and comes back with the computer."""
     def setUp(self):
-        self.folder = Path(tempfile.mkdtemp())
+        self.folder = temp_dir(self)
 
     def placed(self, kind):
         names = {'systemd': 'token-tv.service', 'launchd': 'tokentv.plist', 'startup': 'TokenTV.vbs'}
@@ -75,7 +77,7 @@ class AutostartTests(unittest.TestCase):
         (self.folder / 'state').mkdir()
         (self.folder / 'state' / 'live.pid').write_text('4242', encoding='utf-8')
         (self.folder / 'TokenTV.vbs').write_text(autostart.entry(['pythonw', '-m', 'token_tv', 'start', '--config', str(config)], 'startup'), encoding='utf-8')
-        python = mock.Mock(returncode=0, stdout='"pythonw.exe","4242","Console","1","40,000 K"', stderr='')
+        python = mock.Mock(returncode=0, stdout=f'"C:\\Py\\pythonw.exe" -m token_tv start --yes --no-browser --config "{config}"', stderr='')
         with self.placed('startup'), mock.patch.object(autostart, 'run', return_value=python), mock.patch('os.kill') as kill:
             self.assertIn('stopped', autostart.remove())
         kill.assert_called_once_with(4242, autostart.signal.SIGTERM)
@@ -97,6 +99,37 @@ class AutostartTests(unittest.TestCase):
                 mock.patch('shutil.which', return_value=None):
             self.assertEqual(autostart.command('/tmp/config.json')[:3], ['/home/me/.cache/token-tv/uv/uvx', f'token-tv@{__version__}', 'start'])
             self.assertEqual(autostart.how(), 'npx token-tv')
+
+    def test_each_entry_gives_back_the_command_it_runs(self):
+        argv = ['C:\\Py\\pythonw.exe', '-m', 'token_tv', 'start', '--config', 'C:\\Users\\Kim Minji\\config.json']
+        names = {'systemd': 'token-tv.service', 'launchd': 'tokentv.plist', 'startup': 'TokenTV.vbs'}
+        for kind in names:
+            with self.subTest(kind=kind):
+                path = self.folder / names[kind]
+                odd = 'C:\\Program Files\\node;/opt/50%"x"/bin;C:\\a&b<c>'
+                path.write_text(autostart.entry(argv, kind, path=odd), encoding='utf-16' if kind == 'startup' else 'utf-8')
+                self.assertEqual(autostart.entry_argv(path, kind), argv)
+                self.assertEqual(autostart.entry_path(path, kind), odd)
+                self.assertEqual(autostart.entry_config(path, kind), argv[-1])
+        self.assertEqual(autostart.entry_version(['/u/uvx', 'token-tv@0.3.3', 'start']), '0.3.3')
+        self.assertEqual(autostart.entry_version(['/u/pipx', 'run', '--spec', 'token-tv==0.4.0', 'token-tv']), '0.4.0')
+        self.assertIsNone(autostart.entry_version(argv))
+
+    def test_the_background_copy_of_an_npx_user_still_says_npx(self):
+        # Its commands (update, connect) are written the way this person runs TokenTV, not as uvx they may not have.
+        argv = ['/home/me/.cache/token-tv/uv/uvx', f'token-tv@{__version__}', 'start']
+        texts = {kind: autostart.entry(argv, kind, launcher='npx') for kind in ('systemd', 'launchd', 'startup')}
+        self.assertIn('Environment="TOKEN_TV_LAUNCHER=npx"', texts['systemd'])
+        self.assertIn('<key>TOKEN_TV_LAUNCHER</key><string>npx</string>', texts['launchd'])
+        self.assertIn('shell.Environment("Process")("TOKEN_TV_LAUNCHER") = "npx"', texts['startup'])
+        for kind in ('systemd', 'launchd', 'startup'):
+            self.assertNotIn('TOKEN_TV_LAUNCHER', autostart.entry(argv, kind))
+        done = mock.Mock(returncode=0, stdout='', stderr='')
+        with self.placed('systemd'), mock.patch.object(autostart, 'run', return_value=done), \
+                mock.patch.dict('os.environ', {'TOKEN_TV_LAUNCHER': 'npx', 'TOKEN_TV_UVX': argv[0]}), \
+                mock.patch('sys.prefix', '/home/me/.cache/uv/archive-v0/abc'):
+            autostart.install(self.folder / 'config.json')
+        self.assertIn('TOKEN_TV_LAUNCHER=npx', (self.folder / 'token-tv.service').read_text(encoding='utf-8'))
 
     def test_a_pipx_run_copy_is_started_through_pipx(self):
         with mock.patch('sys.prefix', '/home/me/.local/share/pipx/.cache/0a1b2c'), mock.patch('shutil.which', return_value='/usr/bin/pipx'):

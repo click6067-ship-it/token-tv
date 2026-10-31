@@ -24,6 +24,7 @@ import time
 from PIL import Image, ImageDraw, ImageEnhance
 
 from token_tv import gif
+from token_tv import readout as readout_look
 from token_tv.readout import draw_readout
 from token_tv.display import (ASSETS, MAX_ROWS, PROVIDERS, SHORT_NAME, account_label, fit_pixel, overview_rows, pixel_text, quota_period,
                               reading, shown_windows)
@@ -35,8 +36,9 @@ FPS = 12  # Clawd's own frame rate
 PACE = 1.5  # Clawd's idle moves play half again as fast as in the game
 SPEED = 2  # every scene runs at twice its drawn pace; a loop plays twice in the 10 s, a one-off in 5 s
 FRAMES = 10 * FPS
-FRAME_MS = 70  # each frame on the clock: 120 of them make an 8.4 s loop, a fifth brisker than the drawn 10 s
-LOOP_SECONDS = FRAMES * FRAME_MS / 1000
+FRAME_MS = 70  # each picture's time in the GIF; a SmallTV SD_PRO shows one about every 140 ms (filmed 2026-10-31)
+PLAYBACK = 2  # every other drawn frame goes to the clock (owner, 2026-10-31): on the clock, the pace drawn for
+LOOP_SECONDS = FRAMES // PLAYBACK * FRAME_MS / 1000  # the GIF's own loop, 4.2 s (the SD_PRO takes about twice that)
 TEXT = (226, 230, 238)
 MUTED = (128, 138, 160)
 WARN = (255, 96, 110)
@@ -99,6 +101,18 @@ def coarse_left(reset, now=None):
         return '--'
     minutes = max(0, int((reset - (time.time() if now is None else now) + 59) // 60))
     return f'{minutes // 1440}D' if minutes >= 1440 else f'{minutes // 60}H' if minutes >= 60 else f'{minutes}M'
+
+
+def flicker(f, speed=SPEED):
+    """0, 1, 0, 1 over the pictures the clock shows: a propeller, a shiver, a flap. A scene moves `speed` * PLAYBACK
+    of its frames a picture (SPEED for most, 1 for Grok at work and Anti), so a test of f's own parity would freeze."""
+    return f // (speed * PLAYBACK) % 2
+
+
+def now_and_then(f, period, at, speed=SPEED):
+    """True on one picture the clock shows in every `period` scene frames, from `at`: a blink or a glint that the
+    clock's pace cannot step over."""
+    return at <= f % period < at + speed * PLAYBACK
 
 
 def loop_offset(f, length, cycles):
@@ -546,10 +560,10 @@ def codex_scene(frame, draw, box, f, span, active, s, plan, centre=.5):
     if active:
         phase = f % (12 if hurry else 24)
         squash = WRING[phase] if phase < len(WRING) else 0
-        eye = 'closed' if f % 60 in (30, 31) else 'open'
+        eye = 'closed' if now_and_then(f, 60, 30) else 'open'
         mouth = 'short' if f // 4 % 2 else 'long'
         mid += round(math.sin(2 * math.pi * f * 3 / FRAMES) * s)
-        shiver = s * (1 if f % 2 else -1) if 1 <= phase <= 5 else 0
+        shiver = s * (1 if flicker(f) else -1) if 1 <= phase < 1 + 2 * SPEED * PLAYBACK else 0  # two pictures: both ways
     else:
         idle = idle_now(plan, f, span)
         squash = 1 if 26 <= f % 60 <= 33 else 0  # breathing
@@ -780,7 +794,7 @@ def stars(w, h, count):
 
 def plume(draw, cx, top, width, length, f):
     """A cartoon exhaust: a white-hot core inside yellow, orange and red, with a ragged, flickering edge."""
-    rnd = random.Random(f % 4)
+    rnd = random.Random(f // 2 % 4)  # a new edge on every picture, at Grok's working pace and at twice it
     for r in range(length):
         p = r / max(1, length)
         half = max(1, round(width / 2 * (1 - p * .75) + rnd.choice((-1, 0, 0, 1)) * (p > .3)))
@@ -961,7 +975,7 @@ def grok_scene(frame, draw, box, f, span, active, s, plan, centre=.5):
     if not active:
         idle = idle_now(plan, f, span)
         breath = 1 if 20 <= f % 48 < 28 else 0
-        blink = 'shut' if f % 40 in (20, 21) else 'open'
+        blink = 'shut' if now_and_then(f, 40, 20) else 'open'
         if idle == 'wander':  # two steps out, two steps back, a little bob on each
             t = f % 48
             reach = (0, 1, 2, 2, 1, 0, 0, 0)[t // 6]
@@ -978,7 +992,7 @@ def grok_scene(frame, draw, box, f, span, active, s, plan, centre=.5):
                 pixel_text(draw, (round(grok[0] - 2), round(ground - gsize - 14 * u)), '!', color=(255, 226, 120))
         elif idle == 'gaze':  # up at the Earth, with a hop now and then
             lift = round(4 * (f % 24) / 6 * (1 - (f % 24) / 6) * 5 * u) if f % 24 < 6 else 0
-            grok = (gx0, ground - lift, blink, 1 if f % 24 == 6 else 0, gsize)
+            grok = (gx0, ground - lift, blink, 1 if now_and_then(f, 24, 6) else 0, gsize)
         else:
             grok = (gx0, ground, 'shut', breath, gsize)
             t = f % 40
@@ -1001,7 +1015,7 @@ def grok_scene(frame, draw, box, f, span, active, s, plan, centre=.5):
             if 64 <= k < 80 and not worried:  # the console fires a short test burn: a rumble, a lift, a flame
                 t = k - 64
                 whole = {'lift': round(min(t, 16 - t) * u * .5), 'burn': round((4 + min(t, 6)) * u), 'legs': 1.0}
-                shiver = 1 if t % 2 else -1
+                shiver = 1 if flicker(f, 1) else -1
             elif worried:  # nearly dry: the rocket rattles on the pad
                 shiver = 1 if (k // 3) % 2 else -1
         else:
@@ -1169,7 +1183,7 @@ def copilot_scene(frame, draw, box, f, span, active, s, plan, centre=.5):
         # once a second, and twice as fast, shaking, its trail sputtering, when nearly out.
         worried = isinstance(plan, dict) and plan.get('mood') == 'worried'
         bobs = max(1, round(span / (FPS * SPEED))) * (2 if worried else 1)
-        art = plane(u, (f // 2) % 2)  # f is even at twice the pace, so f % 2 would freeze the prop
+        art = plane(u, flicker(f))  # the prop turns on every picture the clock shows
         pace = plan.get('pace', 3) if isinstance(plan, dict) else 3
         segments = 4 + min(6, round(pace))  # the trail, teal to blue: longer the harder it works
         reach = w + art.width + segments * round(5 * u)
@@ -1204,7 +1218,7 @@ def copilot_scene(frame, draw, box, f, span, active, s, plan, centre=.5):
             draw.rectangle((*lamp, lamp[0] + max(2, round(4 * u)) - 1, lamp[1] + max(2, round(4 * u)) - 1),
                            fill=(255, 84, 84))  # the warning light, on and steady
         cloud(draw, x + round(w * centre), base_y, max(5, round(14 * u)))
-        eyes = 'shut' if idle == 'nap' or f % 40 in (14, 15) else 'open'
+        eyes = 'shut' if idle == 'nap' or now_and_then(f, 40, 14) else 'open'
         head = copilot_pose(max(10, round(COPILOT_HEAD * s)), eyes)
         if idle == 'look' and (f // 20) % 2:  # looking about, one side then the other
             head = head.transpose(Image.Transpose.FLIP_LEFT_RIGHT)
@@ -1484,7 +1498,7 @@ def anti_arch(frame, draw, box, f, n, plan=None):
             maze_dot(draw, x + spot, y + ANTI_FLOOR - 1, shine=spot // 2)
     middle = spots[1]
     if 50 <= middle <= 68:
-        anti_stand(frame, box, anti_art('happy'), 1 if (f // 2) % 2 else 0)
+        anti_stand(frame, box, anti_art('happy'), flicker(f, 1))
     else:
         anti_stand(frame, box, anti_art('normal', dx=-1 if middle < ANTI_MID else 1, dy=1))
 
@@ -1513,10 +1527,11 @@ def anti_float(frame, draw, box, f, n, plan=None):
              else high + (low - high) * (g - 35) / 6)
     dot_y = y + min(low, round(dot_y))
     maze_dot(draw, cx - 1, dot_y)
-    face = 'happy' if 24 <= g < 36 else 'blink' if g in (3, 4) else 'normal'
-    anti_stand(frame, box, anti_art(face, dy=1 if face == 'normal' else 0, pose='squash' if g == 46 else 'stand'),
-               lift)
-    if 30 <= g < 36 and g % 2 == 0:  # the dot twinkles up in the arch
+    step = 48 * PLAYBACK / n  # how far g moves a picture: the blink and the squash land on one whatever the share
+    face = 'happy' if 24 <= g < 36 else 'blink' if 3 <= g < 3 + max(2, step) else 'normal'
+    anti_stand(frame, box, anti_art(face, dy=1 if face == 'normal' else 0,
+                                    pose='squash' if g >= min(46, int(48 - step)) else 'stand'), lift)  # its last picture
+    if 30 <= g < 36 and flicker(f, 1):  # the dot twinkles up in the arch
         draw.point((cx - 2, dot_y - 1), fill=ANTI_GLINT)
         draw.point((cx + 1, dot_y - 1), fill=ANTI_GLINT)
 
@@ -1587,8 +1602,43 @@ def anti_scene(frame, draw, box, f, span, active, s, plan, centre=.5):
     # the patrol: one round of the loop a turn, eyes on the way ahead
     lengths = 2 * (abs(ANTI_LOOP[1][0] - ANTI_LOOP[0][0]) + abs(ANTI_LOOP[2][1] - ANTI_LOOP[1][1]))
     px_, py_, ux, uy = anti_on_loop(f / span * lengths)
-    face = 'happy' if happy else 'blink' if f % 36 in (30, 31) else 'normal'
+    face = 'happy' if happy else 'blink' if now_and_then(f, 36, 30, 1) else 'normal'
     paste(frame, anti_art(face, dx=ux if face == 'normal' else 0, dy=uy if face == 'normal' else 0), x + px_, y + py_)
+
+
+# A service no scene is drawn for yet (a contributor's first try): a plain pet, so the face still plays, with no
+# gauge of its own on the stage (the readout below has the numbers).
+PLAIN_INK = {'body': (150, 160, 196), 'shade': (112, 120, 160), 'eye': (246, 248, 252), 'pupil': (24, 28, 44)}
+PLAIN_PET = ('....####....', '..########..', '.##########.', '.#WW####WW#.', '.#WK####WK#.', '############',
+             '############', 'S##########S', '.##..##..##.')
+PLAIN_BLINK = {'W': '#', 'K': '#'}  # eyes shut: the body over them
+
+
+def plain_pet(shut=False, flat=0):
+    """The plain pet, one pixel a cell; `flat` rows squashed off its top (flopped out)."""
+    rows = PLAIN_PET[flat:]
+    art = Image.new('RGBA', (len(rows[0]), len(rows)), (0, 0, 0, 0))
+    ink = {'#': PLAIN_INK['body'], 'S': PLAIN_INK['shade'], 'W': PLAIN_INK['eye'], 'K': PLAIN_INK['pupil']}
+    for y, line in enumerate(rows):
+        for x, key in enumerate(line):
+            key = PLAIN_BLINK.get(key, key) if shut else key
+            if key in ink:
+                art.putpixel((x, y), ink[key] + (255,))
+    return art
+
+
+def plain_scene(frame, draw, box, f, span, active, s, plan, centre=.5):
+    """A service with no scene of its own: the plain pet walks to and fro while it works, rests and blinks while not."""
+    x, y, w, h = box
+    ground = y + round(h * .8)
+    draw.line((x + 6 * s, ground, x + w - 6 * s, ground), fill=TRACK, width=s)
+    pet = plain_pet(shut=not active and now_and_then(f, 36, 30))
+    if s > 1:
+        pet = pet.resize((pet.width * s, pet.height * s), Image.Resampling.NEAREST)
+    t = f / max(1, span)
+    dx = round(math.sin(2 * math.pi * t) * w * .28) if active else 0
+    lift = round(abs(math.sin(4 * math.pi * t)) * 3 * s) if active else 0
+    paste(frame, pet, x + round(w * centre) + dx - pet.width / 2, ground - pet.height - lift)
 
 
 SCENES = {'claude': claude_scene, 'codex': codex_scene, 'grok': grok_scene, 'copilot': copilot_scene,
@@ -1694,6 +1744,47 @@ def mood_marks(draw, x, y, s, f, feeling, asleep=False):
                                     y - t * s // 2 + yy * s + s - 1), fill=(255, 226, 140))
 
 
+# What the battery readout says a pet is doing. Everyday behaviours and the two events are named here; a hidden
+# one-off brings its own short name sealed with it (lockbox.Box.action), so nothing here gives one away.
+WORK_ACTION = {'claude': 'RUNNING', 'codex': 'CODE RAIN', 'copilot': 'FLYING', 'antigravity': 'PATROL'}
+GROK_WORK = {'crew': 'REFUELING', 'control': 'AT CONSOLE'}
+CLAWD_ACTION = {'LookingAround': 'LOOKING', 'Swaying': 'SWAYING', 'Turning': 'TURNING', 'DancingHappy': 'DANCING',
+                'Meditating': 'MEDITATING', 'BreakDancing': 'BREAKDANCE', 'Waving': 'WAVING', 'Thinking': 'THINKING'}
+IDLE_ACTION = {'nap': 'NAPPING', 'drift': 'DRIFTING', 'yawn': 'YAWNING', 'wander': 'WANDERING', 'gaze': 'STARGAZING',
+               'look': 'LOOKING', 'hop': 'HOPPING', 'bounce': 'BOUNCING', 'arch': 'ARCH', 'float': 'FLOATING',
+               'umbrella': 'UMBRELLA', 'blanket': 'SLEEPING', 'fret': 'FRETTING'}
+FULL_ACTION = {'claude': 'WIPED OUT', 'codex': 'PANTING', 'grok': 'OUT OF FUEL', 'copilot': 'CRASH LAND',
+               'antigravity': 'GAME OVER'}
+
+
+def action_label(row, plan, egg, f, span):
+    """What `row`'s pet is doing at scene frame `f` (the frame its scene draws), in at most eleven letters."""
+    provider = row['provider']
+    if egg is not None and egg_scene(egg, row):
+        if hasattr(egg, 'frames'):  # a hidden one-off: the name it was sealed with
+            return (getattr(egg, 'action', '') or '').upper()
+        kind = egg.partition('@')[0]
+        if kind == 'full':
+            return FULL_ACTION.get(provider, 'ALL USED')
+        return 'POWER UP' if provider == 'antigravity' else 'CELEBRATING'
+    worried = isinstance(plan, dict) and plan.get('mood') == 'worried'
+    if row.get('active'):
+        if worried:
+            return 'RUSHING'
+        if provider == 'grok':
+            return GROK_WORK.get((plan or {}).get('role'), 'REFUELING')
+        return WORK_ACTION.get(provider, 'WORKING')
+    if provider == 'claude':
+        if worried:
+            return 'PACING'
+        t = f / FPS
+        for start, end, name, _, _ in (plan.get('moves', []) if isinstance(plan, dict) else []):
+            if start <= t < end:
+                return CLAWD_ACTION.get(name, 'RESTING')
+        return 'RESTING'
+    return IDLE_ACTION.get(idle_now(plan, f, span), 'RESTING')
+
+
 def shown_rows(snapshot, now=None):
     """The accounts Arcade takes turns on: the working ones, or every one while all are idle. Four at most share
     a loop; with more, the four move on with each round of the rest flow (six minutes), so every account gets its
@@ -1776,14 +1867,14 @@ RAINBOW = ((255, 90, 82), (255, 167, 38), (255, 213, 79), (102, 187, 106), (66, 
 # catch the eye of someone working next to the clock.
 BURST = {'unique': ((176, 124, 255), (214, 166, 255), (242, 228, 255), (236, 226, 255)),
          'legend': ((255, 170, 60), (255, 214, 107), (255, 244, 200), (255, 248, 230))}  # rays..., the flash
-BURST_FRAMES = {'unique': 4, 'legend': 5}
+BURST_PICTURES = {'unique': 4, 'legend': 5}  # pictures on the clock: the cut-ins keep the length the owner set, at any pace
 BURST_PACE = {'unique': 3.5, 'legend': 4}  # their 14 and 20 steps at about four times the first pace (owner's pick)
 
 
 def light_burst(draw, f, tier, night=False):
     """The cut-in: rays from the middle, a flash and a white core; at night only the coloured rays."""
     rays, flash = BURST[tier][:3], BURST[tier][3]
-    f, n, cx, cy = f * BURST_PACE[tier], BURST_FRAMES[tier] * BURST_PACE[tier], SIZE * .42, SIZE * .58
+    f, n, cx, cy = f * BURST_PACE[tier], BURST_PICTURES[tier] * PLAYBACK * BURST_PACE[tier], SIZE * .42, SIZE * .58
     grow = min(1, (f + 1) / 4)  # the rays reach the edges in four frames
     thin = 1 if f < n * .55 else max(0, (n - f) / (n * .45))  # then thin away
     if 2 <= f < n * .5 and not night:
@@ -1863,20 +1954,21 @@ def arcade_frames(snapshot, now, egg=None):
     plans = [scene_plan(row, now, (starts[k + 1] - starts[k]) / FPS) for k, row in enumerate(shown)]
     night = time.localtime(time.time() if now is None else now).tm_hour in NIGHT_HOURS
     frames, readouts = [], {}
-    for f in range(FRAMES):
+    for f in range(0, FRAMES, PLAYBACK):
         index = max(k for k in range(len(shown)) if starts[k] <= f)
         row = shown[index]
         frame = Image.new('RGB', (SIZE, SIZE), PANEL)
         draw = ImageDraw.Draw(frame)
         used, period, old, left = info(row, now)
         oneoff = egg_scene(egg, row)
-        scene, tier = oneoff if oneoff else (SCENES[row['provider']], None)
+        scene, tier = oneoff if oneoff else (SCENES.get(row['provider'], plain_scene), None)
         # Every scene draws on its own half-size stage, then doubles: one 2 px grid for every sprite,
         # glyph and spark, and nothing spills over the header.
         stage = Image.new('RGB', (SIZE // 2, 71), PANEL)
         span = starts[index + 1] - starts[index]
         local = (f - starts[index]) * scene_speed(row, eggy)
-        scene(stage, ImageDraw.Draw(stage), (0, 0, SIZE // 2, 71), local if eggy else local % span, span,
+        scene_f = local if eggy else local % span
+        scene(stage, ImageDraw.Draw(stage), (0, 0, SIZE // 2, 71), scene_f, span,
               bool(row.get('active')), 1, plans[index])
         if not oneoff and row.get('trace_prop'):
             leave_prop(stage, row)
@@ -1894,21 +1986,28 @@ def arcade_frames(snapshot, now, egg=None):
             room -= draw_ticket(draw, 230 - (220 - room), 8, *ticket, f) + 8
         label_x = 10 + (draw_badge(draw, 10, 8, tier, f) if tier in BADGES else 0)  # while a one-off plays
         pixel_text(draw, (label_x, 8), fit_pixel(label_of(row), 2, room - (label_x - 10)), scale=2, color=TEXT)
-        if index not in readouts:  # the readout does not move: drawn once per account, pasted on every frame
+        battery = readout_look.STYLE == 'battery'
+        # the readout changes only with the account and, on the battery look, with what its pet is doing
+        slot = (index, action_label(row, plans[index], egg, scene_f, span)) if battery else index
+        if slot not in readouts:
             wins = shown_windows(row, 1)
             canvas = Image.new('RGB', (SIZE, SIZE), PANEL)
-            if len(wins) == 2:  # one account at a time has room for both windows: 5H above WEEK
+            if battery:  # the pet and what it does, then a battery per window with its reset as a clock time
+                rows = [(p, u, value.get('resets_at'), o) for value in wins for u, p, o, _ in (reading(row, value),)]
+                readout_look.draw_battery(canvas, ImageDraw.Draw(canvas), row['provider'], slot[1], rows, now)
+            elif len(wins) == 2:  # one account at a time has room for both windows: 5H above WEEK
                 draw_readout(canvas, ImageDraw.Draw(canvas),
                              [(p, u, l, o) for u, p, o, l in (info(row, now, value) for value in wins)])
             else:
                 draw_readout(canvas, ImageDraw.Draw(canvas), [(period, used, left, old)])
-            readouts[index] = canvas.crop((0, READOUT_TOP, SIZE, SIZE))
-        frame.paste(readouts[index], (0, READOUT_TOP))
-        if len(shown) > 1:
+            readouts[slot] = canvas.crop((0, READOUT_TOP, SIZE, SIZE))
+        frame.paste(readouts[slot], (0, READOUT_TOP))
+        if len(shown) > 1:  # which of the accounts this is: small dots, above the battery look's first line
+            top = 171 if battery else 175
             for k in range(len(shown)):
                 bx = 120 - len(shown) * 4 + k * 8
-                draw.rectangle((bx, 175, bx + 3, 178), fill=TEXT if k == index else TRACK)
-        if tier in BURST and getattr(egg, 'intro', True) and f < BURST_FRAMES[tier]:
+                draw.rectangle((bx, top, bx + 3, top + 2 if battery else top + 3), fill=TEXT if k == index else TRACK)
+        if tier in BURST and getattr(egg, 'intro', True) and f < BURST_PICTURES[tier] * PLAYBACK:
             light_burst(draw, f, tier, night)  # the cut-in over the whole screen
         frames.append(frame)
     return frames

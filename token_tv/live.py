@@ -3,6 +3,7 @@ import argparse
 import atexit
 import dataclasses
 import hashlib
+import io
 import json
 import os
 import socket
@@ -26,6 +27,8 @@ from token_tv.lockbox import Lockbox
 # After a unique one has played its prop stays in the scene for an hour; a legend's, till midnight.
 TRACE = {'unique': lambda now: now + 3600,
          'legend': lambda now: time.mktime(time.localtime(now)[:3] + (23, 59, 59, 0, 0, -1))}
+from token_tv.private_files import open_private, private_dir, write_private
+from token_tv.update import UpdateNotice
 from token_tv.web_assets import HTML, ASSETS, asset
 from token_tv.sources import load_config
 from token_tv.state import MIN_FETCH_SECONDS, UsageStore
@@ -105,6 +108,61 @@ def problem_of(error):
     return 'error'
 
 
+def health(snapshot):
+    """Whether TokenTV runs and, account by account, whether its reading is fresh ('fresh', 'stale', 'unknown' or
+    'none'): 'ok' only when every account's is; 'degraded' otherwise. States only, never readings or emails."""
+    accounts = {}
+    for key, row in snapshot['accounts'].items():
+        status = row.get('status')
+        accounts[key] = {name: row[name] for name in ('provider', 'status', 'error_code', 'last_success_at', 'retry_at')
+                         if row.get(name) is not None}
+        accounts[key]['freshness'] = (
+            'fresh' if status in ('ok', 'quota_unavailable') else
+            'unknown' if status == 'loading' or row.get('error_code') == 'freshness_unknown' else
+            'stale' if status == 'stale' else 'none')
+    every = all(a['freshness'] == 'fresh' for a in accounts.values())
+    from token_tv import __version__
+    return {'status': 'ok' if every else 'degraded', 'version': __version__, 'updated_at': snapshot['updated_at'],
+            'accounts': accounts}
+
+
+AUTH_CODES = ('auth_required', 'http_401', 'http_403')
+
+
+def reason_of(row):
+    """Why an account has no fresh reading, in a few words for its dashboard card, and what to do about it:
+    {'text', 'at'} where the page writes '{at}' as the time `at` on the reader's clock (HH:MM). None when fresh."""
+    from token_tv.cli import cmd
+    status, code = row.get('status'), row.get('error_code') or row.get('status')
+    if status in ('ok', 'quota_unavailable', 'loading', None):
+        return None
+    codexbar = row.get('source') == 'codexbar'
+    retry, seen = row.get('retry_at'), row.get('last_success_at')
+    if status == 'auth_required' or code in AUTH_CODES:
+        text = ('CodexBar is signed out of this account: sign it in again in CodexBar' if codexbar else
+                f'Login expired: run {cmd("connect")} --account {row["key"]}')
+        return {'text': text, 'at': None}
+    if status == 'identity_mismatch':
+        return {'text': 'Signed in as another account than the config names', 'at': None}
+    if code in ('http_429', 'rate_limited') or (code == 'http_503' and retry):
+        return {'text': 'Rate limited until {at}', 'at': retry} if retry else {'text': 'Rate limited; trying again soon', 'at': None}
+    if code == 'format_changed':
+        return {'text': f'The service changed its reply: update TokenTV ({cmd("update")})', 'at': None}
+    if code and code.startswith('unexpected:'):
+        return {'text': f'Unexpected error ({code[11:]}); if it lasts, update TokenTV ({cmd("update")})', 'at': None}
+    if code == 'codexbar_old':
+        return {'text': 'CodexBar has not measured it since {at}', 'at': seen}
+    if code == 'freshness_unknown':
+        return {'text': 'CodexBar did not say when it measured this', 'at': None}
+    if code == 'laptop_offline':
+        return {'text': 'The linked computer last sent a reading at {at}', 'at': seen}
+    if code == 'snapshot_old':
+        return {'text': 'No new reading since {at}', 'at': seen} if seen else {'text': 'No new reading', 'at': None}
+    if retry:
+        return {'text': f'Could not read it ({code}); next try {{at}}', 'at': retry}
+    return {'text': f'Could not read it ({code})', 'at': None}
+
+
 LOCKS = {}  # open lock files by path, held for the life of the process (a clock's until another replaces it)
 
 
@@ -114,8 +172,8 @@ def hold_lock(state_dir, name="live.lock"):
     path = state_dir / name
     if path in LOCKS:  # this process holds it already
         return True
-    state_dir.mkdir(parents=True, exist_ok=True)
-    handle = open(path, "a+")
+    private_dir(state_dir, close=False)  # a new one is this user's alone; main() closes the state folder itself
+    handle = open_private(path)
     try:
         if os.name == "nt":
             import msvcrt
@@ -168,11 +226,8 @@ def let_go(path):
 
 def write_json(path, data):
     path = Path(path)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    temporary = path.with_suffix(path.suffix + ".tmp")
-    temporary.write_text(json.dumps(data, ensure_ascii=False, separators=(",", ":")), encoding='utf-8')
-    os.chmod(temporary, 0o600)
-    temporary.replace(path)
+    private_dir(path.parent, close=False)  # made here, the folder is this user's alone; an existing one is left as is
+    write_private(path, json.dumps(data, ensure_ascii=False, separators=(",", ":")))
 
 
 def load_original(device, backup_path):
@@ -260,23 +315,74 @@ class QuietServer(ThreadingHTTPServer):
         super().handle_error(request, client_address)
 
 
+MARK_STRIP = 14  # px under a saved scene for TokenTV's mark, so it covers nothing of the scene or its gauges
+STAGE = (0, 28, 240, 170)  # where a scene plays on the clock face, between the header and the readout
+
+
+def slug(name):
+    return '-'.join(''.join(c if c.isalnum() else ' ' for c in str(name).lower()).split()) or 'scene'
+
+
+def keepsake(image):
+    """A found scene's GIF to keep: the scene itself, every frame and its timing, with a strip below holding a small
+    TokenTV mark in its right-hand corner. Only the scene: the header and readout show the reading of the moment it
+    is saved, which a gauge drawn into the scene when it was found (Codex's garden at 80%) would contradict."""
+    from PIL import Image, ImageDraw
+    from token_tv import gif
+    from token_tv.arcade import MUTED, PANEL
+    from token_tv.display import pixel_text
+    source = Image.open(io.BytesIO(image))
+    frames, durations = [], []
+    for n in range(getattr(source, 'n_frames', 1)):
+        source.seek(n)
+        scene = source.convert('RGB').crop(STAGE)
+        frame = Image.new('RGB', (scene.width, scene.height + MARK_STRIP), PANEL)
+        frame.paste(scene, (0, 0))
+        pixel_text(ImageDraw.Draw(frame), (scene.width - 6, scene.height + 4), 'TokenTV', color=MUTED, align='right')
+        frames.append(frame)
+        durations.append(source.info.get('duration', 70))
+    return gif.encode(gif.indexed(frames, 'Arcade'), durations)
+
+
 LOCAL_NAMES = ('127.0.0.1', 'localhost', '::1')
 
 
-def handler(store, preferences=None, locks=None, replays=None, wake=None, local_only=True):
+def lan_names(bound=None):
+    """The names and addresses this computer answers by on its networks, for a dashboard bound beyond it: its host
+    names (and name.local), its addresses, and the address it was bound to. A web page that renamed itself to this
+    computer's address (DNS rebinding) comes under its own name, which is none of these."""
+    from token_tv.device import local_addresses
+    names = {socket.gethostname(), socket.getfqdn()}
+    names |= {name + '.local' for name in list(names) if name and '.' not in name}
+    try:
+        names |= {info[4][0] for info in socket.getaddrinfo(socket.gethostname(), None)}
+    except OSError:
+        pass
+    names |= set(local_addresses())
+    if bound and bound not in ('0.0.0.0', '::'):
+        names.add(bound)
+    return {name.lower().rstrip('.') for name in names if name} | set(LOCAL_NAMES)
+
+
+def handler(store, preferences=None, locks=None, replays=None, wake=None, local_only=True, names=None, notice=None):
+    # Answered by: this computer's own names; on the network (LAN mode) also its names and addresses there.
+    hosts = set(LOCAL_NAMES) if local_only else {n.lower().rstrip('.') for n in (lan_names() if names is None else names)} | set(LOCAL_NAMES)
+
     class Handler(BaseHTTPRequestHandler):
         def log_message(self, *args):
             return
 
         def foreign_host(self):
-            """True, having answered 403, when a dashboard on this computer only is asked by another name: a web
-            page that renamed its own address to 127.0.0.1 (DNS rebinding) must not read or change anything."""
-            if not local_only:
+            """True, having answered 403, when the dashboard is asked by a name not this computer's: a web page
+            that renamed its own address to this computer (DNS rebinding) must not read or change anything."""
+            try:
+                host = (urlparse('//' + (self.headers.get('Host') or '')).hostname or '').rstrip('.')
+            except ValueError:
+                host = ''
+            if host in hosts:
                 return False
-            host = urlparse('//' + (self.headers.get('Host') or '')).hostname or ''
-            if host in LOCAL_NAMES:
-                return False
-            self.send_error(403, 'This dashboard answers only as 127.0.0.1 or localhost')
+            self.send_error(403, 'This dashboard answers only as 127.0.0.1 or localhost' if local_only else
+                            "This dashboard answers only by this computer's names and addresses")
             return True
 
         def do_GET(self):
@@ -294,6 +400,9 @@ def handler(store, preferences=None, locks=None, replays=None, wake=None, local_
             elif path in ASSETS:
                 body, content_type = asset(path)
             elif path == "/snapshot":
+                for row in snapshot["accounts"].values():
+                    row["reason"] = reason_of(row)
+                snapshot["update"] = notice.payload() if notice else None  # a newer release, once a day from PyPI
                 body = json.dumps(snapshot, ensure_ascii=False, separators=(",", ":")).encode()
             elif path.startswith("/snapshot/") and path[10:] in snapshot["accounts"]:
                 body = json.dumps(snapshot["accounts"][path[10:]], ensure_ascii=False, separators=(",", ":")).encode()
@@ -311,22 +420,28 @@ def handler(store, preferences=None, locks=None, replays=None, wake=None, local_
             elif path == "/watch.json":
                 body = json.dumps(watch_payload(snapshot), ensure_ascii=False, separators=(",", ":")).encode()
             elif path == "/health":
-                body = json.dumps({"status": "ok", "updated_at": snapshot["updated_at"]}).encode()
+                body = json.dumps(health(snapshot)).encode()
             elif path == "/collection":
                 body = json.dumps(locks.collection() if locks else {'found': [], 'total': 0, 'hidden': 0}).encode()
             elif path.startswith("/collection/") and path.endswith(".gif") and locks:
-                box = locks.replay(path[len("/collection/"):-len(".gif")])
+                box = locks.replay(path[len("/collection/"):-len(".gif")])  # only a scene already found
                 if not box or box.key not in snapshot["accounts"]:
                     self.send_error(404)
                     return
                 body, content_type = render_page(snapshot, 0, 'arcade', egg=box), "image/gif"
+                if parse_qs(url.query).get('save') == ['1']:  # the collection book's Save: a keepsake to download
+                    self.reply(200, keepsake(body), content_type,
+                               {'Content-Disposition': f'attachment; filename="tokentv-{slug(box.name)}.gif"'})
+                    return
             else:
                 self.send_error(404)
                 return
             self.reply(200, body, content_type)
 
-        def reply(self, status, body, content_type='application/json; charset=utf-8'):
+        def reply(self, status, body, content_type='application/json; charset=utf-8', headers=None):
             self.send_response(status)
+            for name, value in (headers or {}).items():
+                self.send_header(name, value)
             self.send_header("Content-Type", content_type)
             self.send_header("Content-Length", str(len(body)))
             self.send_header("Cache-Control", "no-store")
@@ -417,6 +532,10 @@ def main():
     if config.get("font"):
         os.environ["TOKEN_TV_FONT"] = config["font"]
     state_dir = Path(args.state_dir)
+    try:
+        private_dir(state_dir)  # history, snapshots and the clock's backup: this user's alone
+    except OSError as error:
+        raise SystemExit(f"TokenTV cannot write its state folder {state_dir} ({error.strerror or error}).")
     held = {'path': None}  # the clock lock this run holds, as it was taken
     if not (args.once or args.restore_display):
         try:
@@ -442,8 +561,8 @@ def main():
             raise SystemExit(f"Another TokenTV already drives the clock at {config['device_url']} "
                              f"(with another config). One clock takes one TokenTV.")
         pid_file, url_file = state_dir / "live.pid", state_dir / "live.url"
-        pid_file.write_text(str(os.getpid()), encoding='utf-8')  # how `autostart off` ends it on Windows; gone again at exit
-        url_file.write_text(f"http://{'127.0.0.1' if args.host in ('0.0.0.0', '') else args.host}:{args.port}", encoding='utf-8')
+        write_private(pid_file, str(os.getpid()))  # how `autostart off` ends it on Windows; gone again at exit
+        write_private(url_file, f"http://{'127.0.0.1' if args.host in ('0.0.0.0', '') else args.host}:{args.port}")
         atexit.register(lambda: (pid_file.unlink(missing_ok=True), url_file.unlink(missing_ok=True)))
     # The clock's model is asked in the background, so a clock that hangs never keeps the dashboard from opening.
     device = open_display(config["device_url"]) if config.get("device_url") and args.restore_display else None
@@ -559,7 +678,7 @@ def main():
                 name = FILES[1] if image[:4] == b"GIF8" else FILES[0]
                 digest = hashlib.sha256(image).hexdigest()
                 if (name, digest) != last_upload:  # identical frames are not rewritten to flash
-                    (state_dir / name).write_bytes(image)
+                    write_private(state_dir / name, image)
                     # The clock plays and answers on one core: while it takes a picture the animation holds. So
                     # the send and the switch go together as the loop ends: the loop plays out whole, holds a
                     # moment, and the new one starts. An event or a box goes at once.
@@ -715,12 +834,16 @@ def main():
 
     try:  # the dashboard's port first: if another program has it, stop before touching the clock
         local = args.host in LOCAL_NAMES  # bound to this computer only: answer only by its own names
-        server = QuietServer((args.host, args.port), handler(store, preferences, locks, replays, preferences.changed, local))
+        names = None if local else lan_names(args.host)  # on the network: by its names and addresses there
+        notice = UpdateNotice(state_dir, enabled=config.get('update_check', True))
+        server = QuietServer((args.host, args.port), handler(store, preferences, locks, replays, preferences.changed, local, names,
+                                                             notice))
     except OSError as error:
         raise SystemExit(f"Port {args.port} is in use on this computer ({error.strerror or error}). "
                          f"Pass another with --port, or use {start_command()}, which picks a free one.")
     thread = threading.Thread(target=poll, daemon=True)
     thread.start()
+    threading.Thread(target=notice.watch, args=(stopping,), daemon=True).start()
     try:
         with server:
             print(f"TokenTV live listening at http://{args.host}:{args.port}", flush=True)

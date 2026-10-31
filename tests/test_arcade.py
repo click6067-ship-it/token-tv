@@ -87,7 +87,7 @@ class ArcadeFaceTests(unittest.TestCase):
             for index in range(image.n_frames):  # identical neighbours are merged, the loop keeps its length
                 image.seek(index)
                 total += image.info['duration']
-            self.assertEqual(total, arcade.FRAMES * arcade.FRAME_MS)
+            self.assertEqual(total, arcade.FRAMES // arcade.PLAYBACK * arcade.FRAME_MS)
             durations = set()
             for index in range(image.n_frames):
                 image.seek(index)
@@ -151,8 +151,8 @@ class ArcadeFaceTests(unittest.TestCase):
         for index in range(image.n_frames):
             image.seek(index)
             total += image.info['duration']
-        self.assertLessEqual(image.n_frames, arcade.FRAMES // 2)
-        self.assertEqual(total, arcade.FRAMES * arcade.FRAME_MS)
+        self.assertLessEqual(image.n_frames, arcade.FRAMES // arcade.PLAYBACK // 2)
+        self.assertEqual(total, arcade.FRAMES // arcade.PLAYBACK * arcade.FRAME_MS)
         self.assertEqual(arcade.gif_seconds(data), arcade.LOOP_SECONDS)
 
 
@@ -277,8 +277,9 @@ class ReadoutTests(unittest.TestCase):
         from token_tv import readout
         now = time.mktime((2026, 10, 28, 12, 0, 0, 0, 0, -1))
         cases = ([('WEEK', 47, 4 * D)], [('5H', 41, 2 * H), ('WEEK', 63, 3 * D)], [('MONTH', 100, None)])
+        before = readout.STYLE, readout.LCD_BAR
         try:
-            for style, bar in (('score', None), ('chips', None), ('pixel', None), ('lcd', 'cells'), ('lcd', 'ticks'),
+            for style, bar in (('battery', None), ('score', None), ('chips', None), ('pixel', None), ('lcd', 'cells'), ('lcd', 'ticks'),
                                ('lcd', 'dots'), ('lcd', 'zones'), ('lcd', 'capsule'), ('lcd', 'capsule_along'),
                                ('lcd', 'capsule_lit'), ('lcd', 'capsule_heat')):
                 readout.STYLE = style
@@ -292,7 +293,7 @@ class ReadoutTests(unittest.TestCase):
                 data['accounts']['codex_a']['windows'] = []
                 arcade.arcade_frames(data, now)  # no reading at all: dashes, no crash
         finally:
-            readout.STYLE, readout.LCD_BAR = 'lcd', 'capsule'
+            readout.STYLE, readout.LCD_BAR = before
 
     def test_seven_segment_digits_light_their_own_strokes(self):
         from token_tv import readout

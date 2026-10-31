@@ -74,3 +74,32 @@ jobs:
           sleep 5
           if curl -sf "$(cat "$url_file" 2>/dev/null || echo http://127.0.0.1:8787)/display"; then echo "still running after off"; exit 1; fi
           token-tv autostart status --config "$cfg" | grep -q "does not start"
+
+  no-python:
+    # The npm launcher where no Python 3.10+ and no uv can be found: it fetches its pinned uv, checks the digest it
+    # keeps, and runs TokenTV with the Python that uv brings. The runner has Python; PATH here hides it.
+    name: npx with no Python
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: The system's tools but no Python or uv, then the launcher from a packed copy
+        run: |
+          npm pack --silent --pack-destination "$RUNNER_TEMP"
+          mkdir "$RUNNER_TEMP/npm" && tar -xzf "$RUNNER_TEMP"/token-tv-*.tgz -C "$RUNNER_TEMP/npm"
+          only="$RUNNER_TEMP/only"; mkdir "$only"
+          for f in /usr/bin/* /bin/*; do
+            name=$(basename "$f")
+            case "$name" in python*|pip*|pydoc*|uv|uvx|py) continue ;; esac
+            if [ -f "$f" ] && [ -x "$f" ]; then ln -sf "$f" "$only/$name"; fi
+          done
+          ln -sf "$(command -v node)" "$only/node"
+          if PATH="$only" command -v python3 || PATH="$only" command -v python || PATH="$only" command -v uvx; then
+            echo "a Python or uv is still on PATH"; exit 1
+          fi
+          export XDG_CACHE_HOME="$RUNNER_TEMP/cache" XDG_DATA_HOME="$RUNNER_TEMP/data"
+          PATH="$only" node "$RUNNER_TEMP/npm/package/bin/token-tv.js" --version | tee "$RUNNER_TEMP/version.out"
+          grep -q "token-tv $(node -p "require('./package.json').version")" "$RUNNER_TEMP/version.out"
+          ls "$XDG_CACHE_HOME"/token-tv/uv-*/uvx  # the pinned uv was fetched: the bootstrap branch ran

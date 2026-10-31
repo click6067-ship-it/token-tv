@@ -8,6 +8,7 @@
     token-tv demo      render every clock face with sample data
     token-tv connect   sign an account in with its official CLI
     token-tv run       start the dashboard and drive the clock
+    token-tv update    put the newest release in the background copy's place
 """
 import argparse
 import io
@@ -20,6 +21,8 @@ import time
 from pathlib import Path
 from http.client import HTTPException
 from urllib.parse import urlparse
+
+from token_tv.private_files import create_private, private_dir, write_private
 
 PROVIDERS = {
     # provider: (CLI command, default home, file the CLI writes after login, login hint)
@@ -136,10 +139,8 @@ def setup(args):
     if device:
         config['device_url'] = device
     try:
-        path.parent.mkdir(parents=True, exist_ok=True)
-        with open(path, 'x', encoding='utf-8') as handle:  # 'x' refuses to replace a file created meanwhile
-            json.dump(config, handle, indent=2)
-            handle.write('\n')
+        private_dir(path.parent, close=False)
+        create_private(path, json.dumps(config, indent=2) + '\n')  # refuses to replace a file created meanwhile
     except OSError as error:
         print(f'Could not write {path}: {error.strerror or error}', file=sys.stderr)
         return 1
@@ -173,7 +174,7 @@ def doctor(args):
     if config is None:
         return 1
     ready = True
-    unreported = []
+    unreported, failing = [], []
     for account in config['accounts']:
         provider = account['provider']
         if account.get('codexbar_command') or account.get('codexbar_url'):
@@ -185,6 +186,9 @@ def doctor(args):
                 row = fetch_account(account)
                 good = row['status'] in ('ok', 'quota_unavailable')
                 line += f'live check {"ok" if good else row["status"].upper()}'
+                if not good:
+                    line += f' ({row.get("error_code") or row["status"]})'
+                    failing.append((account, row))
                 if good and not row.get('identity_verified'):
                     line += ' (CodexBar reported no email)'
                     unreported.append(account['alias'])
@@ -206,7 +210,9 @@ def doctor(args):
             line += f'live check {"ok" if good else row["status"].upper()}'
             ready &= bool(good)
             if not good:
+                line += f' ({row.get("error_code") or ("identity_unverified" if row["status"] == "ok" else row["status"])})'
                 line += f' -> {cmd("connect")} --account {account["key"]}' if found else ''
+                failing.append((account, row))
         elif state == 'yes':
             line += 'login file present (not verified yet)'
         elif state == 'keychain':
@@ -219,6 +225,9 @@ def doctor(args):
             ready = False
             line += f'\n{"":<18}install the {provider} CLI, then log in ({PROVIDERS[provider][3]})'
         print(line)
+    for account, row in failing:  # one line each, the same shape every time, for a canary to read: no emails
+        code = row.get('error_code') or ('identity_unverified' if row['status'] == 'ok' else row['status'])
+        print(f'failing: provider={account["provider"]} alias={json.dumps(account["alias"], ensure_ascii=False)} status={row["status"]} error_code={code}')
     print('Clock: ' + (config.get('device_url') or 'none (dashboard only)'))
     if not ready:
         print(f'Fix the lines above, then run {cmd("doctor")} again.')
@@ -414,10 +423,8 @@ def start(args):
         config = {'poll_seconds': 60, 'accounts': accounts, 'display_style': args.face or 'arcade'}
         if device:
             config['device_url'] = device
-        path.parent.mkdir(parents=True, exist_ok=True)
-        with open(path, 'x', encoding='utf-8') as handle:
-            json.dump(config, handle, indent=2)
-            handle.write('\n')
+        private_dir(path.parent, close=False)
+        create_private(path, json.dumps(config, indent=2) + '\n')
         print(f'Saved {path} (emails and paths only, no secrets).')
     config = read_config(path)
     if config is None:
@@ -431,6 +438,8 @@ def start(args):
     if args.face and config.get('display_style') != args.face:  # the face picked on the web demo, kept from now on
         config['display_style'] = args.face
         update_config(path, display_style=args.face)
+    if config.get('device_url'):
+        say_clock(config['device_url'])
     from token_tv import autostart
     if interactive and not existed and autostart.status() == 'off' and \
             ask('Start TokenTV with this computer and keep it running? [Y/n]', 'y').lower().startswith('y'):
@@ -463,6 +472,19 @@ def start(args):
     sys.argv = ['token-tv start', '--config', str(path), '--state-dir', str(path.parent / 'state'), '--port', str(port)]
     live.main()
     return 0
+
+
+def say_clock(url):
+    """The clock's model and firmware, as the clock says them; for a pair not checked yet, where to report how it
+    goes. Nothing when it does not answer: a model is never made up."""
+    from token_tv import device
+    info = device.clock_info(url)
+    if not info:
+        return
+    print(f'Clock: {info["model"]}, firmware {info["firmware"] or "not reported by the clock"}')
+    if not device.verified(info):
+        print(f'This clock and firmware are not checked with TokenTV yet. Tell us how it goes (no Wi-Fi names or '
+              f'passwords): {device.REPORT_URL}')
 
 
 def codexbar_accounts(only, have, interactive):
@@ -523,7 +545,7 @@ def update_config(path, **changes):
     (the face picked on its dashboard, say), and an older copy here must not undo it."""
     current = json.loads(path.read_text(encoding='utf-8'))
     current.update(changes)
-    path.write_text(json.dumps(current, indent=2) + '\n', encoding='utf-8')
+    write_private(path, json.dumps(current, indent=2) + '\n')
 
 
 def refuses_only(path, config, only):
@@ -568,7 +590,7 @@ def add(args):
     config.setdefault('accounts', []).append({
         'key': key, 'alias': f'{args.provider.upper()} {letter}', 'provider': args.provider, 'email': email,
         'source_home': str(path.parent / 'homes' / key)})  # its own login; the everyday one stays as it is
-    path.write_text(json.dumps(config, indent=2) + '\n', encoding='utf-8')
+    write_private(path, json.dumps(config, indent=2) + '\n')
     print(f'Added {args.provider.upper()} {letter} ({email}) to {path}.')
     if args.no_login:
         print(f'Sign it in later with: {cmd(f"connect --account {key}")}')
@@ -606,6 +628,90 @@ def autostart_command(args):
         state = autostart.status()
         print({'on': 'TokenTV starts with this computer.', 'off': 'TokenTV does not start with this computer.',
                'other': 'Another program owns the TokenTV entry; TokenTV leaves it alone.'}[state])
+    return 0
+
+
+def running_version(port):
+    """The release of the TokenTV whose dashboard answers on this port of this computer, or None."""
+    from urllib.request import ProxyHandler, build_opener
+    try:
+        with build_opener(ProxyHandler({})).open(f'http://127.0.0.1:{port}/health', timeout=2) as response:
+            version = json.loads(response.read(65536)).get('version')
+    except (OSError, ValueError, TypeError, AttributeError, HTTPException):
+        return None
+    return version if isinstance(version, str) else None
+
+
+def update(args):
+    """Stop the background copy, register it again with the newest release on PyPI and start it; the config and the
+    logins are left as they are. The copy that runs is what is compared, not this one: `npx token-tv@latest update`
+    is the newest itself while the background copy may not be. A TokenTV running in a terminal is told what to type
+    instead."""
+    from token_tv import __version__, autostart
+    from token_tv import update as releases
+    try:
+        latest = releases.newest()
+    except (OSError, ValueError, HTTPException):
+        latest = None
+    if not latest:
+        print('Could not read the newest release from PyPI; nothing was changed. Try again later.', file=sys.stderr)
+        return 1
+    path = Path(args.config).expanduser()
+    tail = 'start' + (f' --config {autostart.quoted(path)}' if str(path) != default_config() else '')
+    state = autostart.status()
+    if state == 'other':
+        place, _ = autostart.place()
+        print(f'{place} was not written by TokenTV; leaving it alone. TokenTV {latest} is out: '
+              f'{autostart.by_hand(latest, tail)}', file=sys.stderr)
+        return 1
+    if state == 'off':
+        port, here = dashboard_port()
+        running = running_version(port) if here else __version__
+        if running and not releases.newer(latest, running):
+            print(f'TokenTV {running} is the newest release; nothing to do.')
+            return 0
+        where = 'TokenTV runs in a terminal here: stop it there (Ctrl+C), then run' if here else 'Start it with'
+        print(f'TokenTV {latest} is out (this is {running or "an older one"}). {where}: {autostart.by_hand(latest, tail)}')
+        return 0
+    place, kind = autostart.place()
+    before, saved = autostart.entry_argv(place, kind), place.read_bytes()
+    config = autostart.entry_config(place, kind) or str(path)
+    path_env = autostart.entry_path(place, kind)  # where the CLIs were found when it was set up, kept
+    port, here = dashboard_port()
+    running = autostart.entry_version(before) or (running_version(port) if here else None)
+    if running and not releases.newer(latest, running):
+        print(f'The background copy runs TokenTV {running}, the newest release; nothing to do.')
+        return 0
+    try:
+        steps = autostart.fetch_steps(latest)
+        autostart.remove()  # the background copy stops first, so nothing it has open is replaced under it
+    except OSError as error:
+        print(f'Could not stop the background copy: {error}. Nothing was changed.', file=sys.stderr)
+        return 1
+    stopped = time.monotonic()
+    print(f'Fetching TokenTV {latest}...', flush=True)
+    for step in steps:
+        done = autostart.run(step, timeout=900)
+        if done.returncode:
+            break
+    good = not done.returncode and f'token-tv {latest}' in (done.stdout or '')
+    if kind == 'startup':  # Windows: the old loop sleeps 30 s after its copy ends, then ends itself if its file is gone
+        wait = 32 - (time.monotonic() - stopped)
+        if wait > 0:
+            print('Waiting for the old background loop to end...', flush=True)
+            time.sleep(wait)
+    try:
+        if not good:  # what ran before runs again, exactly as it was
+            autostart.install(config, exact=saved)
+            print(f'Could not get TokenTV {latest} ({(done.stderr or done.stdout or "no version printed").strip()[:200]}); '
+                  f'the background copy runs {running or "its previous release"} again.', file=sys.stderr)
+            return 1
+        autostart.install(config, latest, path_env)
+    except OSError as error:
+        print(f'Could not start the background copy again ({error}). Start it with: {cmd("autostart on")}', file=sys.stderr)
+        return 1
+    print(f'TokenTV {latest} now runs in the background (was {running or "an older copy"}), for {config}; the config '
+          f'and the logins are as they were.')
     return 0
 
 
@@ -652,6 +758,7 @@ def main(argv=None):
     d = commands.add_parser('demo', help='render every clock face with sample data')
     d.add_argument('--out', default='token-tv-demo', help='output folder (default: %(default)s)')
     d.add_argument('--scale', type=int, default=3, help='extra enlarged PNG copy (1 = none)')
+    commands.add_parser('update', parents=[config], help="put the newest release in the background copy's place")
     commands.add_parser('connect', parents=[config], help='log an account in with its official CLI',
                         add_help=False)
     commands.add_parser('run', parents=[config], help='start the dashboard and drive the clock',
@@ -676,7 +783,7 @@ def main(argv=None):
         parser.print_help()
         return 0
     return {'setup': setup, 'doctor': doctor, 'demo': demo, 'start': start, 'add': add,
-            'autostart': autostart_command}[args.command](args)
+            'autostart': autostart_command, 'update': update}[args.command](args)
 
 
 def entry():

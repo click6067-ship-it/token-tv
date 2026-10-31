@@ -1,3 +1,4 @@
+import sys
 import importlib.util
 import json
 import tempfile
@@ -6,6 +7,8 @@ from pathlib import Path
 
 from token_tv import __version__, catalog
 from token_tv.display import STYLES
+sys.path.insert(0, str(Path(__file__).resolve().parent))  # helpers.py, however the tests are run
+from helpers import temp_dir
 
 ROOT = Path(__file__).resolve().parents[1]
 spec = importlib.util.spec_from_file_location('update_theme_votes', ROOT / 'scripts' / 'update_theme_votes.py')
@@ -103,14 +106,14 @@ class CatalogTest(unittest.TestCase):
                 catalog.validate_catalog(broken)
 
     def test_corrupt_vote_file_means_unavailable_not_zero(self):
-        path = Path(tempfile.mkdtemp()) / 'votes.json'
+        path = temp_dir(self) / 'votes.json'
         path.write_text('{"counts": ', encoding='utf-8')
         votes = catalog.load_votes(path)
         self.assertEqual(votes['counts'], {})
         self.assertIsNone(votes['last_attempt_at'])
 
     def test_bad_or_missing_count_times_are_unknown_not_new(self):
-        path = Path(tempfile.mkdtemp()) / 'votes.json'
+        path = temp_dir(self) / 'votes.json'
         path.write_text(json.dumps({'last_attempt_at': 'yesterday', 'counts': {
             '11': {'count': 5, 'status': 'fresh', 'fetched_at': 'not a time'},  # unreadable -> unavailable
             '12': {'count': 5, 'status': 'fresh'},                              # fresh without time -> unavailable
@@ -142,7 +145,7 @@ class CatalogTest(unittest.TestCase):
 
     def test_broken_bundled_catalog_still_lists_installed_faces(self):
         from unittest import mock
-        with mock.patch.object(catalog, 'CATALOG_PATH', Path(tempfile.mkdtemp()) / 'missing.json'):
+        with mock.patch.object(catalog, 'CATALOG_PATH', temp_dir(self) / 'missing.json'):
             data = catalog.payload()
         self.assertTrue(data['catalog_error'])
         self.assertEqual({t['id'] for t in data['themes'] if t['local']}, set(STYLES))

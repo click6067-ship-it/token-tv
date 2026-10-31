@@ -4,6 +4,7 @@ Linux: a systemd user service. macOS: a LaunchAgent. Windows: a hidden entry in 
 `token-tv start --yes --no-browser` for one config. Only files TokenTV wrote are ever replaced or removed.
 """
 import os
+import re
 import shlex
 import shutil
 import signal
@@ -57,22 +58,121 @@ def log_hint():
             'startup': 'none on Windows'}[kind]
 
 
-def command(config):
+def command(config, version=None):
     """How the computer starts TokenTV: this same Python (a pipx, pip or npx install keeps it), or uvx when this
-    run is uvx's throwaway copy, which uv may clear."""
+    run is uvx's throwaway copy, which uv may clear. `version` (default: this one) for pipx run and uvx, which
+    fetch a release; the others run what is installed."""
+    from token_tv import __version__
+    version = version or __version__
     tail = ['start', '--yes', '--no-browser', '--config', str(Path(config).expanduser().resolve())]
     if pipx_run() and shutil.which('pipx'):  # pipx fetches this release again when its cache has let it go
-        from token_tv import __version__
-        return [shutil.which('pipx'), 'run', '--spec', f'token-tv=={__version__}', 'token-tv', *tail]
+        return [shutil.which('pipx'), 'run', '--spec', f'token-tv=={version}', 'token-tv', *tail]
     if throwaway():
-        uvx = os.environ.get('TOKEN_TV_UVX') or shutil.which('uvx')  # the npm launcher's own uv, if it fetched one
+        uvx = own_uvx()
         if uvx:  # this release, not whatever is newest at the next boot
-            from token_tv import __version__
-            return [uvx, f'token-tv@{__version__}', *tail]
+            return [uvx, f'token-tv@{version}', *tail]
     python = Path(sys.executable)
     if sys.platform == 'win32' and (python.parent / 'pythonw.exe').exists():
         python = python.parent / 'pythonw.exe'  # no console window
     return [str(python), '-m', 'token_tv', *tail]
+
+
+def own_uvx():
+    return os.environ.get('TOKEN_TV_UVX') or shutil.which('uvx')  # the npm launcher's own uv, if it fetched one
+
+
+def pipx_venv():
+    """Whether this copy is one `pipx install` keeps in its own venv."""
+    parts = Path(sys.prefix).parts
+    return 'pipx' in parts and 'venvs' in parts
+
+
+def fetch_steps(version):
+    """How this copy gets release `version`: the commands to run in order, the last printing the version that
+    will run. uvx and pipx run fetch it; pip (and the npm launcher's venv) installs it over this one."""
+    if pipx_run() and shutil.which('pipx'):
+        return [[shutil.which('pipx'), 'run', '--spec', f'token-tv=={version}', 'token-tv', '--version']]
+    if throwaway():
+        uvx = own_uvx()
+        if not uvx:
+            raise OSError('uvx is not on PATH here, so TokenTV cannot fetch the new release')
+        return [[uvx, f'token-tv@{version}', '--version']]
+    check = [sys.executable, '-m', 'token_tv', '--version']
+    if pipx_venv() and shutil.which('pipx'):
+        return [[shutil.which('pipx'), 'install', '--force', f'token-tv=={version}'], check]
+    return [[sys.executable, '-m', 'pip', 'install', '--upgrade', '--disable-pip-version-check', f'token-tv=={version}'], check]
+
+
+def by_hand(version, tail='start'):
+    """What to type to run release `version` in a terminal, the way this person runs TokenTV; `tail` the command
+    and its options (start --config ...)."""
+    if how() == 'npx token-tv':
+        return f'npx token-tv@latest {tail}'
+    if pipx_run():
+        return f'pipx run --spec token-tv=={version} token-tv {tail}'
+    if throwaway():
+        return f'uvx token-tv@latest {tail}'
+    return f'{quoted(sys.executable)} -m pip install --upgrade token-tv, then {how()} {tail}'
+
+
+def entry_argv(path, kind):
+    """The command the entry at `path` runs, as a list, or None."""
+    try:
+        text = read(path)
+    except OSError:
+        return None
+    if kind == 'startup':  # shell.Run "<""a"" ""b"">", 0, True
+        line = next((line.strip() for line in text.splitlines() if line.strip().startswith('shell.Run "')), '')
+        inner = line[len('shell.Run "'):line.rfind('", 0')] if '", 0' in line else ''
+        return re.findall(r'""(.*?)""', inner) or None
+    if kind == 'launchd':
+        import html
+        array = text.split('<key>ProgramArguments</key>', 1)[-1].split('</array>', 1)[0]
+        return [html.unescape(a) for a in re.findall(r'<string>(.*?)</string>', array)] or None
+    line = next((line for line in text.splitlines() if line.startswith('ExecStart=')), '')
+    try:
+        return shlex.split(line[len('ExecStart='):].replace('%%', '%')) or None
+    except ValueError:
+        return None
+
+
+def entry_config(path, kind):
+    """The config the entry at `path` runs TokenTV for, or None."""
+    if kind == 'startup':
+        try:
+            text = read(path)
+        except OSError:
+            return None
+        return next((line.split(':', 1)[1].strip() for line in text.splitlines() if line.startswith("' config:")), None)
+    argv = entry_argv(path, kind) or []
+    return argv[argv.index('--config') + 1] if '--config' in argv[:-1] else None
+
+
+def entry_path(path, kind):
+    """The PATH the entry at `path` gives TokenTV (where the CLIs were found when it was set up), or None."""
+    try:
+        text = read(path)
+    except OSError:
+        return None
+    if kind == 'startup':
+        found = re.search(r'^shell\.Environment\("Process"\)\("PATH"\) = "(.*)"\s*$', text, re.M)
+        return found.group(1).replace('""', '"') if found else None
+    if kind == 'launchd':
+        import html
+        found = re.search(r'<key>PATH</key><string>(.*?)</string>', text)
+        return html.unescape(found.group(1)) if found else None
+    found = re.search(r'^Environment="PATH=(.*)"\s*$', text, re.M)
+    return re.sub(r'\\(.)', r'\1', found.group(1)).replace('%%', '%') if found else None
+
+
+def entry_version(argv):
+    """The release an entry's command pins (uvx token-tv@X, pipx --spec token-tv==X), or None when it runs what is
+    installed."""
+    for arg in argv or ():
+        found = re.fullmatch(r'token-tv(?:@|==)(\d+(?:\.\d+)*)', arg)
+        if found:
+            return found.group(1)
+    return None
 
 
 def place():
@@ -86,15 +186,17 @@ def place():
     return base / 'systemd/user/token-tv.service', 'systemd'
 
 
-def entry(argv, kind, path=None):
+def entry(argv, kind, path=None, launcher=None):
     """The text of the entry that runs `argv`. It keeps this terminal's PATH, where the Claude, Codex and Grok CLIs
     (and Node, for some) were found, and it starts again whenever it stops: a copy already running in a terminal
-    makes it wait, and it takes over once that copy is closed."""
+    makes it wait, and it takes over once that copy is closed. `launcher` 'npx' tells that copy it came from npx, so
+    the commands it shows read `npx token-tv ...`."""
     path = os.environ.get('PATH', '') if path is None else path
     if kind == 'systemd':
         quoted = path.replace('%', '%%').replace('\\', '\\\\').replace('"', '\\"')
+        npx = 'Environment="TOKEN_TV_LAUNCHER=npx"\n' if launcher == 'npx' else ''
         return (f'# {MARK}\n[Unit]\nDescription=TokenTV desk clock\nAfter=network-online.target\n\n'
-                f'[Service]\nEnvironment="PATH={quoted}"\nExecStart={shlex.join(argv).replace("%", "%%")}\n'
+                f'[Service]\nEnvironment="PATH={quoted}"\n{npx}ExecStart={shlex.join(argv).replace("%", "%%")}\n'
                 f'Restart=always\nRestartSec=30\n\n[Install]\nWantedBy=default.target\n')
     if kind == 'launchd':
         args = ''.join(f'<string>{xml(a)}</string>' for a in argv)
@@ -102,7 +204,8 @@ def entry(argv, kind, path=None):
         return (f'<?xml version="1.0" encoding="UTF-8"?>\n<!-- {MARK} -->\n<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST '
                 f'1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">\n<plist version="1.0"><dict>'
                 f'<key>Label</key><string>{LABEL}</string><key>ProgramArguments</key><array>{args}</array>'
-                f'<key>EnvironmentVariables</key><dict><key>PATH</key><string>{xml(path)}</string></dict>'
+                f'<key>EnvironmentVariables</key><dict><key>PATH</key><string>{xml(path)}</string>'
+                f'{"<key>TOKEN_TV_LAUNCHER</key><string>npx</string>" if launcher == "npx" else ""}</dict>'
                 f'<key>RunAtLoad</key><true/><key>KeepAlive</key><true/><key>ThrottleInterval</key><integer>30</integer>'
                 f'<key>StandardOutPath</key><string>{log}</string><key>StandardErrorPath</key><string>{log}</string>'
                 f'</dict></plist>\n')
@@ -113,6 +216,7 @@ def entry(argv, kind, path=None):
         f"' {MARK}", f"' config: {config}",
         'Set shell = CreateObject("WScript.Shell")', 'Set files = CreateObject("Scripting.FileSystemObject")',
         f'shell.Environment("Process")("PATH") = "{path.replace(chr(34), chr(34) * 2)}"',
+        *(['shell.Environment("Process")("TOKEN_TV_LAUNCHER") = "npx"'] if launcher == 'npx' else []),
         'Do While files.FileExists(WScript.ScriptFullName)', f'  shell.Run "{line}", 0, True', '  WScript.Sleep 30000',
         'Loop', ''])
 
@@ -133,10 +237,10 @@ def ours(path):
         return False
 
 
-def run(argv):
+def run(argv, timeout=60):
     """A system tool's result; a missing or hung tool reads as a failure, not an exception of another kind."""
     try:
-        return subprocess.run(argv, capture_output=True, text=True, timeout=60)
+        return subprocess.run(argv, capture_output=True, text=True, timeout=timeout)
     except (OSError, subprocess.SubprocessError) as error:
         return subprocess.CompletedProcess(argv, 1, '', f'{argv[0]}: {error}')
 
@@ -147,17 +251,23 @@ def status():
     return 'off' if not path.exists() else 'on' if ours(path) else 'other'
 
 
-def install(config):
-    """Write the entry and start TokenTV now. Returns a line to show, or raises OSError with the reason."""
+def install(config, version=None, path_env=None, exact=None):
+    """Write the entry and start TokenTV (release `version`, default this one) now, with `path_env` as its PATH
+    (default: this terminal's); or put back `exact`, the bytes of an entry as it was. Returns a line to show, or
+    raises OSError with the reason."""
     path, kind = place()
     if path.exists() and not ours(path):
         raise OSError(f'{path} exists and was not written by TokenTV; leaving it alone')
-    argv = command(config)
     before = path.read_bytes() if path.exists() else None
     path.parent.mkdir(parents=True, exist_ok=True)
-    # wscript reads a script as UTF-16 when it starts with a byte-order mark, else in the system's code page,
-    # which cannot hold every user name in a path; systemd and launchd read UTF-8.
-    path.write_text(entry(argv, kind), encoding='utf-16' if kind == 'startup' else 'utf-8')
+    if exact is not None:
+        path.write_bytes(exact)
+    else:
+        # wscript reads a script as UTF-16 when it starts with a byte-order mark, else in the system's code page,
+        # which cannot hold every user name in a path; systemd and launchd read UTF-8.
+        launcher = 'npx' if how() == 'npx token-tv' else None  # the copy it starts writes its commands the same way
+        path.write_text(entry(command(config, version), kind, path_env, launcher),
+                        encoding='utf-16' if kind == 'startup' else 'utf-8')
 
     def undo(reason):  # put back what was there, so a failed try is not taken for a working entry
         path.write_bytes(before) if before is not None else path.unlink()
@@ -187,6 +297,36 @@ def install(config):
     return f'TokenTV now runs in the background and starts with this computer. Stop it with: {how()} autostart off'
 
 
+def windows_args(line):
+    """A Windows command line split into its arguments, as programs read them (quotes group, and go)."""
+    args, word, quoted, any_ = [], [], False, False
+    for char in line:
+        if char == '"':
+            quoted, any_ = not quoted, True
+        elif char in ' \t' and not quoted:
+            if word or any_:
+                args.append(''.join(word))
+            word, any_ = [], False
+        else:
+            word.append(char)
+    if word or any_:
+        args.append(''.join(word))
+    return args
+
+
+def runs_tokentv(pid, config):
+    """Whether process `pid` is TokenTV started for `config`: its command line, as Windows reports it, runs token_tv
+    (or the token-tv command) with exactly this --config. Anything else, or no answer, is not ours to end."""
+    import ntpath
+    asked = run(['powershell', '-NoProfile', '-NonInteractive', '-Command',
+                 f'(Get-CimInstance Win32_Process -Filter "ProcessId={int(pid)}").CommandLine'])
+    args = windows_args(asked.stdout.strip()) if asked.returncode == 0 else []
+    names = [ntpath.basename(a).lower() for a in args]
+    tokentv = 'token_tv' in names or any(n in ('token-tv', 'token-tv.exe') or n.startswith('token-tv@') for n in names)
+    same = lambda path: ntpath.normcase(ntpath.normpath(path)) == ntpath.normcase(ntpath.normpath(config))
+    return tokentv and any(a == '--config' and i + 1 < len(args) and same(args[i + 1]) for i, a in enumerate(args))
+
+
 def remove():
     """Stop TokenTV and remove the entry. Returns a line to show; raises OSError, keeping the entry, if TokenTV
     could not be stopped (so `off` can be tried again)."""
@@ -213,8 +353,7 @@ def remove():
         pid_file = Path(config).parent / 'state' / 'live.pid' if config else None
         try:
             pid = int(pid_file.read_text(encoding='utf-8'))
-            shown = run(['tasklist', '/FI', f'PID eq {pid}', '/FO', 'CSV', '/NH']).stdout.lower()
-            if 'python' not in shown:  # that number now belongs to another program, or to nothing
+            if not runs_tokentv(pid, config):  # that number now belongs to another program, or to nothing
                 raise ValueError(pid)
             os.kill(pid, signal.SIGTERM)
         except (AttributeError, OSError, ValueError):

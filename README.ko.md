@@ -11,7 +11,7 @@
 <p align="center"><img src="docs/images/clock-faces.png" alt="시계 화면 몇 가지(샘플 데이터)"></p>
 
 약 5달러 Wi-Fi 책상 시계에 Claude·Codex 사용 한도(그리고 Grok, CodexBar를 거쳐 Copilot·Antigravity)를 띄웁니다. 펌웨어는 그대로예요.  
-**새 화면 Arcade:** 캐릭터마다 그림이 곧 게이지인 움직이는 화면입니다. 드문 장면 몇 개는 그 순간이 실제로 찾아올 때만 열립니다.  
+**새 화면 Arcade:** 캐릭터마다 그림이 곧 게이지인 움직이는 화면입니다. 드문 장면 몇 개는 그 순간이 실제로 찾아올 때만 열립니다. 아래 줄에는 캐릭터가 지금 하는 일, 남은 사용량 배터리, 초기화 시각이 나옵니다.  
 **구경하기:** [라이브 데모](https://token-tv.vercel.app), `npx token-tv demo` 또는 `uvx token-tv demo`, 시계·로그인 없이 바로.
 
 **필요한 것:**
@@ -27,5 +27,6 @@ TokenTV는 각 서비스의 CLI가 저장한 로그인으로 사용량만 묻고
 **내 화면 만들기:** 시계 없이 [Game Boy 예제](examples/gameboy)에서 시작해 AI에게 바꿔 달라고 하세요. [가이드](docs/clock-faces.md) · [공유하기](https://github.com/click6067-ship-it/token-tv/issues/new?template=share_a_face.md)  
 자세히: [설정](docs/setup.ko.md) · [호환 시계](docs/hardware-compatibility.md) · [CodexBar 연동](docs/codexbar.md) · [애플워치](docs/apple-watch.md) · [English](README.md)  
 **새 소식:** 새 화면과 지원 시계는 [릴리스](https://github.com/click6067-ship-it/token-tv/releases)로 나옵니다. 받아 보려면 Watch → Custom → Releases.  
+**업데이트:** `npx token-tv update`(또는 `uvx token-tv update`)가 백그라운드로 도는 TokenTV를 최신 릴리스로 바꿔 다시 켭니다. 설정과 로그인은 그대로입니다. 새 릴리스가 나오면 대시보드에 작게 알려 줍니다(PyPI를 하루 한 번 확인, 설정에 `"update_check": false`면 끔).  
 
 <p align="center"><a href="examples/gameboy"><img src="examples/gameboy/comparison.png" width="640" alt="내 화면 만들기: 같은 샘플 사용량으로 그린 원래 픽셀 화면과 4색 Game Boy 예제"></a></p>

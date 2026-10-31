@@ -1,3 +1,5 @@
+import sys
+from pathlib import Path
 import threading
 import unittest
 from http.server import ThreadingHTTPServer
@@ -6,6 +8,8 @@ from urllib.request import urlopen
 from token_tv.live import handler
 from token_tv.state import UsageStore
 from token_tv.web_assets import ASSETS
+sys.path.insert(0, str(Path(__file__).resolve().parent))  # helpers.py, however the tests are run
+from helpers import temp_dir
 
 
 class WebAssetTests(unittest.TestCase):
@@ -63,7 +67,7 @@ class ThemesEndpointTests(unittest.TestCase):
         spec = importlib.util.spec_from_file_location('build_demo', root / 'scripts' / 'build_demo.py')
         module = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(module)
-        out = Path(tempfile.mkdtemp()) / 'site'
+        out = temp_dir(self) / 'site'
         module.build(out, 'https://example.com')
         themes = json.loads((out / 'demo-themes.json').read_text(encoding='utf-8'))
         from token_tv.display import STYLES

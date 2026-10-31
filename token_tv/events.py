@@ -45,7 +45,7 @@ def fireworks(draw, box, f, s, colors=None):
         cx, cy = x + round(w * fx), y + round(h * fy)
         if 0 <= t < 5:  # the rising spark
             draw.rectangle((cx, cy + (5 - t) * 5 * s, cx + s - 1, cy + (5 - t) * 5 * s + 3 * s), fill=colors[0])
-        elif t == 5:  # the flash
+        elif 5 <= t < 5 + arcade.SPEED * arcade.PLAYBACK:  # the flash, on a picture the clock shows at any pace
             draw.ellipse((cx - 3 * s, cy - 3 * s, cx + 3 * s, cy + 3 * s), fill=(255, 255, 240))
         elif 5 < t < 24:
             r = (t - 5) * 2.4 * s
@@ -217,6 +217,16 @@ def event_scene(kind, provider, streak=1):
                 sweat(draw, round(gx0 + gsize * .45), ground - gsize, max(1, s - 1), f)
         elif provider == 'antigravity':
             anti_event(frame, draw, box, f // 2, happy, 200 * 2 ** (min(4, max(1, streak)) - 1), arcade.anti_left(plan))
+        elif provider not in arcade.SCENES:  # a service with no scenes yet: the plain pet hops, or flops out
+            ground = y + round(h * .8)
+            draw.line((x + 6 * s, ground, x + w - 6 * s, ground), fill=arcade.TRACK, width=s)
+            if happy:
+                fireworks(draw, box, f, s)
+            pet = arcade.plain_pet(shut=not happy, flat=0 if happy else min(3, f // 8))
+            pet = pet.resize((pet.width * s, pet.height * s), arcade.Image.Resampling.NEAREST) if s > 1 else pet
+            paste(frame, pet, x + w / 2 - pet.width / 2, ground - pet.height - (hop(f, 12, 8 * s) if happy else 0))
+            if not happy and f >= 24:
+                sweat(draw, round(x + w / 2 + pet.width / 2), ground - pet.height - 2 * s, max(1, s - 1), f)
         else:  # copilot
             arcade.copilot_backdrop(draw, box, f, s)
             base_y = y + round(h * .78)

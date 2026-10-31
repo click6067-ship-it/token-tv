@@ -27,6 +27,10 @@ events Excited, Disappointed and Dizzy. Each keeps the game's
 encoding (a base grid of palette indexes plus per-frame changes in base 36) and its anchor box;
 `token_tv/arcade.py` decodes them the way the game does. The Arcade and World faces use them.
 
+`clawd.json` is Anthropic's, not TokenTV's: these animations are outside the MIT licence of this repository
+(see `NOTICE`). They are used here as fan work, credited to Clawd's Quest, and will be
+removed on request.
+
 ## Grok mascot
 
 `grok-pixel.png` keeps the generated black ball, with both eyes redrawn a third larger. Every full-colour face

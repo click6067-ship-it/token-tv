@@ -188,6 +188,47 @@ class LockboxTests(unittest.TestCase):
         finally:
             server.shutdown()
 
+    def test_a_found_scene_saves_as_a_gif_with_the_mark_and_a_locked_one_gives_nothing(self):
+        import io as bytes_io
+        import threading
+        from PIL import Image
+        from token_tv import arcade, live
+        from token_tv.display import render_page
+        locks = self.box()
+        locks.pick(self.data(at(10, 7)), at(10, 7))
+        check = locks.collection()['found'][0]['check']
+        locked = [record['check'] for record in locks.boxes.values() if record['check'] != check][0]
+        before = json.dumps(locks.history.data, sort_keys=True)
+        store = UsageStore([{'key': 'codex_a', 'alias': 'A', 'provider': 'codex'}], fetch=lambda _: None)
+        replays, wake = [], threading.Event()
+        handler = live.handler(store, None, locks, replays, wake)
+        sys_path = Path(__file__).resolve().parent
+        import sys
+        sys.path.insert(0, str(sys_path))
+        from test_security import ask
+        status, shown = ask(handler, f'/collection/{check}.gif')
+        status, saved = ask(handler, f'/collection/{check}.gif?save=1')
+        self.assertEqual(status, 200)
+        picture = Image.open(bytes_io.BytesIO(saved))
+        stage = live.STAGE[3] - live.STAGE[1]
+        self.assertEqual((picture.format, picture.size), ('GIF', (arcade.SIZE, stage + live.MARK_STRIP)))
+        self.assertGreater(picture.n_frames, 1)  # it still plays, as long as on the clock
+        self.assertAlmostEqual(arcade.gif_seconds(saved), arcade.gif_seconds(shown), places=2)
+        first = picture.convert('RGB')
+        clock = Image.open(bytes_io.BytesIO(shown)).convert('RGB')
+        # The scene as it played, whole; not the readout of today, which can disagree with a gauge drawn in the scene
+        self.assertEqual(first.crop((0, 0, 240, stage)).tobytes(), clock.crop(live.STAGE).tobytes())
+        corner = first.crop((160, stage, 240, stage + live.MARK_STRIP))
+        self.assertGreater(len(corner.getcolors(1 << 16)), 1)  # the mark, in the bottom-right corner
+        for path in (f'/collection/{locked}.gif?save=1', f'/collection/{locked}.gif', '/collection/nope.gif?save=1'):
+            status, body = ask(handler, path)
+            self.assertEqual(status, 404, path)
+            self.assertNotIn(b'GIF8', body)
+        self.assertEqual((replays, wake.is_set()), ([], False))  # nothing sent to the clock
+        self.assertEqual(json.dumps(locks.history.data, sort_keys=True), before)  # nor counted as seen
+        script = (Path(live.__file__).parent / 'web' / 'app.js').read_text(encoding='utf-8')
+        self.assertIn('.gif?save=1', script)
+
     def test_a_replay_with_no_clock_says_so_and_queues_nothing(self):
         import http.client
         import threading
@@ -309,8 +350,8 @@ class ReviewFixTests(unittest.TestCase):
         now = time.time()
         data = snapshot(now, [('codex_a', 'CODEX A', 'codex', [('WEEK', 50, 3 * D)])])
         stage = tuple(Image.new('RGB', (120, 71)) for _ in range(2))
-        panel = (120, 172, 240, 240)
-        after = arcade.BURST_FRAMES['unique'] + 1  # once the cut-in has gone
+        panel = (120, 194, 240, 240)  # the battery and its reset time (the line above names what the pet does)
+        after = arcade.BURST_PICTURES['unique'] + 1  # once the cut-in has gone
         plain = arcade.arcade_frames(data, now)[after].crop(panel)
         boxed = arcade.arcade_frames(data, now, lockbox.Box('x', 'unique', 'codex_a', stage, 6))[after].crop(panel)
         self.assertEqual(plain.tobytes(), boxed.tobytes())
@@ -319,7 +360,7 @@ class ReviewFixTests(unittest.TestCase):
         now = time.time()
         data = snapshot(now, [('codex_a', 'CODEX A', 'codex', [('WEEK', 50, 3 * D)])])
         stage = tuple(Image.new('RGB', (120, 71)) for _ in range(2))
-        header, panel = (0, 0, 240, 26), (0, 172, 240, 240)
+        header, panel = (0, 0, 240, 26), (0, 192, 240, 240)  # under the battery look's first line, which names the act
         plain = arcade.arcade_frames(data, now)[3]
         for tier, cut in (('rare', False), ('unique', True), ('legend', True)):
             shown = arcade.arcade_frames(data, now, lockbox.Box('x', tier, 'codex_a', stage, 6))[3]
@@ -449,6 +490,41 @@ class TimingTests(unittest.TestCase):
             data['accounts']['codex_a']['windows'][1]['used_percent'] = 100  # gone on to full: the garden is complete
             self.assertNotIn('codex:main_crossed_80', lockbox.facts(data, history, now)['codex_a'])
 
+    def test_weekly_streaks_count_quota_windows_not_calendar_weeks(self):
+        from datetime import datetime, timedelta, timezone
+        kst = timezone(timedelta(hours=9))
+        at = lambda *when: datetime(2026, *when, tzinfo=kst).timestamp()
+        def seen(history, moment, used, resets):
+            data = snapshot(moment, [('codex_a', 'A', 'codex', [('WEEK', used, 3600)])])
+            data['accounts']['codex_a']['windows'][0]['resets_at'] = resets
+            history.observe(data, moment)
+        with tempfile.TemporaryDirectory() as directory:
+            history = lockbox.History(Path(directory) / 'history.json')
+            # One full window seen on Sunday night and again on Monday (two calendar weeks), then two later ones.
+            seen(history, at(10, 4, 23, 59), 100, at(10, 7, 0, 0))
+            seen(history, at(10, 5, 0, 1), 100, at(10, 7, 0, 0) + 59)  # the same reset, a few seconds off
+            seen(history, at(10, 12, 12, 0), 100, at(10, 14, 0, 0))
+            seen(history, at(10, 19, 12, 0), 100, at(10, 21, 0, 0))
+            self.assertEqual(history.full_streak('codex_a', at(10, 19, 12, 0)), 3)  # three windows, not four weeks
+            self.assertEqual(history.full_streak('codex_a', at(10, 22, 12, 0)), 0)  # a new window, not full yet
+        with tempfile.TemporaryDirectory() as directory:
+            history = lockbox.History(Path(directory) / 'history.json')
+            for day, used in ((7, 100), (14, 99), (21, 100)):
+                seen(history, at(10, day - 1, 12, 0), used, at(10, day, 0, 0))
+            self.assertEqual(history.full_streak('codex_a', at(10, 20, 12, 0)), 1)  # 100, 99, 100: the last one only
+        with tempfile.TemporaryDirectory() as directory:
+            history = lockbox.History(Path(directory) / 'history.json')
+            for day in (7, 28):  # a window nobody saw in between could have been anything
+                seen(history, at(10, day - 1, 12, 0), 100, at(10, day, 0, 0))
+            self.assertEqual(history.full_streak('codex_a', at(10, 27, 12, 0)), 1)
+        with tempfile.TemporaryDirectory() as directory:
+            history = lockbox.History(Path(directory) / 'history.json')
+            for k in range(3):  # a reset 299 s either side of a ten-minute mark rounds apart; still one window
+                seen(history, at(10, 7 + 7 * k, 12, 0), 100, at(10, 14 + 7 * k, 0, 5) + (299 if k == 1 else 0))
+                seen(history, at(10, 7 + 7 * k, 13, 0), 100, at(10, 14 + 7 * k, 0, 5) - (299 if k == 1 else 0))
+            self.assertEqual(history.full_streak('codex_a', at(10, 21, 12, 0)), 3)
+            self.assertEqual(len(history.data['cycles']['codex_a']['WEEK']), 3)
+
     def test_five_hour_windows_in_a_row_count_for_the_full_points(self):
         now = time.time()
         with tempfile.TemporaryDirectory() as directory:
@@ -547,18 +623,22 @@ class GaugeTests(unittest.TestCase):
             xs = [x for y in range(100, 170, 2) for x in range(0, 240, 2) if frame.getpixel((x, y))[0] > 190
                   and frame.getpixel((x, y))[1] < 140 and frame.getpixel((x, y))[2] < 120]
             return min(xs)
-        spots = [clawd_x(frames[k]) for k in range(arcade.FRAMES // 2)]  # Claude's half of the loop
-        self.assertLessEqual(max(abs(a - b) for a, b in zip(spots, spots[1:])), 8)
+        spots = [clawd_x(frames[k]) for k in range(len(frames) // 2)]  # Claude's half of the loop
+        self.assertLessEqual(max(abs(a - b) for a, b in zip(spots, spots[1:])), 8 * arcade.PLAYBACK)  # a step per frame shown
 
     def test_the_stage_dims_late_at_night_and_the_numbers_do_not(self):
         night = time.mktime((2026, 10, 29, 2, 0, 0, 0, 0, -1))
-        def frame(now):
-            data = snapshot(now, [('codex_a', 'A', 'codex', [('WEEK', 40, 3 * D)])])
-            return arcade.arcade_frames(data, now)[0].convert('L')
-        day, dark = frame(NOON), frame(night)
+        data = snapshot(night, [('codex_a', 'A', 'codex', [('WEEK', 40, 3 * D)])])
+        glow = arcade.NIGHT_GLOW
+        try:
+            arcade.NIGHT_GLOW = 1  # the same night drawn undimmed: the readout (reset time included) must match it
+            lit = arcade.arcade_frames(data, night)[0].convert('L')
+        finally:
+            arcade.NIGHT_GLOW = glow
+        dark = arcade.arcade_frames(data, night)[0].convert('L')
         bright = lambda image, box: sum(image.crop(box).getdata())
-        self.assertLess(bright(dark, (0, 28, 240, 170)), bright(day, (0, 28, 240, 170)) * .8)
-        self.assertEqual(day.crop((0, 170, 240, 240)).tobytes(), dark.crop((0, 170, 240, 240)).tobytes())
+        self.assertLess(bright(dark, (0, 28, 240, 170)), bright(lit, (0, 28, 240, 170)) * .8)
+        self.assertEqual(lit.crop((0, 170, 240, 240)).tobytes(), dark.crop((0, 170, 240, 240)).tobytes())
 
 
 class FifthAccountTests(unittest.TestCase):

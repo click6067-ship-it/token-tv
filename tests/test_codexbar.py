@@ -25,6 +25,9 @@ def ran(stdout, code=0):
     return subprocess.CompletedProcess([], code, stdout=stdout)
 
 
+FIXTURE_TIME = 1791717300  # 2026-10-11 11:15 UTC: a minute or two after the fixtures were read
+
+
 CLAUDE = {"key": "claude_a", "alias": "CLAUDE A", "provider": "claude", "email": "user@example.com",
           "codexbar_command": "codexbar", "codexbar_source": "oauth"}
 CODEX = {"key": "codex_a", "alias": "CODEX A", "provider": "codex", "email": "user@example.com",
@@ -63,6 +66,11 @@ class NormalizeTests(unittest.TestCase):
 
 
 class FetchTests(unittest.TestCase):
+    def setUp(self):
+        clock = patch("time.time", return_value=FIXTURE_TIME)  # the fixtures' own readings are fresh then
+        clock.start()
+        self.addCleanup(clock.stop)
+
     def test_cli_command_line_and_row(self):
         stdout = (FIXTURES / "usage-claude-oauth.json").read_text(encoding="utf-8")
         with patch("token_tv.sources.subprocess.run", return_value=ran(stdout)) as run:
@@ -199,6 +207,67 @@ class FetchTests(unittest.TestCase):
         self.assertEqual((codex["session_percent"], codex["weekly_percent"]), (None, 6.0))
         image = Image.open(io.BytesIO(render_page(snapshot, 0, "pixel")))
         self.assertEqual(image.size, (240, 240))
+
+
+class FreshnessTests(unittest.TestCase):
+    """CodexBar's `updatedAt` is when it measured: a cached reply is as old as that, not as new as the request."""
+    MEASURED = 1791717114  # usage-codex.json: updatedAt 2026-10-11T11:11:54Z
+
+    def read(self, now, updated, url=False, store=None):
+        entry = fixture("usage-codex.json")[0]
+        if updated is None:
+            del entry["usage"]["updatedAt"]
+        else:
+            entry["usage"]["updatedAt"] = updated
+        account = dict(CODEX, codexbar_url="http://127.0.0.1:8080/usage") if url else dict(CODEX)
+        if url:
+            del account["codexbar_command"]
+        with patch("time.time", return_value=now), \
+                patch("token_tv.sources.json_get", return_value=[entry]), \
+                patch("token_tv.sources.subprocess.run", return_value=ran(json.dumps([entry]))):
+            if store is None:
+                return fetch_account(account)
+            store.refresh()
+            return store.snapshot()["accounts"]["codex_a"]
+
+    def test_a_reading_keeps_the_time_codexbar_measured_it(self):
+        for url in (False, True):
+            with self.subTest(url=url):
+                row = self.read(self.MEASURED + 60, "2026-10-11T11:11:54Z", url)
+                self.assertEqual((row["status"], row["measured_at"]), ("ok", self.MEASURED))
+                kept = self.read(self.MEASURED + 60, "2026-10-11T11:11:54Z", url, UsageStore([dict(CODEX)]))
+                self.assertEqual((kept["status"], kept["last_success_at"]), ("ok", self.MEASURED))
+
+    def test_an_old_reading_is_old_however_often_it_is_fetched(self):
+        for url in (False, True):
+            with self.subTest(url=url):
+                row = self.read(self.MEASURED + 901, "2026-10-11T11:11:54Z", url)
+                self.assertEqual((row["status"], row["error_code"], row["measured_at"]), ("stale", "codexbar_old", self.MEASURED))
+                self.assertEqual(row["windows"][0]["used_percent"], 6.0)  # its numbers, marked OLD
+                store = UsageStore([dict(CODEX)])
+                for later in (901, 1500, 72 * 3600):
+                    kept = self.read(self.MEASURED + later, "2026-10-11T11:11:54Z", url, store)
+                    self.assertEqual((kept["status"], kept["last_success_at"]), ("stale", self.MEASURED))
+                    self.assertEqual(kept["weekly_percent"], 6.0)
+
+    def test_a_reading_without_a_time_is_never_taken_for_now(self):
+        for url in (False, True):
+            for updated in (None, "", "yesterday", 0, "2026-10-11T11:11:54"):  # missing, empty, not a time, no zone
+                with self.subTest(url=url, updated=updated):
+                    now = self.MEASURED + 60
+                    row = self.read(now, updated, url)
+                    self.assertEqual((row["status"], row["error_code"]), ("stale", "freshness_unknown"))
+                    self.assertNotIn("measured_at", row)
+                    kept = self.read(now, updated, url, UsageStore([dict(CODEX)]))
+                    self.assertEqual(kept["status"], "stale")
+                    self.assertNotEqual(kept.get("last_success_at"), now)
+                    self.assertIsNone(kept.get("last_success_at"))
+
+    def test_a_reading_far_ahead_of_this_computers_clock_is_not_trusted(self):
+        row = self.read(self.MEASURED - 3600, "2026-10-11T11:11:54Z")
+        self.assertEqual((row["status"], row["error_code"]), ("stale", "freshness_unknown"))
+        row = self.read(self.MEASURED - 30, "2026-10-11T11:11:54Z")  # a few seconds of skew is no reason
+        self.assertEqual((row["status"], row["measured_at"]), ("ok", self.MEASURED - 30))
 
 
 class ConfigTests(unittest.TestCase):
