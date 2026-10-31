@@ -6,13 +6,13 @@
   <a href="https://github.com/steipete/CodexBar#desk-display"><img alt="Listed in CodexBar" src="https://img.shields.io/badge/listed%20in-CodexBar-555555"></a>
 </p>
 
+<p align="center"><a href="https://youtube.com/shorts/FN5DLILYiI0"><img src="https://raw.githubusercontent.com/click6067-ship-it/token-tv/main/docs/images/real-clock-shorts.jpg" width="256" alt="TokenTV on a real clock: a 16-second video"></a> <img src="https://raw.githubusercontent.com/click6067-ship-it/token-tv/main/docs/images/arcade.gif" width="320" alt="The animated Arcade face (sample data): Clawd, the Codex cloud, Grok, Copilot and Anti at work, each picture also a gauge"></p>
 <p align="center"><img src="https://raw.githubusercontent.com/click6067-ship-it/token-tv/main/docs/images/real-clock.jpg" alt="TokenTV on a real tiny desk clock"></p>
-<p align="center"><img src="https://raw.githubusercontent.com/click6067-ship-it/token-tv/main/docs/images/arcade.gif" width="320" alt="The animated Arcade face (sample data): Clawd, the Codex cloud, Grok, Copilot and Anti at work, each picture also a gauge"></p>
 <p align="center"><img src="https://raw.githubusercontent.com/click6067-ship-it/token-tv/main/docs/images/clock-faces.png" alt="Some of the clock faces (sample data)"></p>
 
 Your Claude and Codex usage limits (plus Grok, and Copilot or Antigravity through CodexBar) on a ~$5 Wi-Fi desk clock. No firmware flashing.  
 **New: Arcade**, an animated face where each character's picture is also its gauge, with a few rare scenes that open only when their moment comes on your clock. Under it, what the character is doing, a battery of what is left and the reset time.  
-**Try it:** [live demo](https://token-tv.vercel.app), `npx token-tv demo` or `uvx token-tv demo`, no clock or login needed.
+**Watch it:** [16 seconds on a real clock](https://youtube.com/shorts/FN5DLILYiI0). **Try it:** [live demo](https://token-tv.vercel.app), `npx token-tv demo` or `uvx token-tv demo`, no clock or login needed.
 
 **What you need:**
 - A GeekMagic SmallTV (SD_PRO or Ultra) on your Wi-Fi ([which ones work](https://github.com/click6067-ship-it/token-tv/blob/main/docs/hardware-compatibility.md)).

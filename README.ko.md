@@ -6,13 +6,13 @@
   <a href="https://github.com/steipete/CodexBar#desk-display"><img alt="Listed in CodexBar" src="https://img.shields.io/badge/listed%20in-CodexBar-555555"></a>
 </p>
 
+<p align="center"><a href="https://youtube.com/shorts/FN5DLILYiI0"><img src="docs/images/real-clock-shorts.jpg" width="256" alt="실제 시계에서 도는 TokenTV: 16초 영상"></a> <img src="docs/images/arcade.gif" width="320" alt="움직이는 Arcade 화면(샘플 데이터): Clawd, Codex 구름, Grok, Copilot, Anti가 일하는 모습, 그림이 곧 게이지"></p>
 <p align="center"><img src="docs/images/real-clock.jpg" alt="작은 책상 시계에 띄운 TokenTV"></p>
-<p align="center"><img src="docs/images/arcade.gif" width="320" alt="움직이는 Arcade 화면(샘플 데이터): Clawd, Codex 구름, Grok, Copilot, Anti가 일하는 모습, 그림이 곧 게이지"></p>
 <p align="center"><img src="docs/images/clock-faces.png" alt="시계 화면 몇 가지(샘플 데이터)"></p>
 
 약 5달러 Wi-Fi 책상 시계에 Claude·Codex 사용 한도(그리고 Grok, CodexBar를 거쳐 Copilot·Antigravity)를 띄웁니다. 펌웨어는 그대로예요.  
 **새 화면 Arcade:** 캐릭터마다 그림이 곧 게이지인 움직이는 화면입니다. 드문 장면 몇 개는 그 순간이 실제로 찾아올 때만 열립니다. 아래 줄에는 캐릭터가 지금 하는 일, 남은 사용량 배터리, 초기화 시각이 나옵니다.  
-**구경하기:** [라이브 데모](https://token-tv.vercel.app), `npx token-tv demo` 또는 `uvx token-tv demo`, 시계·로그인 없이 바로.
+**영상:** [실제 시계에서 16초](https://youtube.com/shorts/FN5DLILYiI0). **구경하기:** [라이브 데모](https://token-tv.vercel.app), `npx token-tv demo` 또는 `uvx token-tv demo`, 시계·로그인 없이 바로.
 
 **필요한 것:**
 - 컴퓨터와 같은 와이파이에 연결된 GeekMagic SmallTV 시계(SD_PRO 또는 Ultra, [호환 시계](docs/hardware-compatibility.md)).
