@@ -1,5 +1,5 @@
 """Render docs/images/clock-faces.png (six clock faces, for the setup guide) and docs/images/four-faces.png (the
-four the README shows, in a row) from the real renderers.
+four the README shows, in a row and two by two) from the real renderers.
 
 Every face shows the same synthetic accounts (25 / 72 / 94 %) so they compare at a glance:
     python3 scripts/render_clock_faces.py
@@ -49,8 +49,9 @@ def sheet_of(faces, columns, tile):
 
 
 def main():
-    for name, faces, columns, tile in (('clock-faces.png', FACES, 3, TILE),
-                                       ('four-faces.png', [f for f in FACES if f[0] in README_FACES], 4, 240)):
+    four = [f for f in FACES if f[0] in README_FACES]
+    for name, faces, columns, tile in (('clock-faces.png', FACES, 3, TILE), ('four-faces.png', four, 4, 240),
+                                       ('four-faces-grid.png', four, 2, 240)):  # the README's row: two by two
         out = ROOT / 'docs' / 'images' / name
         sheet_of(faces, columns, tile).save(out, optimize=True)
         print(out, f'{out.stat().st_size // 1024} KB')
