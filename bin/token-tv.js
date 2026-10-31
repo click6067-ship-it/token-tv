@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // One-line launcher: `npx token-tv start`.
-// Runs the Python package in this folder: with uv if it is on PATH; else with a Python 3.10+ in a private venv; else
+// Runs the Python package in this folder: with uv if it is on PATH; else with a Python 3.11+ in a private venv; else
 // with a private uv, one pinned release fetched once from Astral's GitHub releases and checked against the SHA-256
 // kept below, which brings its own Python. Node is the only thing to have installed.
 const { spawnSync } = require('node:child_process');
@@ -112,15 +112,15 @@ async function privateUvx(python) {
   const exe = path.join(dir, win ? 'uvx.exe' : 'uvx');
   if (fs.existsSync(exe)) return exe;
   const asset = uvAsset(process.platform, process.arch);
-  if (!asset) fail('TokenTV needs Python 3.10 or newer on this computer: https://www.python.org/downloads/');
+  if (!asset) fail('TokenTV needs Python 3.11 or newer on this computer: https://www.python.org/downloads/');
   const { name, url, target } = asset;
   console.error(python ? `First run: TokenTV could not prepare itself with ${python}, so it fetches uv ${UV_VERSION}, which brings its own Python (about a minute)...`
-    : `First run: no Python 3.10+ here, so TokenTV fetches uv ${UV_VERSION}, which brings its own (about a minute)...`);
+    : `First run: no Python 3.11+ here, so TokenTV fetches uv ${UV_VERSION}, which brings its own (about a minute)...`);
   let archive;
   try {
     archive = await download(url);
   } catch (error) {
-    fail(`Could not download uv (${error.message}). Install Python 3.10+ or uv (https://docs.astral.sh/uv/) and run this again.`);
+    fail(`Could not download uv (${error.message}). Install Python 3.11+ or uv (https://docs.astral.sh/uv/) and run this again.`);
   }
   if (!checkUv(archive, target)) {
     fail(`The uv download did not match the checksum TokenTV keeps for uv ${UV_VERSION}; nothing was installed. Try again later.`);
@@ -141,7 +141,7 @@ function main() {
 
   // A Python new enough (macOS ships 3.9; Windows may have only the Microsoft Store's python stub, which fails here).
   const python = ['python3', 'python', 'py'].map(which)
-    .find((p) => p && spawnSync(p, ['-c', 'import sys; sys.exit(sys.version_info < (3, 10))']).status === 0);
+    .find((p) => p && spawnSync(p, ['-c', 'import sys; sys.exit(sys.version_info < (3, 11))']).status === 0);
   if (python && preparedVenv(python)) process.exit(run(path.join(cache, 'venv', win ? 'Scripts' : 'bin', 'token-tv'), args));
 
   privateUvx(python).then((exe) => {

@@ -176,6 +176,7 @@ class UpdateCommandTests(unittest.TestCase):
         start = flat.index('systemctl --user enable --now token-tv.service')
         return stop < got < start
 
+    @unittest.skipIf(sys.platform == 'win32', 'a systemd unit with POSIX paths, Linux only (Windows gets a Startup entry, tested below)')
     def test_uvx_and_npx_with_uv_run_the_newest_release(self):
         for env, how in (({}, 'uvx'), ({'TOKEN_TV_LAUNCHER': 'npx', 'TOKEN_TV_UVX': '/c/token-tv/uv/uvx'}, 'npx')):
             with self.subTest(how=how):
@@ -200,6 +201,7 @@ class UpdateCommandTests(unittest.TestCase):
         self.assertIn('--spec token-tv==99.0.0 token-tv start', self.unit.read_text(encoding='utf-8'))
         self.assert_kept()
 
+    @unittest.skipIf(sys.platform == 'win32', 'a systemd unit with POSIX paths, Linux only (Windows gets a Startup entry, tested below)')
     def test_pip_and_the_npx_venv_upgrade_in_place(self):
         for prefix in ('/home/me/venvs/tt', '/home/me/.cache/token-tv/venv'):
             with self.subTest(prefix=prefix):
@@ -304,7 +306,7 @@ class UpdateCommandTests(unittest.TestCase):
     def test_the_command_to_type_keeps_the_config(self):
         code, said = self.update('/home/me/.cache/uv/archive-v0/abc', {'uvx': '/usr/bin/uvx'}, running=True)
         self.assertEqual(code, 0, said)
-        self.assertIn(f"uvx token-tv@latest start --config '{self.config}'", said)
+        self.assertIn(f"uvx token-tv@latest start --config {autostart.quoted(self.config)}", said)  # quoted for this shell
 
     def test_the_newest_already_and_pypi_out_of_reach(self):
         self.background(['/usr/bin/uvx', f'token-tv@{__version__}'])

@@ -44,6 +44,13 @@ token-tv run                  # dashboard at http://127.0.0.1:8787, drives the c
 
 From a clone, `python3 -m venv .venv && .venv/bin/pip install .` gives the same command as `.venv/bin/token-tv`.
 
+**Updating:** `npx token-tv update` (or `uvx token-tv update`) puts the newest release in the background copy's
+place and keeps your config and logins. The dashboard notes a new release after one PyPI check a day
+(`"update_check": false` in the config turns it off). New faces and supported clocks ship as
+[releases](https://github.com/click6067-ship-it/token-tv/releases); to hear of them, use Watch → Custom → Releases.
+Your logins stay on your computer: TokenTV asks each service with the login its own CLI saved, and the clock only
+ever receives a picture.
+
 <p align="center"><img src="images/usage-examples.png" alt="Digital face at low, busy and near-limit usage (sample data)"></p>
 
 <details>
@@ -101,7 +108,7 @@ or **New**. Likes are counted by hand before releases, so the list says when the
   (the author's receipt shows ₩5,650, a Korean AliExpress discount; prices vary by region) or the
   **SmallTV-Ultra** (checked by contributors). No other device has been checked.
 - Any always-on machine on the same network with the official CLIs you use, signed in, and Node
-  (or Python 3.10+).
+  (or Python 3.11+).
 
 The SD_PRO photo API (`/theme/list`, `/photo/list`, `/photo/upload`) is verified on the author's
 clock. Clones with other firmware are untested.

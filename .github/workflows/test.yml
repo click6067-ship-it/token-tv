@@ -76,7 +76,7 @@ jobs:
           token-tv autostart status --config "$cfg" | grep -q "does not start"
 
   no-python:
-    # The npm launcher where no Python 3.10+ and no uv can be found: it fetches its pinned uv, checks the digest it
+    # The npm launcher where no Python 3.11+ and no uv can be found: it fetches its pinned uv, checks the digest it
     # keeps, and runs TokenTV with the Python that uv brings. The runner has Python; PATH here hides it.
     name: npx with no Python
     runs-on: ubuntu-latest
