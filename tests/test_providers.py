@@ -79,7 +79,7 @@ class ContractTests(unittest.TestCase):
 class UnknownServiceTests(unittest.TestCase):
     """A service no face knows yet (a contributor's first try, say) gets a plain pet on Arcade, never a KeyError."""
     def frames(self, active=False, egg=None):
-        now = time.time()
+        now = time.mktime((2026, 10, 28, 12, 0, 0, 0, 0, -1))  # noon: the stage dims at night, and the inks with it
         data = snapshot(now, [('new_a', 'NEW A', 'newprovider', [('5H', 12, H)])])
         data['accounts']['new_a']['active'] = active
         return arcade.arcade_frames(data, now, egg=egg)
