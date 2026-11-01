@@ -16,6 +16,11 @@ python3 -m venv .venv && .venv/bin/pip install -e .
 .venv/bin/python -B -m unittest discover -s tests
 ```
 
+For automated cold verification, run `.venv/bin/python -B tests/run_all.py` after
+installing the dependencies above. It runs the same unittest discovery and emits
+named `PASS`/`FAIL` records plus a summary for the nightly verifier. Skips are not
+counted as passes; errors, unexpected successes and zero passing checks exit nonzero.
+
 ## Ground rules
 
 - Never put passwords, tokens, cookies, `.credentials.json`, `auth.json` or real config files
