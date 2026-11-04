@@ -96,6 +96,14 @@ class LockboxTests(unittest.TestCase):
         box = locks.pick(self.data(saturday + 5 * week), saturday + 5 * week)
         self.assertEqual(box.name, 'maybe')  # 35 days on, past twice its share: sure
 
+    def test_overdue_odds_climb_to_sure_without_a_cliff(self):
+        self.assertEqual(lockbox.overdue(.1, .5), .1)  # within its share: as it was
+        self.assertEqual(lockbox.overdue(.1, 1), .1)
+        self.assertAlmostEqual(lockbox.overdue(.1, 1.5), .55)  # half a share late: half the rest
+        self.assertEqual(lockbox.overdue(.1, 2), 1.0)  # twice its share: sure
+        steps = [lockbox.overdue(.1, 1 + k / 10) for k in range(11)]
+        self.assertEqual(steps, sorted(steps))
+
     def test_the_odds_follow_how_often_a_situation_comes_about(self):
         self.assertAlmostEqual(lockbox.odds(14, 14, 12, first=False), 1 / 12)  # daily, one opening in twelve days
         self.assertAlmostEqual(lockbox.odds(14, 14, 12, first=True), 2 / 12)

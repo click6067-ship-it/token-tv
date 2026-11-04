@@ -10,6 +10,7 @@ import shutil
 import signal
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 MARK = 'Written by token-tv autostart'
@@ -358,4 +359,44 @@ def remove():
             os.kill(pid, signal.SIGTERM)
         except (AttributeError, OSError, ValueError):
             return 'TokenTV no longer starts with this computer; end pythonw.exe in Task Manager to stop it now.'
+        forget_ended_run(pid_file.parent, pid)
     return 'TokenTV stopped and no longer starts with this computer.'
+
+
+def forget_ended_run(state, pid):
+    """Ended outright, a TokenTV cleans up nothing: its address goes too, so no agent tells its old port. Only under
+    its live.lock (the ended copy lets go of it as it dies, within LOCK_WAIT seconds) and while live.pid still holds
+    the number just ended: a TokenTV started since holds the lock or has written its own, and keeps its files."""
+    from token_tv.private_files import open_private
+    try:
+        handle = open_private(state / 'live.lock')
+    except OSError:
+        return
+    with handle:
+        for _ in range(int(LOCK_WAIT / .05)):
+            try:
+                if os.name == 'nt':
+                    import msvcrt
+                    msvcrt.locking(handle.fileno(), msvcrt.LK_NBLCK, 1)
+                else:
+                    import fcntl
+                    fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                break
+            except OSError:
+                time.sleep(.05)
+        else:
+            return  # a TokenTV holds it: a new one, or the old one not gone yet; its files stay
+        try:
+            if int((state / 'live.pid').read_text(encoding='utf-8')) == pid:
+                for name in ('live.url', 'live.pid'):
+                    (state / name).unlink(missing_ok=True)
+        except (OSError, ValueError):
+            pass
+        if os.name == 'nt':  # closing lets go on POSIX; msvcrt wants its byte unlocked
+            try:
+                msvcrt.locking(handle.fileno(), msvcrt.LK_UNLCK, 1)
+            except OSError:
+                pass
+
+
+LOCK_WAIT = 2.0

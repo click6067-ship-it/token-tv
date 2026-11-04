@@ -6,25 +6,21 @@
   <a href="https://github.com/steipete/CodexBar#desk-display"><img alt="Listed in CodexBar" src="https://img.shields.io/badge/listed%20in-CodexBar-555555"></a>
 </p>
 
-<p align="center"><b>Your Claude and Codex usage limits on a ~$5 Wi-Fi desk clock. No firmware flashing.</b></p>
+<p align="center"><img src="https://raw.githubusercontent.com/click6067-ship-it/token-tv/main/docs/images/real-photos.jpg" width="600" alt="Digital, Sci-Fi HUD, Neon and Arcade on the real clock"> <a href="https://youtube.com/shorts/FN5DLILYiI0"><img src="https://raw.githubusercontent.com/click6067-ship-it/token-tv/main/docs/images/real-clock.gif" width="146" alt="TokenTV on a real clock (16 seconds; the full video is on YouTube)"></a></p>
+<p align="center"><img src="https://raw.githubusercontent.com/click6067-ship-it/token-tv/main/docs/images/main-faces.png" width="600" alt="The four main faces: Digital, Sci-Fi HUD, Neon and Arcade (sample data)"></p>
 
-<p align="center"><a href="https://youtube.com/shorts/FN5DLILYiI0"><img src="https://raw.githubusercontent.com/click6067-ship-it/token-tv/main/docs/images/real-clock-shorts.jpg" width="240" alt="TokenTV on a real clock: a 16-second video"></a> <img src="https://raw.githubusercontent.com/click6067-ship-it/token-tv/main/docs/images/arcade.gif" width="240" alt="The animated Arcade face (sample data): Clawd, the Codex cloud, Grok, Copilot and Anti at work, each picture also a gauge"></p>
+Turn a ~$5 AliExpress clock (GeekMagic SmallTV) into a physical AI usage dashboard. No firmware flashing.
 
-**New: Arcade.** Each character's picture is its gauge; under it, what it is doing, a battery of what is left and the reset time.
-
+**Live demo:** [token-tv.vercel.app](https://token-tv.vercel.app)  
+**YouTube:** [https://www.youtube.com/shorts/FN5DLILYiI0](https://youtube.com/shorts/FN5DLILYiI0)  
 **Try it:** [live demo](https://token-tv.vercel.app) or `npx token-tv demo`, no clock or login needed.  
 **Set it up:** run `npx token-tv start` (or `uvx token-tv start`) on a computer that stays on. It finds your signed-in tools and the clock on your Wi-Fi, keeps running in the background and opens your dashboard. Or tell your AI *"Set up TokenTV for me"* ([AGENTS.md](https://github.com/click6067-ship-it/token-tv/blob/main/AGENTS.md)).
 
-**You need:**
-- A GeekMagic SmallTV, SD_PRO or Ultra ([which ones work](https://github.com/click6067-ship-it/token-tv/blob/main/docs/hardware-compatibility.md)).
-- Claude Code, Codex or the Grok CLI, signed in on that computer. A browser login alone is not enough ([setup](https://github.com/click6067-ship-it/token-tv/blob/main/docs/setup.md)).
-- [Node](https://nodejs.org/), for `npx`. It brings its own Python if it needs one.
+**New: Arcade.** When you're coding, the bots get busy too. Codex, for example, rains code to grow flowers while it spends tokens: the more it spends, the fuller the garden. Grok refuels its rocket and, resting, gazes up at Earth, and Copilot and Anti are the newest friends.
 
-Your logins stay on your computer: TokenTV asks each service with the login its own CLI saved, and the clock only ever receives a picture.
+<p align="center"><img src="https://raw.githubusercontent.com/click6067-ship-it/token-tv/main/docs/images/highlight-claude.gif" width="150" alt="Clawd breakdancing"> <img src="https://raw.githubusercontent.com/click6067-ship-it/token-tv/main/docs/images/highlight-codex.gif" width="150" alt="The Codex cloud raining code on its flowers"> <img src="https://raw.githubusercontent.com/click6067-ship-it/token-tv/main/docs/images/highlight-grok.gif" width="150" alt="Grok's rocket losing a side booster"> <img src="https://raw.githubusercontent.com/click6067-ship-it/token-tv/main/docs/images/highlight-copilot.gif" width="150" alt="Copilot drawing a heart in the sky"> <img src="https://raw.githubusercontent.com/click6067-ship-it/token-tv/main/docs/images/highlight-anti.gif" width="150" alt="Anti floating in zero gravity"></p>
 
-<p align="center"><img src="https://raw.githubusercontent.com/click6067-ship-it/token-tv/main/docs/images/real-clock.jpg" alt="Digital, Pixel Retro and Sci-Fi HUD on the real clock"></p>
-<p align="center"><img src="https://raw.githubusercontent.com/click6067-ship-it/token-tv/main/docs/images/four-faces.png" alt="Four of the faces: Digital, Neon, Pixel Retro and Sci-Fi HUD (sample data)"></p>
+**Each reacts in its own way.** with little left, one rushes and another frets. 
+**And a few secret scenes.** Some come only at certain hours, some only after a bot has really worked, and some almost never. for a moment, and we're not telling you which. [The collection](https://token-tv.vercel.app/collection/) shows how much is out there.
 
-**Update:** `npx token-tv update` (or `uvx token-tv update`) keeps your config and logins.  
-**Make your own face** from the [Game Boy example](https://github.com/click6067-ship-it/token-tv/tree/main/examples/gameboy) with your AI ([guide](https://github.com/click6067-ship-it/token-tv/blob/main/docs/clock-faces.md)).  
-More: [setup and options](https://github.com/click6067-ship-it/token-tv/blob/main/docs/setup.md) · [how it works](https://github.com/click6067-ship-it/token-tv/blob/main/docs/stock-photo-display.md) · [CodexBar (Copilot, Antigravity)](https://github.com/click6067-ship-it/token-tv/blob/main/docs/codexbar.md) · [Apple Watch](https://github.com/click6067-ship-it/token-tv/blob/main/docs/apple-watch.md) · [한국어](https://github.com/click6067-ship-it/token-tv/blob/main/README.ko.md)
+Simple numbers at a glance, and cute while it's at it. Coding alone at 3 a.m.? Your bots are still up with you, and someone might even make you coffee. Ideas, suggestions and PRs are welcome. *Cuteness is a feature.*

@@ -120,10 +120,13 @@ class RPC:
 
 def load_config(path):
     data = json.loads(Path(path).read_text(encoding="utf-8"))
-    if set(data) - {"accounts", "device_url", "poll_seconds", "font", "display_style", "update_check"}:
+    if set(data) - {"accounts", "device_url", "poll_seconds", "font", "display_style", "update_check", "device_frame_ms"}:
         raise ValueError("Unsupported configuration field")
     if not isinstance(data.get("update_check", True), bool):
         raise ValueError("update_check is true or false")
+    pace = data.get("device_frame_ms")  # how long an SD_PRO shows each picture (live.DEVICE_FRAME_MS when unset)
+    if pace is not None and (isinstance(pace, bool) or not isinstance(pace, (int, float)) or not 20 <= pace <= 2000):
+        raise ValueError("device_frame_ms is the clock's milliseconds a picture, from 20 to 2000")
     if data.get('display_style', 'pixel') not in STYLES:
         raise ValueError('Unknown display style')
     seen = set()

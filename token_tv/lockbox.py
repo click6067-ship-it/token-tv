@@ -14,7 +14,8 @@ each time its situation comes about (not every minute it lasts). The odds are se
 whole: each rare or unique tier aims at one opening every `PACE` days, shared by the boxes of that tier
 whose situations come about on this clock, so a box whose situation comes daily gets small odds and one
 that comes weekly gets large ones, and a box that comes less often than its share opens every time (doubled
-until first seen; sure once a box is twice its share overdue).
+until first seen; once a box is a share overdue its odds climb, sure at twice its share, like a game's bad-luck
+protection without a cliff).
 A win waits a random moment while the situation holds; a cooldown keeps one scene from repeating soon,
 two of a tier keep `SPACING` apart, and two hidden one-offs keep `GAP` apart unless the second is a legend.
 """
@@ -81,6 +82,12 @@ def odds(count, days, share, first):
     came about `count` times in `days` days on this clock (a week at least, so a new box is not over-trusted);
     doubled until the box is first seen."""
     return min(1.0, (2 if first else 1) / max(share * per_day(count, days), 1e-9))
+
+
+def overdue(chance, late):
+    """A box's chance when `late` shares have passed since it last opened (or was first met): as it was up to one,
+    then climbing in a straight line to sure at two."""
+    return 1.0 if late >= 2 else chance + (1 - chance) * max(0.0, late - 1)
 
 
 def daypart(hour):
@@ -408,7 +415,8 @@ class Lockbox:
 
     def odds_now(self, record, check, tier, now):
         """This occurrence's chance: sure for a box sealed sure and for the tiers without a pace, else the box's
-        share of its tier's pace, sure once twice its share has passed since it last opened (or was first met)."""
+        share of its tier's pace, climbing once a share has passed since it last opened (or was first met), sure at
+        two."""
         if record.get('chance', 1) >= 1 or tier not in PACE:
             return 1.0
         data = self.history.data
@@ -416,9 +424,10 @@ class Lockbox:
         rates = [per_day(m['count'], (now - m['first']) / 86400) for c, m in met.items()
                  if m.get('tier') == tier and now - held.get(c, 0) < MET_DAYS * 86400]
         share, seen = shares(rates, PACE[tier]), met[check]
-        if now - fired.get(check, seen['first']) >= 2 * share * 86400:
-            return 1.0
-        return odds(seen['count'], (now - seen['first']) / 86400, share, check not in fired)
+        chance = odds(seen['count'], (now - seen['first']) / 86400, share, check not in fired)
+        if share <= 0:  # every box of the tier comes about less often than the pace: each opens every time
+            return chance
+        return overdue(chance, (now - fired.get(check, seen['first'])) / (share * 86400))
 
     def forget(self):
         """The last pick never reached the screen: take it back, so it is neither seen nor resting."""

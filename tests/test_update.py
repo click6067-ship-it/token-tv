@@ -104,9 +104,9 @@ class CheckTests(unittest.TestCase):
         self.assertIn('id="update-note"', (web / 'index.html').read_text(encoding='utf-8'))
         self.assertIn("$('#update-note').textContent", (web / 'app.js').read_text(encoding='utf-8'))
 
-    def test_the_readmes_say_how_to_update(self):
+    def test_the_setup_guides_say_how_to_update(self):
         root = Path(live.__file__).resolve().parents[1]
-        for name in ('README.md', 'README.ko.md'):
+        for name in ('docs/setup.md', 'docs/setup.ko.md'):  # the READMEs keep only try it and set it up
             self.assertIn('token-tv update', (root / name).read_text(encoding='utf-8'), name)
 
 

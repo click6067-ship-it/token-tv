@@ -1,0 +1,12 @@
+{
+  "name": "token-tv",
+  "description": "TokenTV: your AI usage limits and your agents' moments on a $5 desk clock",
+  "owner": { "name": "click6067-ship-it" },
+  "plugins": [
+    {
+      "name": "tokentv",
+      "source": "./claude-plugin",
+      "description": "Clawd on your TokenTV clock raises a hand while Claude Code waits for your permission, bows when a turn is done, and takes a pat or a snack (/tokentv pet, /tokentv snack)"
+    }
+  ]
+}

@@ -1,5 +1,5 @@
 """Render docs/images/clock-faces.png (six clock faces, for the setup guide) and docs/images/four-faces.png (the
-four the README shows, in a row) from the real renderers.
+four the README shows, in a row and two by two) from the real renderers.
 
 Every face shows the same synthetic accounts (25 / 72 / 94 %) so they compare at a glance:
     python3 scripts/render_clock_faces.py
@@ -28,6 +28,7 @@ FACES = [(style, title, SAMPLE_ROWS) for style, title in (
     ('digital', 'Digital'), ('neon', 'Neon'), ('retro', 'Pixel Retro'),
     ('hud', 'Sci-Fi HUD'), ('pixel', 'Pixel'), ('space', 'Space (animated)'))]
 README_FACES = ('digital', 'neon', 'retro', 'hud')  # the README keeps four; Pixel and Space stay in the guide
+MAIN_FACES = (('digital', 'Digital'), ('hud', 'Sci-Fi HUD'), ('neon', 'Neon'), ('arcade', 'Arcade'))  # Arcade: its first frame
 TILE, GAP, MARGIN, CAPTION = 480, 36, 38, 62
 
 
@@ -49,8 +50,11 @@ def sheet_of(faces, columns, tile):
 
 
 def main():
-    for name, faces, columns, tile in (('clock-faces.png', FACES, 3, TILE),
-                                       ('four-faces.png', [f for f in FACES if f[0] in README_FACES], 4, 240)):
+    four = [f for f in FACES if f[0] in README_FACES]
+    main = [(style, title, SAMPLE_ROWS) for style, title in MAIN_FACES]
+    for name, faces, columns, tile in (('clock-faces.png', FACES, 3, TILE), ('four-faces.png', four, 4, 240),
+                                       ('four-faces-grid.png', four, 2, 240),  # the README's row: two by two
+                                       ('main-faces.png', main, 4, 240)):  # the README now: the four the owner picked
         out = ROOT / 'docs' / 'images' / name
         sheet_of(faces, columns, tile).save(out, optimize=True)
         print(out, f'{out.stat().st_size // 1024} KB')

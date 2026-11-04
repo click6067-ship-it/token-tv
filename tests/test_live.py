@@ -175,7 +175,23 @@ class LoopTimingTests(unittest.TestCase):
         shown = {'at': 100.0, 'loop': 8.4}
         self.assertAlmostEqual(until_loop_end(shown, 101.0), 7.4)  # 1 s in
         self.assertAlmostEqual(until_loop_end(shown, 100.0 + 2 * 8.4), 0)  # right at the end of the second loop
+        self.assertAlmostEqual(until_loop_end(shown, 100.0 + 2 * 8.4 + .001), 8.399)  # just after: that loop's end
+        self.assertAlmostEqual(until_loop_end(shown, 100.0 + 2 * 8.4 + .05), 8.35)  # (no 'right on time' window)
+        self.assertAlmostEqual(until_loop_end(shown, 100.0), 8.4)  # just gone on: its first loop whole
         self.assertEqual(until_loop_end({'at': None, 'loop': None}, 5), 0)
+
+    def test_every_switch_is_timed_from_when_its_change_came_in(self):
+        from token_tv.live import LATE, switch_at
+        shown, loop = {'at': 100.0, 'loop': 2.0}, 2.0
+        end = 100.0 + 3 * loop  # a loop's end
+        self.assertEqual(switch_at(shown, end - .001, end - .001), end)  # just before an end: at it
+        self.assertEqual(switch_at(shown, end, end), end)  # right at it: then
+        self.assertEqual(switch_at(shown, end + .001, end + .001), end + loop)  # just after: that loop's end
+        self.assertEqual(switch_at(shown, end + .05, end + .05), end + loop)
+        self.assertEqual(switch_at(shown, end - .5, end + LATE - .001), end)  # drawn as the loop ended: it still goes
+        self.assertEqual(switch_at(shown, end - .5, end + LATE + .001), end + loop)  # past LATE: the next end
+        self.assertEqual(switch_at(shown, 100.0, 100.0), 100.0 + loop)  # just gone on: its first loop whole
+        self.assertIsNone(switch_at({'at': None, 'loop': None}, 5, 5))  # nothing loops yet: at once
 
 
 class RelocateTests(unittest.TestCase):
