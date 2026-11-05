@@ -4,6 +4,7 @@ clock drink water or stretch, one of the two at random, for one loop at the end 
 outranks it: it plays after the wait if no break came meanwhile. Nothing piles up."""
 import io
 import sys
+import time
 import unittest
 from pathlib import Path
 from unittest import mock
@@ -19,7 +20,7 @@ from token_tv.moments import BREAK, BREAKS, WORK, Moments, Work, overlay  # noqa
 from token_tv.sample import D, H, snapshot  # noqa: E402
 
 ACTIVE = state.ACTIVE_SECONDS
-NOW = 1793509260
+NOW = int(time.mktime((2026, 11, 1, 14, 1, 0, 0, 0, -1)))  # Sunday 2:01 pm wherever the tests run (the stage dims at night)
 PETS = ('claude', 'codex', 'grok', 'copilot', 'antigravity')
 
 

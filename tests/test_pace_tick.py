@@ -4,6 +4,7 @@ that falls short of it is overspend, the gap to it red (the owner's style A). 5-
 alone sends no picture: the tick moves with the next picture sent for anything else."""
 import io
 import sys
+import time
 import unittest
 from pathlib import Path
 
@@ -17,7 +18,7 @@ from token_tv.sample import D, H, snapshot  # noqa: E402
 
 WEEK = 7 * D
 TICK_TOLERANCE = 1  # native pixels
-NOW = 1793509260
+NOW = int(time.mktime((2026, 11, 1, 14, 1, 0, 0, 0, -1)))  # Sunday 2:01 pm wherever the tests run (the stage dims at night)
 ONE = (10, 195, 158, 20)  # the one-window battery: x, y, w, h
 TWO = (24, 196 + 21, 44, 16)  # the weekly one of two (under the 5-hour one)
 

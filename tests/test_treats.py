@@ -4,6 +4,7 @@ show or showing is dropped, and so is one while Claude waits; a wait drops one n
 import io
 import json
 import sys
+import time
 import unittest
 from pathlib import Path
 from unittest import mock
@@ -17,7 +18,7 @@ from token_tv import arcade, live, moments  # noqa: E402
 from token_tv.moments import Moments, loop_end, overlay  # noqa: E402
 from token_tv.sample import D, snapshot  # noqa: E402
 
-NOW = 1793509260  # a fixed instant for the drawings
+NOW = int(time.mktime((2026, 11, 1, 14, 1, 0, 0, 0, -1)))  # Sunday 2:01 pm wherever the tests run (the stage dims at night)
 
 
 def frames(image):

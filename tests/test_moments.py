@@ -1103,8 +1103,8 @@ class NotifyTests(unittest.TestCase):
 
     def notify(self, *args, env=None):
         environment = {key: value for key, value in os.environ.items() if not key.startswith('TOKEN_TV')}
-        environment.update({'HOME': str(self.home), 'XDG_CONFIG_HOME': '', 'PYTHONPATH': str(ROOT),
-                            'PYTHONDONTWRITEBYTECODE': '1'}, **(env or {}))
+        environment.update({'HOME': str(self.home), 'USERPROFILE': str(self.home),  # Windows reads USERPROFILE
+                            'XDG_CONFIG_HOME': '', 'PYTHONPATH': str(ROOT), 'PYTHONDONTWRITEBYTECODE': '1'}, **(env or {}))
         began = time.monotonic()
         done = subprocess.run([sys.executable, '-m', 'token_tv', 'notify', *args], capture_output=True, env=environment,
                               cwd=str(self.dir), timeout=10)
@@ -1995,7 +1995,9 @@ class ClockTimingTests(unittest.TestCase):
     def test_moments_write_nothing_to_disk(self):
         rig = Rig(self)
         def files():
-            return {p.name: (p.stat().st_mtime_ns, p.read_bytes()) for p in rig.state.iterdir() if p.is_file()}
+            # the running TokenTV's live.lock is unreadable on Windows while held: its time is enough
+            return {p.name: (p.stat().st_mtime_ns, b'' if p.name == 'live.lock' else p.read_bytes())
+                    for p in rig.state.iterdir() if p.is_file()}
         before = files()
         rig.say('claude.ask')
         rig.clock.advance(20)

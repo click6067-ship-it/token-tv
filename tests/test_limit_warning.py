@@ -4,6 +4,7 @@ on as it was. The pace is each window's own, from its readings' own times."""
 import datetime
 import io
 import sys
+import time
 import unittest
 from fractions import Fraction
 from pathlib import Path
@@ -20,7 +21,7 @@ from token_tv.sample import H, snapshot  # noqa: E402
 from token_tv.state import HORIZON, RATE_WINDOW, UsageStore, running_out  # noqa: E402
 
 LIMIT = 100
-NOW = 1793509260
+NOW = int(time.mktime((2026, 11, 1, 14, 1, 0, 0, 0, -1)))  # Sunday 2:01 pm wherever the tests run (the stage dims at night)
 T0 = 1_800_000_000  # the readings' clock in the history tests
 
 
