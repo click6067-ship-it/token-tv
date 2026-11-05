@@ -1,6 +1,6 @@
-"""v2 phase 2, m1: an SD_PRO shows one picture about every 142 ms whatever the GIF's delays ask, so on it every
-loop's end (moments, one-offs, returns) is the GIF's pictures times that pace (`device_frame_ms` in the config); the
-GIF itself is never changed for it, and other clocks keep the length the GIF declares."""
+"""v2 phase 2, m1: an SD_PRO shows each picture of a GIF for the delay the GIF gives it but at least one tick of about
+142 ms (`device_frame_ms` in the config), so on it every loop's end (moments, one-offs, returns) is timed by the sum of
+its pictures' times; the GIF itself is never changed for it, and other clocks keep the length the GIF declares."""
 import http.client
 import io
 import json
@@ -41,14 +41,18 @@ def delays(image):
 
 
 class LoopLengthTests(unittest.TestCase):
-    def test_an_sd_pro_loop_is_its_pictures_at_the_clocks_pace_whatever_the_delays(self):
-        image = made([70, 140, 700, 70])
+    def test_an_sd_pro_shows_each_picture_for_its_delay_but_at_least_one_tick(self):
+        image = made([70, 140, 700, 70])  # the three short pictures take a tick each, the long one its delay
         sd_pro = PhotoDisplay('http://127.0.0.1:1')
-        self.assertAlmostEqual(live.loop_seconds(image, sd_pro), 4 * live.DEVICE_FRAME_MS / 1000)
-        self.assertAlmostEqual(live.loop_seconds(image, sd_pro, FRAME_ALTERNATE), 4 * FRAME_ALTERNATE / 1000)
+        self.assertAlmostEqual(live.loop_seconds(image, sd_pro), (3 * live.DEVICE_FRAME_MS + 700) / 1000)
+        self.assertAlmostEqual(live.loop_seconds(image, sd_pro, FRAME_ALTERNATE), (3 * FRAME_ALTERNATE + 700) / 1000)
         merged = made([70, 70, 70, 70], [(10, 10, 10)] * 3 + [(200, 0, 0)])  # three equal pictures: encoded once
         self.assertEqual(delays(merged), [210, 70])
-        self.assertAlmostEqual(live.loop_seconds(merged, sd_pro), 2 * live.DEVICE_FRAME_MS / 1000)
+        self.assertAlmostEqual(live.loop_seconds(merged, sd_pro), (210 + live.DEVICE_FRAME_MS) / 1000)
+        held = made([3000, 100], [(255, 0, 0), (0, 0, 255)])  # the clock showed red, not a flicker a tick apart
+        self.assertAlmostEqual(live.loop_seconds(held, sd_pro), 3.142)
+        bow = made([350, 210, 350, 140, 3150])  # the low bow's poses over a still stage, its last one held
+        self.assertAlmostEqual(live.loop_seconds(bow, sd_pro), 4.202)  # the whole bow, not five ticks (0.71 s)
 
     def test_other_clocks_keep_what_the_gif_declares(self):
         image = made([70, 140, 700, 70])
@@ -96,11 +100,30 @@ class RealPaceTests(unittest.TestCase):
             for wanted, seen in ((due, began), (end, returned)):
                 self.assertGreaterEqual(seen, wanted)
                 self.assertLess(seen, wanted + .25)
-            self.assertAlmostEqual(end - began, Image.open(io.BytesIO(image)).n_frames * frame, places=6)
+            self.assertAlmostEqual(end - began, sum(max(ms / 1000, frame) for ms in delays(image)), places=6)
             self.assertNotAlmostEqual(end - began, gif_seconds(image), places=1)  # not what the GIF declares
             self.assertEqual(set(delays(image)) - {70, 140, 210, 280, 350, 420}, set())  # its own delays, untouched
             pictures.append(image)
         self.assertEqual(pictures[0], pictures[1])  # the same bytes at either pace
+
+    def test_a_bow_that_holds_its_last_pose_is_not_cut_short(self):
+        rig = Rig(self)
+        rig.say('claude.end')
+        due = rig.end_of_loop()  # the usual face's loop, its held pictures whole too
+        rig.clock.to(due + .3)
+        bow, began = rig.showing()
+        self.assertEqual(bow, rig.picture(('done', 'claude')))
+        self.assertGreaterEqual(began, due - 1e-6)
+        self.assertLess(began, due + .25)
+        self.assertGreater(max(delays(bow)), 1000)  # over a still stage its poses are a few pictures, the last held
+        end = began + rig.loop(bow)  # each pose for its delay: the held one whole, not a tick of it
+        rig.clock.to(end - .05)
+        self.assertEqual(rig.showing()[0], bow)  # still bowing
+        rig.clock.to(end + .3)
+        back, returned = rig.showing()
+        self.assertEqual(back, rig.picture())
+        self.assertGreaterEqual(returned, end - 1e-6)
+        self.assertLess(returned, end + .25)
 
     def test_the_next_loop_counts_from_when_the_picture_went_on_not_when_its_send_began(self):
         rig = Rig(self, delay=.1)  # each send takes 100 ms on the clock

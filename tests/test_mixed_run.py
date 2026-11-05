@@ -1,7 +1,7 @@
 """v2 phase 2, a mixed virtual run (v2p2-43): hours of two services' work with a short gap, a full break and a wait
 across the hour's end, pets and snacks with repeats, bows, through live.main on the fake SD_PRO. Every picture goes
-on at a real loop end of the one before it (by its own pictures at 142 ms), the breaks come once an hour of work
-each and both kinds show, and nothing pressed or asked comes back later."""
+on at a real loop end of the one before it (its own pictures, each for its delay but at least 142 ms), the breaks
+come once an hour of work each and both kinds show, and nothing pressed or asked comes back later."""
 import sys
 import unittest
 from pathlib import Path

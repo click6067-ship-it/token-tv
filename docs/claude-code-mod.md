@@ -115,5 +115,5 @@ dashboard's other requests 10; one that runs out is answered `408`, and a moment
 for nothing. The moments' rules are in `token_tv/moments.py` (time comes from
 `moments.CLOCK`, which tests replace with a fake clock; the break's hour from the readings' times on the wall clock,
 `time.time()`, and `moments.RANDOM` picks each break), the clock timing in `token_tv/live.py` (`sync_moments`;
-on an SD_PRO every loop's end is its GIF's pictures times `device_frame_ms`, 142 by default).
+on an SD_PRO a loop is its GIF's pictures, each for its delay but at least `device_frame_ms`, 142 by default).
 Tests: `python3 -B -m unittest discover -s tests` and `claude plugin test claude-plugin`.

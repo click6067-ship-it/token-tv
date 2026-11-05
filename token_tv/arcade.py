@@ -38,7 +38,7 @@ SPEED = 2  # every scene runs at twice its drawn pace; a loop plays twice in the
 FRAMES = 10 * FPS
 FRAME_MS = 70  # each picture's time in the GIF; a SmallTV SD_PRO shows one about every 140 ms (filmed 2026-10-31)
 PLAYBACK = 2  # every other drawn frame goes to the clock (owner, 2026-10-31): on the clock, the pace drawn for
-LOOP_SECONDS = FRAMES // PLAYBACK * FRAME_MS / 1000  # the GIF's own loop, 4.2 s (the SD_PRO takes about twice that)
+LOOP_SECONDS = FRAMES // PLAYBACK * FRAME_MS / 1000  # the GIF's own loop, 4.2 s (the SD_PRO: up to about twice that)
 TEXT = (226, 230, 238)
 MUTED = (128, 138, 160)
 WARN = (255, 96, 110)
@@ -2208,17 +2208,17 @@ def encode(frames, scale=1):
 
 def gif_seconds(image):
     """How long one loop of a GIF lasts, as its own delays say."""
-    loop = Image.open(io.BytesIO(image))
-    total = 0
+    return sum(gif_delays(image)) / 1000
+
+
+def gif_delays(image):
+    """The delay in ms of each picture one loop of a GIF holds, as encoded (a run of equal frames is one picture, its
+    delay longer)."""
+    loop, delays = Image.open(io.BytesIO(image)), []
     for n in range(getattr(loop, 'n_frames', 1)):
         loop.seek(n)
-        total += loop.info.get('duration', 0)
-    return total / 1000
-
-
-def gif_pictures(image):
-    """How many pictures one loop of a GIF holds, as encoded (a run of equal frames is one, its delay longer)."""
-    return getattr(Image.open(io.BytesIO(image)), 'n_frames', 1)
+        delays.append(loop.info.get('duration', 0))
+    return delays
 
 
 def render_arcade(snapshot, now=None, scale=1, egg=None):

@@ -24,7 +24,7 @@ from urllib.parse import parse_qs, urlparse
 from token_tv.device import FILES, BackupMismatch, open_display
 from token_tv.catalog import payload as theme_payload
 from token_tv.display import STYLES, overview_rows, render_page, watch_payload
-from token_tv.arcade import LOOP_SECONDS, gif_pictures, gif_seconds
+from token_tv.arcade import LOOP_SECONDS, gif_delays, gif_seconds
 from token_tv.events import EGG_SECONDS
 from token_tv.lockbox import Lockbox
 from token_tv import moments
@@ -38,16 +38,20 @@ from token_tv.web_assets import HTML, ASSETS, asset
 from token_tv.sources import load_config
 from token_tv.state import ACTIVE_SECONDS, MIN_FETCH_SECONDS, UsageStore
 
-# An SD_PRO shows one picture about every 142 ms whatever the GIF's delays ask (two 120 fps films): a loop of N
-# pictures lasts N times that there, so every loop's end on it is timed so (m1). `device_frame_ms` in the config
-# sets it; other clocks play as long as the GIF says until one is measured. The GIF itself is never changed for it.
+# How long an SD_PRO shows each picture of a GIF (m1): the delay the GIF gives it, but never less than one tick of
+# about 142 ms, max(delay, tick). On the author's unit, with every picture asking 70 ms, it put up a new one every
+# ~142 ms (two 120 fps films); a GIF of red for 3000 ms then blue for 100 ms showed red, not a flicker a tick apart;
+# and an older film showed pictures held 1.1-1.7 s. Long delays are not yet timed frame by frame. A loop there is the
+# sum of its pictures' times (the marked line in loop_seconds: another rule per picture is a change to that line
+# alone), and every loop's end on it is timed so. `device_frame_ms` in the config sets the tick; other clocks play
+# as long as the GIF says until one is measured. The GIF itself is never changed for it.
 DEVICE_FRAME_MS = 142
 
 
 def loop_seconds(image, device, frame_ms=DEVICE_FRAME_MS):
     """How long one loop of the GIF `image` lasts on the clock `device`."""
     if getattr(device, 'MODEL', None) == 'sdpro':
-        return gif_pictures(image) * frame_ms / 1000
+        return sum(max(delay, frame_ms) for delay in gif_delays(image)) / 1000  # each picture: max(delay, tick)
     return gif_seconds(image)
 
 

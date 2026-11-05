@@ -124,9 +124,9 @@ def load_config(path):
         raise ValueError("Unsupported configuration field")
     if not isinstance(data.get("update_check", True), bool):
         raise ValueError("update_check is true or false")
-    pace = data.get("device_frame_ms")  # how long an SD_PRO shows each picture (live.DEVICE_FRAME_MS when unset)
+    pace = data.get("device_frame_ms")  # an SD_PRO's shortest picture, its tick (live.DEVICE_FRAME_MS when unset)
     if pace is not None and (isinstance(pace, bool) or not isinstance(pace, (int, float)) or not 20 <= pace <= 2000):
-        raise ValueError("device_frame_ms is the clock's milliseconds a picture, from 20 to 2000")
+        raise ValueError("device_frame_ms is the clock's shortest picture in milliseconds, from 20 to 2000")
     if data.get('display_style', 'pixel') not in STYLES:
         raise ValueError('Unknown display style')
     seen = set()

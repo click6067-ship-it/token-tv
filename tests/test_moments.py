@@ -26,14 +26,19 @@ from token_tv.moments import Moments, loop_end, overlay
 from token_tv.state import MIN_FETCH_SECONDS, UsageStore
 
 ROOT = Path(__file__).resolve().parent.parent
-FRAME_SD = .142  # seconds a picture on an SD_PRO (live.DEVICE_FRAME_MS): the fake clock's own pace
+FRAME_SD = .142  # the shortest an SD_PRO shows a picture, in seconds (live.DEVICE_FRAME_MS): the fake clock's own tick
 
 
 def physical(image, frame=FRAME_SD):
-    """How long an SD_PRO plays one loop of `image`: each of its pictures, as encoded, for `frame` seconds, whatever
-    the GIF's delays say (m1)."""
+    """How long an SD_PRO plays one loop of `image`: each of its pictures, as encoded, for the delay the GIF gives it
+    but at least `frame` seconds (m1), read from the GIF here, apart from live.loop_seconds. The sum is in whole ms,
+    as the GIF gives its delays: exact, so a loop's end here and TokenTV's agree to the last bit."""
     from PIL import Image
-    return Image.open(io.BytesIO(image)).n_frames * frame
+    source, total = Image.open(io.BytesIO(image)), 0
+    for n in range(source.n_frames):
+        source.seek(n)
+        total += max(source.info['duration'], frame * 1000)
+    return total / 1000
 
 
 class FakeClock:
@@ -1430,8 +1435,8 @@ class Rig:
         return self.album['files'][on[0]], started
 
     def loop(self, image):
-        """How long this fake clock plays one loop of `image`: an SD_PRO a picture every `frame`, whatever the GIF's
-        delays; an Ultra as long as they say."""
+        """How long this fake clock plays one loop of `image`: an SD_PRO each picture for its delay but at least
+        `frame`; an Ultra as long as the delays say."""
         return gif_seconds(image) if self.model == 'ultra' else physical(image, self.frame)
 
     def end_of_loop(self, at=None):
@@ -1729,8 +1734,8 @@ class ClockTimingTests(unittest.TestCase):
         # The re-grade's m-slip: readings every 63 s and an ask at 15 s put the hop's time (315 s) on a reading's
         # tick and on a loop's end. The reading then takes long. Real time spent on the clock's path there (a wait
         # for the reading, the 40 ms a hop takes to draw) is put on the fake clock, as it passes for the real one.
-        # (A clock at 125 ms a picture and Clawd keeping still: its usual loop of 8 pictures is 1 s, the raised
-        # hand's 50 are 6.25 s, so 315 s is a loop's end again.)
+        # (Clawd keeping still: its usual loop is 8 pictures held 420 and 630 ms, 4.2 s, so the raised hand goes on at
+        # 16.8 s; its 50 pictures take a 142 ms tick each, 7.1 s, and 42 of those loops end at 315 s.)
         patcher = mock.patch.object(arcade, 'rest_step', lambda provider, now: (None, None))
         patcher.start()
         self.addCleanup(patcher.stop)
@@ -1767,7 +1772,7 @@ class ClockTimingTests(unittest.TestCase):
                         mock.patch.object(live, 'render_page', timed_draw)):
             patcher.start()
             self.addCleanup(patcher.stop)
-        rig = Rig(self, poll_seconds=63, frame_ms=125)
+        rig = Rig(self, poll_seconds=63)
         _, first = rig.showing()
         rig.clock.to(first + 15)
         asked = rig.clock.now()
@@ -1776,12 +1781,12 @@ class ClockTimingTests(unittest.TestCase):
         rig.clock.to(due + .3)
         _, start = rig.showing()
         hop = loop_end({'at': start, 'loop': physical(rig.showing()[0], rig.frame)}, asked + 300)
-        self.assertAlmostEqual((hop - first) % 63, 0, places=6)  # the hop's loop end is a reading's tick
+        self.assertAlmostEqual(hop - first, 5 * 63, places=6)  # the hop's loop end is a reading's tick
         window.update({'from': hop - 1, 'to': hop + 1})
         rig.clock.to(hop + 10)
         image, started = rig.showing()
         self.assertEqual(image, rig.picture(('needs', 2)))
-        self.assertGreaterEqual(started, hop)
+        self.assertGreaterEqual(started, hop - 1e-6)  # (16.8 and 7.1 s are no exact binary numbers)
         self.assertLess(started, hop + .25)  # on time, not a loop later
 
     def test_a_moment_that_comes_during_a_one_off_goes_as_it_ends_in_its_quiet_loops_place(self):
