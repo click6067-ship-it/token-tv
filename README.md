@@ -16,7 +16,7 @@ Turn a ~$5 AliExpress clock (GeekMagic SmallTV) into a physical AI usage dashboa
 **Try it:** [live demo](https://token-tv.vercel.app) or `npx token-tv demo`, no clock or login needed.  
 **Set it up:** run `npx token-tv start` (or `uvx token-tv start`) on a computer that stays on. It finds your signed-in tools and the clock on your Wi-Fi, keeps running in the background and opens your dashboard. Or tell your AI *"Set up TokenTV for me"* ([AGENTS.md](https://github.com/click6067-ship-it/token-tv/blob/main/AGENTS.md)).
 
-**New: Claude Code mode.** Clawd raises a hand when Claude Code needs you and bows when a turn ends ([set it up](https://github.com/click6067-ship-it/token-tv/blob/main/docs/claude-code-mod.md)).
+**New: Claude Code mode.** Clawd raises a hand when Claude Code needs you, bows when a turn ends, holds court over risky commands and sulks when you shout ([set it up](https://github.com/click6067-ship-it/token-tv/blob/main/docs/claude-code-mod.md)).
 
 **New: Arcade.** When you're coding, the bots get busy too. Codex, for example, rains code to grow flowers while it spends tokens: the more it spends, the fuller the garden. Grok refuels its rocket and, resting, gazes up at Earth, and Copilot and Anti are the newest friends.
 

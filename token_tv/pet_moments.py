@@ -63,6 +63,8 @@ def leaning(build, args, pivot, dx):
         k = max(0.0, min(1.0, (bottom - 1 - y) / max(1, bottom - 1 - top)))
         row = art.crop((0, y, art.width, y + 1))
         out.paste(row, (round(dx * k) + (abs(dx) if dx < 0 else 0), y), row)
+    if art.info.get('pet'):  # a leaning pet is still the pet (its season's hat: seasons.py)
+        out.info['pet'] = art.info['pet']
     return out, (pivot[0] + (abs(dx) if dx < 0 else 0), pivot[1])
 
 
@@ -248,7 +250,7 @@ def clawd_art(name, index, eyes=None):
                 values[low * w + x] = dark
     art = Image.new('RGBA', (w, h))
     art.putdata([(0, 0, 0, 0) if v == 255 else palette[v] + (255,) for v in values])
-    return art
+    return arcade.tag(art, 'claude')
 
 
 def clawd_pivot(name, index, eyes=None, grounded=False):

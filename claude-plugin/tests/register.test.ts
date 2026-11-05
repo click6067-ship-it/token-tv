@@ -5,7 +5,8 @@ import { expect, mock, test } from 'claude-code/testing'
 const HOME = '/home/user'
 const STATE = HOME + '/.config/token-tv/state'
 const flush = () => new Promise((done) => setTimeout(done, 25))
-const DRAWN = { type: 'Text', props: {}, children: ['Bash(rm -rf build)'] }
+const DRAWN = { type: 'Text', props: {}, children: ['Bash(npm test)'] }
+const ASKING = 'npm test' // a command of no risk, deleting nothing: these tests are about the prompt
 
 function computer(on: any, options: any = {}) {
   const files: Record<string, string> = options.files ?? { [STATE + '/live.url']: 'http://127.0.0.1:8791' }
@@ -69,7 +70,7 @@ const tokentv = ($: any, args?: string) => $.command.run(args === undefined ? { 
 
 // Claude Code drawing tool calls' rows, as it does the moment you answer a prompt: a ToolGroup with its calls in a
 // list, or a ToolUse row of one call (measured in 2.1.289: the asked call `isRunning` once you said yes).
-const row = (id: string, fields: any = {}) => ({ tool_use_id: id, tool: 'Bash', input: { command: 'rm -rf build' },
+const row = (id: string, fields: any = {}) => ({ tool_use_id: id, tool: 'Bash', input: { command: ASKING },
                                                  isRunning: false, isErrored: false, isInterrupted: false, ...fields })
 const group = ($: any, ...calls: any[]) => $.ui.render({ surface: 'terminal', component: 'ToolGroup', requestId: 'g1',
                                                           props: { calls, isActive: true, isExpanded: false } })
@@ -77,7 +78,7 @@ const single = ($: any, call: any) => $.ui.render({ surface: 'terminal', compone
                                                      props: call })
 
 // A tool call that needs your permission: the call starts, Claude Code checks it, and the prompt waits for you.
-async function prompt($: any, id: string, command = 'rm -rf build') {
+async function prompt($: any, id: string, command = ASKING) {
   const call = $.tool.call({ tool: 'Bash', command, tool_use_id: id })
   call.catch(() => {}) // a call a test leaves waiting is let go with the test, not left a rejection nobody handles
   await flush()
@@ -244,12 +245,12 @@ test('the same prompt seen again is still one wait, and one answer closes it; a 
   async ($: any, on: any) => {
     const pc = computer(on)
     const { call } = await prompt($, 'same')
-    for (let k = 0; k < 9; k++) await $.tool.check({ tool: 'Bash', input: { command: 'rm -rf build' }, tool_use_id: 'same' })
+    for (let k = 0; k < 9; k++) await $.tool.check({ tool: 'Bash', input: { command: ASKING }, tool_use_id: 'same' })
     await flush()
     expect(pc.moments()).toEqual(['claude.ask'])
     pc.release('same')
     await call
-    await $.tool.check({ tool: 'Bash', input: { command: 'rm -rf build' }, tool_use_id: 'same' })
+    await $.tool.check({ tool: 'Bash', input: { command: ASKING }, tool_use_id: 'same' })
     await flush()
     expect(pc.moments()).toEqual(['claude.ask', 'claude.answered'])
   })
@@ -610,8 +611,9 @@ test('a subagent\'s prompt is its own even when the check does not say whose it 
 test('/tokentv is one slash command, offered as the session starts, running at once mid-turn', async ($: any, on: any) => {
   const pc = computer(on)
   await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' })
-  expect(pc.registered).toEqual([{ name: 'tokentv', description: 'Pet Clawd on your TokenTV clock, or give it a snack',
-                                   argumentHint: 'pet | snack', immediate: true }])
+  expect(pc.registered).toEqual([{ name: 'tokentv',
+                                   description: 'Pet Clawd on your TokenTV clock, give it a snack, or turn its sounds on or off',
+                                   argumentHint: 'pet | snack | sound on | sound off', immediate: true }])
   expect(pc.sent).toEqual([]) // offering it sends nothing
 })
 
@@ -634,7 +636,7 @@ test('anything else after /tokentv sends nothing, and its words go nowhere', asy
   const words = [undefined, '', 'pet CANARY-ARG-1a', 'snack now CANARY-ARG-2b', 'CANARY-ARG-3c', 'petting', 'pet\nsnack',
     'claude.pet', 'claude.ask', '{"moment":"claude.ask"}', 'constructor', '__proto__', 'toString', 'pet snack']
   for (const args of words) {
-    expect(await tokentv($, args)).toEqual({ text: 'Try /tokentv pet or /tokentv snack.' })
+    expect(await tokentv($, args)).toEqual({ text: 'Try /tokentv pet, /tokentv snack, or /tokentv sound on|off.' })
   }
   await flush()
   expect(pc.sent).toEqual([])

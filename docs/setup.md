@@ -61,7 +61,8 @@ ever receives a picture.
 ![Digital, Neon, Pixel Retro, Sci-Fi HUD, Pixel and the animated Space face (sample data)](images/clock-faces.png)
 
 Six of them are above; there are also **Game Boy** (four greens), **Pixel Retro Dual** (Pixel Retro with the 5-hour
-and weekly windows of each account, `retro-dual`) and the animated **Arcade** (below).
+and weekly windows of each account, `retro-dual`), **Survival HUD** (below, `survival`) and the animated **Arcade**
+(below).
 Pick one under **Clock display** in the dashboard, then press **Apply to clock**. Space is an animated
 GIF that the stock photo album plays. A picture is uploaded again only when the rendered image differs
 from the last upload, for example a new percentage or the Space animation that changes every 30 minutes.
@@ -84,7 +85,20 @@ From 11 pm to 6 am the picture dims. A few rarer scenes are hidden: they ship lo
 moment really comes on your clock, a rare one every few days and a unique one every week or two, and some leave
 a small keepsake in the scene for a while. Arcade shows one account at a time (the working ones in turn, or all
 of them while idle). An account that reports no percentage, such as a Grok login without billing data, never
-counts as working.
+counts as working. On Halloween (Oct 25 to Nov 1), Christmas (Dec 18 to 26) and Seollal (the day before the Korean
+lunar new year to the day after, from 2026 to 2040) Arcade dresses for the season by itself, on this computer's date:
+a hat on every pet and the season's things in each scene (bats and pumpkins; snow and a tree; a kite, a yut set and
+a lucky pouch), clear of every gauge. The one-off scenes (fireworks, a flop, the rare ones) stay as they are.
+
+**Survival HUD** reads like a game's status bar, one row per account (up to four, chosen as on the other faces):
+ten hearts are what is left of the 5-hour window and ten drumsticks what is left of the week (or the month or
+budget), a tenth each, a half icon for the last 5%; the number beside them is what is left, as on Arcade's battery.
+The gold bar under them is today's use, full when the long window has risen by an even day's share since the day
+began on this computer (a seventh of a week), with a second lap in orange past that; a reset, even an early one such
+as a spent reset credit, takes nothing off it. TokenTV counts it from its own readings and keeps the day's start in
+its state folder, so a restart keeps it; until TokenTV has read an account that day, its bar is a dash. An account
+with one window shows only that row; one with no reading says why (LOGIN, NO DATA), and an old reading says OLD.
+Like the other still faces it shows no agent moments: those are Arcade's.
 </details>
 
 ## Make it yours

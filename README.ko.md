@@ -16,7 +16,7 @@
 **구경하기:** [라이브 데모](https://token-tv.vercel.app) 또는 `npx token-tv demo`, 시계·로그인 없이 바로.  
 **설치하기:** 계속 켜 두는 컴퓨터에서 `npx token-tv start`(또는 `uvx token-tv start`). 로그인된 도구와 같은 와이파이의 시계를 찾고, 백그라운드에서 계속 돌며, 대시보드를 엽니다. AI에게 *"TokenTV 설정해줘"* 라고 해도 됩니다([AGENTS.md](AGENTS.md)).
 
-**새 기능 Claude Code 모드:** Claude Code가 허락을 기다리면 Clawd가 손을 들고, 한 턴이 끝나면 인사합니다([설정 방법](https://github.com/click6067-ship-it/token-tv/blob/main/docs/claude-code-mod.md)).
+**새 기능 Claude Code 모드:** Claude Code가 허락을 기다리면 Clawd가 손을 들고, 한 턴이 끝나면 인사합니다. 위험한 명령에는 법정을 열고, 소리치면 삐집니다([설정 방법](https://github.com/click6067-ship-it/token-tv/blob/main/docs/claude-code-mod.md)).
 
 **새 화면 Arcade:** 코딩하는 동안 봇들도 바삐 움직입니다. 예를 들어 Codex는 토큰을 쓰는 동안 코드 비를 뿌려 꽃을 키웁니다. 많이 쓸수록 꽃밭이 가득 찹니다. Grok은 로켓에 연료를 넣다가 쉴 때는 지구를 올려다봅니다. Copilot과 Anti는 새로 온 친구들입니다.
 

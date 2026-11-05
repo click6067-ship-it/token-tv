@@ -49,7 +49,7 @@ class LoopLengthTests(unittest.TestCase):
         merged = made([70, 70, 70, 70], [(10, 10, 10)] * 3 + [(200, 0, 0)])  # three equal pictures: encoded once
         self.assertEqual(delays(merged), [210, 70])
         self.assertAlmostEqual(live.loop_seconds(merged, sd_pro), (210 + live.DEVICE_FRAME_MS) / 1000)
-        held = made([3000, 100], [(255, 0, 0), (0, 0, 255)])  # the clock showed red, not a flicker a tick apart
+        held = made([3000, 100], [(255, 0, 0), (0, 0, 255)])  # the clock showed red, then a blue flash (t1g)
         self.assertAlmostEqual(live.loop_seconds(held, sd_pro), 3.142)
         bow = made([350, 210, 350, 140, 3150])  # the low bow's poses over a still stage, its last one held
         self.assertAlmostEqual(live.loop_seconds(bow, sd_pro), 4.202)  # the whole bow, not five ticks (0.71 s)

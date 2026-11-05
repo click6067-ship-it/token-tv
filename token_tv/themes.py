@@ -766,5 +766,12 @@ def render_gameboy(data):
     return to_four_shades(cv.finish())
 
 
+def render_survival(snapshot):
+    """The Survival face (token_tv/survival.py: hearts, hunger and today's use, a row per account), imported as it is
+    first drawn, since it draws Arcade's pets."""
+    from token_tv.survival import render_survival as render
+    return render(snapshot)
+
+
 RENDERERS = {'digital': render_digital, 'neon': render_neon, 'retro': render_retro, 'hud': render_hud, 'gameboy': render_gameboy,
-             'retro-dual': render_retro_dual}
+             'retro-dual': render_retro_dual, 'survival': render_survival}
