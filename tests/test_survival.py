@@ -88,7 +88,7 @@ class FaceTests(unittest.TestCase):
         self.assertEqual((listed['name'], listed['local'], listed['installed'], listed['needs_update']),
                          ('Survival HUD', False, True, False))
         self.assertNotIn('minecraft', json.dumps(listed).lower())
-        self.assertIn("s === 'survival' ? 'Survival HUD'", (ROOT / 'token_tv' / 'web' / 'app.js').read_text())
+        self.assertIn("s === 'survival' ? 'Survival HUD'", (ROOT / 'token_tv' / 'web' / 'app.js').read_text(encoding='utf-8'))
 
     def test_the_dashboard_previews_applies_and_keeps_it_as_it_does_every_face(self):
         account = {'key': 'a', 'alias': 'CLAUDE A', 'provider': 'claude', 'email': 'owner@example.com'}

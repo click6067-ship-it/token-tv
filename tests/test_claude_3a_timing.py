@@ -310,20 +310,21 @@ class WordTests(Base):
 
     def test_nothing_of_the_word_or_the_moments_is_written_anywhere(self):
         rig = Rig(self)
-        before = {p: p.read_bytes() for p in rig.state.rglob('*') if p.is_file()}
+
+        def files():  # all but the running TokenTV's live.lock, which Windows lets no one read while it is held
+            return {p: p.read_bytes() for p in rig.state.rglob('*') if p.is_file() and p.name != 'live.lock'}
+        before = files()
         said, due = self.halfway(rig)
         for name in ('claude.word:Philosophising', 'claude.deleted', 'claude.rude'):
             rig.say(name)
         rig.clock.to(due + .3)
         self.assertEqual(rig.showing()[0], self.picture(rig, ('state', 'drift', True, 'PHILOSOPHISING')))
-        for path in rig.state.rglob('*'):
-            if path.is_file():
-                data = path.read_bytes()
-                self.assertNotIn(b'PHILOSOPHISING', data.upper(), path)
-                self.assertNotIn(b'rude', data, path)
-                if path in before:  # an existing file is only ever the usual face's (the moments' never kept)
-                    self.assertNotEqual(data, rig.showing()[0])
-        self.assertFalse(any(p.read_bytes() == rig.showing()[0] for p in rig.state.rglob('*') if p.is_file()))
+        for path, data in files().items():
+            self.assertNotIn(b'PHILOSOPHISING', data.upper(), path)
+            self.assertNotIn(b'rude', data, path)
+            if path in before:  # an existing file is only ever the usual face's (the moments' never kept)
+                self.assertNotEqual(data, rig.showing()[0])
+        self.assertNotIn(rig.showing()[0], files().values())
 
     def test_the_dashboards_preview_shows_the_word_and_the_ghost_as_the_clock_will(self):
         import http.client
