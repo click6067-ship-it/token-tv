@@ -38,7 +38,7 @@ SPEED = 2  # every scene runs at twice its drawn pace; a loop plays twice in the
 FRAMES = 10 * FPS
 FRAME_MS = 70  # each picture's time in the GIF; a SmallTV SD_PRO shows one about every 140 ms (filmed 2026-10-31)
 PLAYBACK = 2  # every other drawn frame goes to the clock (owner, 2026-10-31): on the clock, the pace drawn for
-LOOP_SECONDS = FRAMES // PLAYBACK * FRAME_MS / 1000  # the GIF's own loop, 4.2 s (the SD_PRO takes about twice that)
+LOOP_SECONDS = FRAMES // PLAYBACK * FRAME_MS / 1000  # the GIF's own loop, 4.2 s (the SD_PRO: up to about twice that)
 TEXT = (226, 230, 238)
 MUTED = (128, 138, 160)
 WARN = (255, 96, 110)
@@ -185,6 +185,15 @@ def place_clawd(frame, name, index, scale, foot_x, foot_y, flip=False):
     paste(frame, art, foot_x - (x + w / 2) * scale, foot_y - (y + h) * scale)
 
 
+def clawd_top(name, index, scale, foot_x, foot_y, left, right):
+    """The first row of the frame where Clawd, stood as place_clawd stands it, shows in columns left to right."""
+    x, y, w, h = clawd_data()[name]['a0']
+    art = clawd(name, index, scale)
+    x0, y0 = round(foot_x - (x + w / 2) * scale), round(foot_y - (y + h) * scale)
+    box = art.crop((left - x0, 0, right - x0 + 1, art.height)).getbbox()
+    return y0 + (box[1] if box else art.getbbox()[1])
+
+
 @functools.lru_cache(maxsize=None)
 def clawd_spun(name, index, scale, degrees):
     return rotsprite(clawd(name, index, scale), degrees)
@@ -305,6 +314,99 @@ def moon_gauge(draw, cx, cy, r, left):
                     draw.point((cx + xx, cy + yy), fill=MOON_LIT if lit else MOON_DARK)
 
 
+# --- The agent's moments (v2): Claude Code waiting for you, a turn done -------------------------------------------
+# A moment comes from the TokenTV mod in Claude Code (or Codex's notify) as a name only; the row carries it as
+# {'kind': 'needs', 'since': t} or {'kind': 'done', 'at': t}. Waiting grows more insistent: a hand up, then hops,
+# then a sign (x2). Phase 2's (pet_moments.py): {'kind': 'pet'} or 'snack' on Clawd's rows, {'kind': 'drink'} or
+# 'stretch' on every pet's, each once through its pet's turn.
+NEEDS_LEVELS = ((15 * 60, 3), (5 * 60, 2), (0, 1))  # seconds waited -> how insistent
+MOMENT_ACTION = {'needs': 'NEEDS YOU', 'done': 'DONE', 'pet': 'PETTED', 'snack': 'SNACKING', 'drink': 'DRINKING',
+                 'stretch': 'STRETCHING'}
+ONCE_THROUGH = ('pet', 'snack', 'drink', 'stretch')  # moments drawn once through the turn, a scene frame a frame
+JOINING = ('done', 'pet', 'snack')  # moments that bring their pet into the loop beside the ones at work
+SIGN_INK, SIGN_BOARD, SIGN_EDGE = (34, 40, 120), (250, 244, 226), (150, 110, 70)
+
+
+def needs_level(waited):
+    return next(level for after, level in NEEDS_LEVELS if waited >= after)
+
+
+BOW_SHARE = .5  # a bow takes the first half of the loop, and its pet stands proud for the rest
+
+
+def bow_step(f, span):
+    """Where a bow is at frame `f` of its pet's turn of `span` frames (a bowing scene runs once through its turn,
+    at SPEED: arcade_frames), on the 24 steps it is drawn in: 0 to 24 over the first BOW_SHARE of the loop, or the
+    whole turn when pets share the loop (a quarter of it would make the dip a flicker), then 24 (bowed, standing) to
+    the turn's end. One bow a loop, however many pets share it."""
+    return min(24, 24 * f / (min(span, BOW_SHARE * FRAMES) * SPEED))
+
+
+def alert_mark(draw, x, y, s, f):
+    """A small speech bubble with '!' over a head at (x, y), blinking once a second."""
+    if f % FPS >= FPS * 2 // 3:
+        return
+    draw.rectangle((x, y, x + 6 * s, y + 7 * s), fill=SIGN_BOARD)
+    draw.rectangle((x + s, y + 8 * s, x + 2 * s - 1, y + 9 * s - 1), fill=SIGN_BOARD)  # the bubble's tail
+    draw.rectangle((x + 3 * s, y + s, x + 4 * s - 1, y + 4 * s - 1), fill=WARN)
+    draw.rectangle((x + 3 * s, y + 5 * s, x + 4 * s - 1, y + 6 * s - 1), fill=WARN)
+
+
+def sign_sway(s, f):
+    return s if (f // 6) % 2 else 0
+
+
+def held_sign(draw, cx, top, s, f):
+    """A board on a stick, held up over the head: HEY!, swaying a pixel. The stick ends at top + 20 * s."""
+    sway = sign_sway(s, f)
+    left = cx - 15 * s + sway
+    draw.rectangle((cx - s // 2 + sway, top + 11 * s, cx + s // 2 + sway, top + 20 * s), fill=SIGN_EDGE)  # the stick
+    draw.rectangle((left, top, left + 30 * s, top + 11 * s), fill=SIGN_EDGE)
+    draw.rectangle((left + s, top + s, left + 29 * s, top + 10 * s), fill=SIGN_BOARD)
+    pixel_text(draw, (left + 4 * s, top + 2 * s), 'HEY!', scale=s, color=SIGN_INK)
+
+
+def claude_moment(frame, draw, foot_x, foot_y, f, span, s, moment):
+    if moment['kind'] in ONCE_THROUGH:  # petted, a snack, a drink or a stretch (pet_moments.py)
+        from token_tv import pet_moments
+        pet_moments.CLAWD_MOMENTS[moment['kind']](frame, draw, foot_x, foot_y, f, span)
+        return
+    if moment['kind'] == 'needs':
+        level = moment.get('level', 1)
+        if level == 1:  # a hand up, waving at you
+            place_clawd(frame, 'Waving', 5 + (f // 2) % 12, s, foot_x, foot_y)
+            alert_mark(draw, foot_x + 9 * s, foot_y - 30 * s, s, f)
+        else:  # hopping, and at the third level holding up a sign
+            index = 5 + (f // 2) % 9
+            place_clawd(frame, 'Jumping', index, s, foot_x, foot_y)
+            if level >= 3:  # its stick on Clawd's head, however high the hop has it
+                stick = foot_x + sign_sway(s, f)
+                head = clawd_top('Jumping', index, s, foot_x, foot_y, stick - s // 2, stick + s // 2)
+                held_sign(draw, foot_x, head - 20 * s, s, f)
+            else:
+                alert_mark(draw, foot_x + 9 * s, foot_y - 36 * s, s, f)
+        return
+    # done: a bow, eyes shut, down low and up again once a loop, then standing proud with a smile
+    t = bow_step(f, span)
+    if bow_style(moment) == 'tilt':
+        tilt = round(28 * math.sin(math.pi * t / 14)) if t < 14 else 0
+        place_clawd_spun(frame, 'Excited', 6, s, foot_x, foot_y, -tilt)
+    elif 4 <= t < 12:
+        place_clawd(frame, 'Disappointed', 14 if 6 <= t < 10 else 12, s, foot_x, foot_y)
+    else:
+        place_clawd(frame, 'Excited', 6, s, foot_x, foot_y)
+
+
+BOW_STYLES = ('low', 'tilt')  # 'low' ducks down and up; 'tilt' leans the whole body
+BOW_STYLE = None  # one of BOW_STYLES for every bow; None: each bow picks one at random (the owner wants both)
+
+
+def bow_style(moment):
+    """The bow this moment plays: BOW_STYLE when one is set, else one of BOW_STYLES chosen by when the bow began,
+    so every drawing of the same bow is the same picture and the next bow may be the other one."""
+    return BOW_STYLE or random.Random(f"bow {moment.get('at')}").choice(BOW_STYLES)
+
+
 def claude_scene(frame, draw, box, f, span, active, s, plan):
     x, y, w, h = box
     ground_y, period, pits, pit_w, shift = claude_backdrop(frame, draw, box, f, s, False)  # the world stands still
@@ -313,6 +415,9 @@ def claude_scene(frame, draw, box, f, span, active, s, plan):
         if s == 1:
             gauge_label(draw, x + w - 12, y + 21, '5H', 'centre')
     foot_x, foot_y = x + round(w * .3), ground_y
+    if isinstance(plan, dict) and plan.get('moment'):
+        claude_moment(frame, draw, foot_x, foot_y, f, span, s, plan['moment'])
+        return
     if not active and isinstance(plan, dict) and plan.get('mood') == 'worried':
         t = f % 40  # nearly out: pacing to and fro, looking round at each end
         back = t >= 20
@@ -534,6 +639,8 @@ def flower(draw, cx, ground, g, stage, lean=0):
 
 def codex_scene(frame, draw, box, f, span, active, s, plan, centre=.5):
     x, y, w, h = box
+    bowing = isinstance(plan, dict) and (plan.get('moment') or {}).get('kind') == 'done'
+    active = active and not bowing  # a turn just done: no rain while it bows
     ground = garden_backdrop(draw, box, f, s)
     used = plan.get('used') if isinstance(plan, dict) else None
     spots = 5  # one flower per 20%, on every stage size
@@ -564,6 +671,13 @@ def codex_scene(frame, draw, box, f, span, active, s, plan, centre=.5):
         mouth = 'short' if f // 4 % 2 else 'long'
         mid += round(math.sin(2 * math.pi * f * 3 / FRAMES) * s)
         shiver = s * (1 if flicker(f) else -1) if 1 <= phase < 1 + 2 * SPEED * PLAYBACK else 0  # two pictures: both ways
+    elif bowing:  # a bow: it dips, grinning, once a loop, then floats proud
+        idle = 'bow'
+        t = bow_step(f, span)
+        dip = round(4 * math.sin(math.pi * t / 14)) if t < 14 else 0
+        eye, mouth, shiver = 'happy', 'smile', 0
+        squash = min(2, dip // 2)
+        mid += dip * s
     else:
         idle = idle_now(plan, f, span)
         squash = 1 if 26 <= f % 60 <= 33 else 0  # breathing
@@ -1261,11 +1375,13 @@ BEAN, BEAN_SHUT, CAT_MOUTH = ('XX', 'XX', 'XX'), ('XX',), ('X.X.X', '.X.X.')
 DOT_EYE, SMILE_EYE, ZED = ('XX', 'XX'), ('.X.', 'X.X'), ('XXX', '..X', '.X.', 'X..', 'XXX')
 # Its poses: how tall each of the logo's ten block rows is drawn (two pixels, the legs' last row one: no feet),
 # and how far the lower rows' halves move apart. A squash takes a pixel out of the legs as it lands; asleep it
-# lies low and wide like a blanket, a breath in lifting it a pixel.
+# lies low and wide like a blanket, a breath in lifting it a pixel; stretching (pet_moments) it stands up on its
+# toes, its legs a pixel longer a row.
 ANTI_POSES = {'stand': ((2, 2, 2, 2, 2, 2, 2, 2, 2, 1), {}),
               'squash': ((2, 2, 2, 2, 2, 2, 2, 1, 2, 1), {}),
               'blanket': ((1, 1, 2, 2, 2, 1, 1, 1, 1, 1), {6: 1, 7: 1, 8: 2, 9: 2}),
-              'blanket_in': ((1, 1, 2, 2, 2, 2, 1, 1, 1, 1), {6: 1, 7: 1, 8: 2, 9: 2})}
+              'blanket_in': ((1, 1, 2, 2, 2, 2, 1, 1, 1, 1), {6: 1, 7: 1, 8: 2, 9: 2}),
+              'tall': ((2, 2, 2, 2, 2, 2, 3, 3, 3, 1), {})}
 # The patrol: the sprite's corner round the centre wall, and the pellets, used from the top left round to the
 # bottom left (what is left sits in the last corners).
 ANTI_LOOP = ((3, 9), (93, 9), (93, 41), (3, 41))
@@ -1715,6 +1831,11 @@ def scene_plan(row, now, span=FRAMES / FPS):
         plan['idle'] = (FLOW_MOVES[row['provider']][step], still) if step else (still, still)
     if plan['mood'] == 'worried' and row['provider'] in IDLE_SETS:  # nearly out: each frets its own way
         plan['idle'] = ('fret', 'fret')  # (Clawd paces, in its own scene)
+    moment = row.get('moment')
+    if moment and moment.get('kind') in MOMENT_ACTION:
+        plan['moment'] = dict(moment)
+        if moment['kind'] == 'needs' and moment.get('level') not in (1, 2, 3):  # live.py says; a preview counts
+            plan['moment']['level'] = needs_level(stamp - (moment.get('since') or stamp))
     return plan
 
 
@@ -1767,6 +1888,10 @@ def action_label(row, plan, egg, f, span):
         if kind == 'full':
             return FULL_ACTION.get(provider, 'ALL USED')
         return 'POWER UP' if provider == 'antigravity' else 'CELEBRATING'
+    if isinstance(plan, dict) and plan.get('moment'):
+        return MOMENT_ACTION[plan['moment']['kind']]
+    if row.get('slow'):  # x3: a window would run out within half an hour at its pace (state.py); the pet goes on
+        return 'SLOW'
     worried = isinstance(plan, dict) and plan.get('mood') == 'worried'
     if row.get('active'):
         if worried:
@@ -1795,11 +1920,19 @@ def shown_rows(snapshot, now=None):
     order = list(PROVIDERS)
     every = [dict(row, key=key) for key, row in snapshot['accounts'].items()]
     every.sort(key=lambda row: order.index(row['provider']) if row['provider'] in order else len(order))
-    pool = [row for row in every if row.get('active')] or every
+    # Claude waiting for you takes the whole loop, so NEEDS YOU is on the clock all the time (the others come back
+    # once it is answered); a bow, a pet or a snack gets its turn beside the working ones, when some work. The break
+    # is every pet's: the ones that would be on the clock anyway take it, and nobody else joins them.
+    waiting = [row for row in every if (row.get('moment') or {}).get('kind') == 'needs']
+    working = [row for row in every if row.get('active')]
+    joins = lambda row: (row.get('moment') or {}).get('kind') in JOINING  # noqa: E731
+    pool = waiting or ([row for row in every if row.get('active') or joins(row)] if working else every)
     if len(pool) <= MAX_ROWS:
         return pool
     start = int((time.time() if now is None else now) // (60 * len(REST_FLOW))) * MAX_ROWS % len(pool)
-    return [pool[(start + k) % len(pool)] for k in range(MAX_ROWS)]
+    turn = [pool[(start + k) % len(pool)] for k in range(len(pool))]
+    picked = ([row for row in turn if joins(row)] + [row for row in turn if not joins(row)])[:MAX_ROWS]
+    return [row for row in turn if any(row is p for p in picked)]
 
 
 def egg_scene(egg, row):
@@ -1935,12 +2068,48 @@ def leave_prop(stage, row):
 
 def scene_speed(row, eggy):
     """Scenes run at twice their pace, except Grok's jobs at work and Anti, which take the whole loop for one
-    round."""
+    round, and the phase-2 moments, once through the turn a scene frame a frame."""
     if eggy:
         return SPEED
+    if (row.get('moment') or {}).get('kind') in ONCE_THROUGH:
+        return 1
     if row['provider'] == 'antigravity':
         return 1  # Anti keeps the old arcade's own pace: a round of the maze in the whole loop
     return 1 if row['provider'] == 'grok' and row.get('active') else SPEED
+
+
+def moment_scene(provider, plan):
+    """The scene a pet plays in place of its own for a phase-2 moment (pet_moments.SCENE_MOMENTS: the break, for all
+    but Clawd, whose own scene draws its moments), or None."""
+    kind = (plan.get('moment') or {}).get('kind') if isinstance(plan, dict) else None
+    if kind not in ONCE_THROUGH:
+        return None
+    from token_tv import pet_moments
+    drawn = pet_moments.SCENE_MOMENTS.get(provider, {}).get(kind)
+    return drawn and (lambda frame, draw, box, f, span, active, s, plan, **_: drawn(frame, draw, box, f, span, s, plan))
+
+
+# x3 and x4 on the battery readout: a battery that would run out within half an hour (state.py) blinks red beside
+# SLOW, five pictures on and five off whatever the scene's pace; a weekly battery has a tick where even use over the
+# week would have left its charge now (the battery shows what is left: the tick sits at the share of the week still
+# to come), and charge that falls short of it is overspend, the gap to it red (the owner's style A). 5-hour windows
+# get none.
+SLOW_BLINK = 5  # pictures; about 0.7 s on an SD_PRO
+WEEK = 7 * 86400
+
+
+def weekly(value):
+    """Whether a window is a week long: by the length its service gives, else by its name."""
+    minutes = value.get('duration_minutes')
+    return minutes == 7 * 1440 if minutes else str(value.get('label', '')).rstrip('2') == 'WEEK'
+
+
+def pace_share(value, at):
+    """How much of a weekly window's week is gone at `at` (0 to 1), from its own reset time; None without one."""
+    resets_at = value.get('resets_at')
+    if not resets_at:
+        return None
+    return max(0.0, min(1.0, 1 - (resets_at - at) / WEEK))
 
 
 def arcade_frames(snapshot, now, egg=None):
@@ -1953,6 +2122,9 @@ def arcade_frames(snapshot, now, egg=None):
     starts = [k * FRAMES // len(shown) for k in range(len(shown))] + [FRAMES]
     plans = [scene_plan(row, now, (starts[k + 1] - starts[k]) / FPS) for k, row in enumerate(shown)]
     night = time.localtime(time.time() if now is None else now).tm_hour in NIGHT_HOURS
+    # When the pace ticks stand: the snapshot's own `pace_at` where live.py keeps the clock's (time passing alone
+    # moves no tick there), else now.
+    pace_at = snapshot.get('pace_at') or (time.time() if now is None else now)
     frames, readouts = [], {}
     for f in range(0, FRAMES, PLAYBACK):
         index = max(k for k in range(len(shown)) if starts[k] <= f)
@@ -1961,13 +2133,15 @@ def arcade_frames(snapshot, now, egg=None):
         draw = ImageDraw.Draw(frame)
         used, period, old, left = info(row, now)
         oneoff = egg_scene(egg, row)
-        scene, tier = oneoff if oneoff else (SCENES.get(row['provider'], plain_scene), None)
+        scene, tier = oneoff if oneoff else (moment_scene(row['provider'], plans[index])
+                                             or SCENES.get(row['provider'], plain_scene), None)
         # Every scene draws on its own half-size stage, then doubles: one 2 px grid for every sprite,
         # glyph and spark, and nothing spills over the header.
         stage = Image.new('RGB', (SIZE // 2, 71), PANEL)
         span = starts[index + 1] - starts[index]
         local = (f - starts[index]) * scene_speed(row, eggy)
-        scene_f = local if eggy else local % span
+        bowing = (plans[index].get('moment') or {}).get('kind') == 'done'
+        scene_f = local if eggy or bowing else local % span  # a one-off, and a bow, run once through their turn
         scene(stage, ImageDraw.Draw(stage), (0, 0, SIZE // 2, 71), scene_f, span,
               bool(row.get('active')), 1, plans[index])
         if not oneoff and row.get('trace_prop'):
@@ -1987,14 +2161,22 @@ def arcade_frames(snapshot, now, egg=None):
         label_x = 10 + (draw_badge(draw, 10, 8, tier, f) if tier in BADGES else 0)  # while a one-off plays
         pixel_text(draw, (label_x, 8), fit_pixel(label_of(row), 2, room - (label_x - 10)), scale=2, color=TEXT)
         battery = readout_look.STYLE == 'battery'
-        # the readout changes only with the account and, on the battery look, with what its pet is doing
-        slot = (index, action_label(row, plans[index], egg, scene_f, span)) if battery else index
+        wins = shown_windows(row, 1)
+        # the readout changes only with the account and, on the battery look, with what its pet is doing and, beside
+        # SLOW, with its blink
+        if battery:
+            action = action_label(row, plans[index], egg, scene_f, span)
+            blink = action == 'SLOW' and f // PLAYBACK // SLOW_BLINK % 2 == 0
+            slot = (index, action, tuple(blink and value.get('label') in row['slow'] for value in wins))
+        else:
+            slot = index
         if slot not in readouts:
-            wins = shown_windows(row, 1)
             canvas = Image.new('RGB', (SIZE, SIZE), PANEL)
             if battery:  # the pet and what it does, then a battery per window with its reset as a clock time
                 rows = [(p, u, value.get('resets_at'), o) for value in wins for u, p, o, _ in (reading(row, value),)]
-                readout_look.draw_battery(canvas, ImageDraw.Draw(canvas), row['provider'], slot[1], rows, now)
+                paces = [pace_share(value, pace_at) if weekly(value) else None for value in wins]
+                readout_look.draw_battery(canvas, ImageDraw.Draw(canvas), row['provider'], slot[1], rows, now,
+                                          paces, slot[2])
             elif len(wins) == 2:  # one account at a time has room for both windows: 5H above WEEK
                 draw_readout(canvas, ImageDraw.Draw(canvas),
                              [(p, u, l, o) for u, p, o, l in (info(row, now, value) for value in wins)])
@@ -2025,13 +2207,18 @@ def encode(frames, scale=1):
 
 
 def gif_seconds(image):
-    """How long one loop of a GIF lasts."""
-    loop = Image.open(io.BytesIO(image))
-    total = 0
+    """How long one loop of a GIF lasts, as its own delays say."""
+    return sum(gif_delays(image)) / 1000
+
+
+def gif_delays(image):
+    """The delay in ms of each picture one loop of a GIF holds, as encoded (a run of equal frames is one picture, its
+    delay longer)."""
+    loop, delays = Image.open(io.BytesIO(image)), []
     for n in range(getattr(loop, 'n_frames', 1)):
         loop.seek(n)
-        total += loop.info.get('duration', 0)
-    return total / 1000
+        delays.append(loop.info.get('duration', 0))
+    return delays
 
 
 def render_arcade(snapshot, now=None, scale=1, egg=None):

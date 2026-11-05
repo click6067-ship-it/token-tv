@@ -163,13 +163,18 @@ class PhotoDisplay:
         self.held[slot] = (digest, len(image))
         return slot, receipts
 
-    def select(self, original, name):
+    def select(self, original, name, on=None):
         """Make `name` the one picture the clock shows: between slots two toggles, else the full activation. If
-        anything fails, what the clock has enabled is unknown: the next change lists it and activates in full."""
+        anything fails, what the clock has enabled is unknown: the next change lists it and activates in full.
+        `on()`, when given, is called as the picture goes on: as its slot is turned on, the old one still to go off
+        (so a caller knows it was on the clock even if that fails). The switch is done, and the picture's loop under
+        way, only once this returns: the clock's animation holds for every request, the last one too."""
         try:
             if self.active in self.SLOTS and name in self.SLOTS and self.active != name:
                 self.toggle("photo", "name", name, True)  # the new one on before the old one off: never empty
                 self.enabled.add(name)
+                if on:
+                    on()
                 self.toggle("photo", "name", self.active, False)
                 self.enabled.discard(self.active)
             elif self.active != name:

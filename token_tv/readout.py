@@ -381,6 +381,9 @@ LCD_BARS.update({'capsule': bar_capsule_plain, 'capsule_along': bar_capsule_alon
 # --- 'battery': the pet, what it does, and a battery of what is left ------------------------------------------------
 PETS = {'claude': ('CLAWD', (217, 132, 94)), 'codex': ('CODEX', (150, 160, 255)), 'grok': ('GROK', (238, 240, 245)),
         'copilot': ('COPILOT', (120, 190, 255)), 'antigravity': ('ANTI', (90, 170, 255))}
+WARN = (255, 96, 110)  # arcade.WARN: SLOW, and the battery that blinks beside it (x3)
+OVERSPEND = shade(WARN, .55)  # over pace on a weekly battery: the track from the charge to the pace tick (x4)
+TICK = (255, 255, 255)  # the pace tick
 
 
 def text_width(text, scale):
@@ -396,54 +399,77 @@ def reset_clock(resets_at, now=None):
     return at.strftime('%H:%M') if resets_at - now < 86400 else at.strftime('%a %H:%M').upper()
 
 
-def battery(draw, x, y, w, h, used, cells, old=False):
+def battery(draw, x, y, w, h, used, cells, old=False, alarm=False, pace=None):
     """A pixel battery of what is left: a 2 px case and nub, `cells` equal cells (the last one filled in part), a lit
-    top edge. Muted when the reading is old; empty when there is none."""
+    top edge. Muted when the reading is old; empty when there is none. `alarm` draws its case red (a blink's 'on'
+    picture beside SLOW); `pace` (a weekly window's share of the week gone) puts a tick where even use would have
+    left the charge now, and over pace the gap from the charge to it in red."""
     draw.rounded_rectangle((x, y, x + w - 1, y + h - 1), radius=3, outline=MUTED, width=2, fill=PANEL)
     draw.rectangle((x + w, y + h // 2 - 3, x + w + 2, y + h // 2 + 2), fill=MUTED)
     ix, iy, iw, ih, gap = x + 4, y + 4, w - 8, h - 8, 2
     cw = (iw - gap * (cells - 1)) / cells
     left = None if used is None else max(0, 100 - round(used))
     colour = MUTED if old or used is None else band(used)
+    filled = []  # each cell's last charged column (x0 - 1 when empty)
     for k in range(cells):
         x0 = round(ix + k * (cw + gap))
         x1 = round(ix + k * (cw + gap) + cw) - 1
         draw.rectangle((x0, iy, x1, iy + ih - 1), fill=TRACK)
         part = 0 if left is None else max(0.0, min(1.0, left / 100 * cells - k))
+        fx = x0 - 1
         if part > 0:
             fx = x0 + max(1, round((x1 - x0 + 1) * part)) - 1
             draw.rectangle((x0, iy, fx, iy + ih - 1), fill=colour)
             draw.rectangle((x0, iy, fx, iy), fill=shade(colour, 1.25))
             if ih > 6:
                 draw.rectangle((x0, iy + ih - 1, fx, iy + ih - 1), fill=shade(colour, 0.7))
+        filled.append(fx)
+    if alarm:
+        draw.rounded_rectangle((x, y, x + w - 1, y + h - 1), radius=3, outline=WARN, width=2)
+        draw.rectangle((x + w, y + h // 2 - 3, x + w + 2, y + h // 2 + 2), fill=WARN)
+    if pace is None or used is None:
+        return
+    even = round(ix + iw * (1 - pace))  # where the charge would stand at an even pace
+    charge = round(ix + iw * max(0, 100 - used) / 100)
+    for k in range(cells if charge < even else 0):  # over pace: the empty track from the charge to the tick, dim red
+        x0, x1 = round(ix + k * (cw + gap)), round(ix + k * (cw + gap) + cw) - 1
+        a, b = max(x0, min(charge, filled[k] + 1)), min(x1, even - 1)  # (from the cell's charge on: no dark seam)
+        if a <= b:
+            draw.rectangle((a, iy, b, iy + ih - 1), fill=OVERSPEND)
+    draw.rectangle((even - 1, y - 2, even, y + h + 1), fill=TICK)
 
 
-def draw_battery(frame, draw, provider, action, rows, now=None):
-    """The battery readout for one account: `rows` are [(window label, used %, resets_at, old?)], one or two."""
+def draw_battery(frame, draw, provider, action, rows, now=None, paces=(), alarms=()):
+    """The battery readout for one account: `rows` are [(window label, used %, resets_at, old?)], one or two;
+    `paces` the share of the week gone for each weekly one (None for the rest: no tick) and `alarms` whether each
+    blinks red in this picture, beside SLOW (x3, x4)."""
+    paces, alarms = list(paces) + [None, None], list(alarms) + [False, False]  # (for the rows they do not cover)
     pet, colour = PETS.get(provider, (provider.upper()[:8], TEXT))
     pixel_text(draw, (10, 176), pet, scale=2, color=colour)
     if action:
         x = 10 + text_width(pet, 2) + 12
+        ink = WARN if action == 'SLOW' else MUTED
         if x + text_width(action, 2) <= 230:
-            pixel_text(draw, (x, 176), action, scale=2, color=MUTED)
+            pixel_text(draw, (x, 176), action, scale=2, color=ink)
         else:  # a long name beside a long one: smaller, still on the line
-            pixel_text(draw, (x, 180), action, scale=1, color=MUTED)
+            pixel_text(draw, (x, 180), action, scale=1, color=ink)
     if len(rows) >= 2:
         for i, (label, used, resets_at, old) in enumerate(rows[:2]):
             y = 196 + i * 21
             pixel_text(draw, (10, y + 4), label, color=MUTED)
-            battery(draw, 24, y, 44, 16, used, 5, old)
+            battery(draw, 24, y, 44, 16, used, 5, old, alarms[i], paces[i])
             left = '--' if used is None else f'{max(0, 100 - round(used))}%'
-            pixel_text(draw, (78, y + 1), left, scale=2, color=MUTED if old else TEXT)  # an old one: grey (OLD on top)
+            # an old one grey (OLD on top); one blinking, red with its battery
+            pixel_text(draw, (78, y + 1), left, scale=2, color=WARN if alarms[i] else MUTED if old else TEXT)
             day, _, clock = reset_clock(resets_at, now).rpartition(' ')
             pixel_text(draw, (230, y + 1), clock, scale=2, color=TEXT, align='right')
             if day:  # a day or more off: the weekday small beside the time, so even 100% keeps its room
                 pixel_text(draw, (230 - text_width(clock, 2) - 4, y + 4), day, color=MUTED, align='right')
         return
     label, used, resets_at, old = rows[0] if rows else ('', None, None, False)
-    battery(draw, 10, 195, 158, 20, used, 10, old)
+    battery(draw, 10, 195, 158, 20, used, 10, old, alarms[0], paces[0])
     left = '--' if used is None else f'{max(0, 100 - round(used))}%'
-    pixel_text(draw, (230, 198), left, scale=2, color=MUTED if old else TEXT, align='right')
+    pixel_text(draw, (230, 198), left, scale=2, color=WARN if alarms[0] else MUTED if old else TEXT, align='right')
     pixel_text(draw, (10, 226), f'{label} OLD' if old else f'{label} LEFT', color=MUTED)
     at = reset_clock(resets_at, now)
     pixel_text(draw, (230, 222), at, scale=2, color=TEXT, align='right')

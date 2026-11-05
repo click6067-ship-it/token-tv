@@ -9,6 +9,7 @@
     token-tv connect   sign an account in with its official CLI
     token-tv run       start the dashboard and drive the clock
     token-tv update    put the newest release in the background copy's place
+    token-tv notify    for Codex's notify setting: a finished turn makes Codex's pet bow on the clock
 """
 import argparse
 import io
@@ -723,7 +724,30 @@ def passthrough(module, args, extra):
     return 0
 
 
+def notify(argv):
+    """Codex's notify program: `token-tv notify [--config PATH] '<event JSON>'`, Codex adding the JSON. A finished
+    turn (`agent-turn-complete`) tells the running TokenTV `codex.end`, the name and nothing else; nothing of the
+    event is printed, kept or passed on, and it is done within two seconds whatever happens (exit status 0)."""
+    try:
+        rest = list(argv)
+        config = os.environ.get('TOKEN_TV_CONFIG') or default_config()  # as the Claude Code mod finds TokenTV
+        if rest[:1] == ['--config'] and len(rest) >= 2:
+            config, rest = rest[1], rest[2:]
+        elif rest and rest[0].startswith('--config='):
+            config, rest = rest[0][len('--config='):], rest[1:]
+        event = json.loads(rest[-1]) if rest else None
+        if isinstance(event, dict) and event.get('type') == 'agent-turn-complete':
+            from token_tv.moments import post
+            post(Path(config).expanduser().parent / 'state', 'codex.end', timeout=.8)
+    except Exception:  # whatever it was, Codex goes on: there is nothing to say about it
+        pass
+    return 0
+
+
 def main(argv=None):
+    argv = sys.argv[1:] if argv is None else list(argv)
+    if argv[:1] == ['notify']:  # before anything that could print what Codex sent, or take time to load
+        return notify(argv[1:])
     from token_tv.display import STYLES
     from token_tv import __version__
     parser = argparse.ArgumentParser(prog='token-tv', description=__doc__,
@@ -763,6 +787,7 @@ def main(argv=None):
                         add_help=False)
     commands.add_parser('run', parents=[config], help='start the dashboard and drive the clock',
                         add_help=False)
+    commands.add_parser('notify', help="for Codex's notify setting: tell TokenTV a turn ended (docs/claude-code-mod.md)")
 
     args, extra = parser.parse_known_args(argv)
     global CONFIG

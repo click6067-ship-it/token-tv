@@ -3,6 +3,7 @@ import copy
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
+from fractions import Fraction
 
 from token_tv.sources import STALE_SECONDS, fetch_account
 
@@ -74,6 +75,60 @@ NEWS_SECONDS = 600  # what a reading brought (a jump, a crossing, a spent reset)
 
 RATE_SECONDS = 600  # a jump is the rise in used % over ten minutes
 
+# x3: a window running out. Its pace is its rise over the last RATE_WINDOW, from its readings there (one at or
+# before the window's start, and every one since); at that pace, a window still under 100% that would reach it in
+# under HORIZON is SLOW. A window's readings are its own: a new reset time (beyond SAME_WINDOW, as a reset time
+# wobbles by seconds) or a drop in its use starts them over, so a reset is never taken for use.
+RATE_WINDOW = 15 * 60
+HORIZON = 30 * 60
+SAME_WINDOW = 600
+
+
+def same_window(a, b):
+    """Whether two reset times are one window's."""
+    return (a is None) == (b is None) and (a is None or abs(a - b) <= SAME_WINDOW)
+
+
+def exact(value):
+    """A reading's number as the decimal it was read as: 55.3 is 553/10, not the binary float nearest it."""
+    return Fraction(str(value))
+
+
+def running_out(readings):
+    """Whether a window's readings [(measured at, used %, resets at)], oldest first, the first at or before
+    RATE_WINDOW before the last, say it runs out within HORIZON at its pace: its rise over the last RATE_WINDOW (the
+    use at that window's start read between the two readings either side of it). Exact, in fractions of the numbers
+    as read (exact()): an ETA of just HORIZON is not under it. A history shorter than RATE_WINDOW says nothing."""
+    if len(readings) < 2:
+        return False
+    (t0, u0, _), (t1, u1, _), (at, used, _) = readings[0], readings[1], readings[-1]
+    t0, u0, t1, u1, at, used = (exact(value) for value in (t0, u0, t1, u1, at, used))
+    start = at - RATE_WINDOW
+    if t0 > start:
+        return False
+    begun = u0 + (u1 - u0) * (start - t0) / (t1 - t0)
+    rise, left = used - begun, 100 - used
+    return rise > 0 and left > 0 and left * RATE_WINDOW < rise * HORIZON
+
+
+def lasting(row, slow, now, good):
+    """The SLOW labels `slow` that a row whose reading did not come in (failed, or grew old) keeps at `now`, each its
+    own window's: while the good reading it was found at (`good`: label -> (measured at, used %, resets at), the last
+    one taken into that window's pace) is under HORIZON old, and while the row shows that window still, no lower. A
+    reading or two failing do not make the warning drop and come back; one that brings a new window (another reset
+    time, same_window) or a lower use lets it go, and so do readings failing past the warning's own horizon, however
+    new the old copies among them."""
+    windows = {w.get("label"): w for w in row.get("windows", [])}
+    kept = []
+    for label in slow:
+        reading, shown = good.get(label), windows.get(label)
+        if reading is None or shown is None or now - reading[0] >= HORIZON:
+            continue
+        used = shown.get("used_percent")
+        if same_window(reading[2], shown.get("resets_at")) and not (used is not None and used < reading[1]):
+            kept.append(label)
+    return kept
+
 
 def trail_of(row):
     """The good readings behind `row` for rates, oldest first: [(measured at, {label: used %})], the ones in the
@@ -127,6 +182,7 @@ class UsageStore:
         self.waits = {}  # account key -> (monotonic, wall, asked): not read again before; asked = the service said so
         self.lock = threading.Lock()
         self.updated_at = 0
+        self.paces = {}  # (account key, window label) -> its readings for running_out, in memory only
         self.rows = {a["key"]: {"key": a["key"], "alias": a["alias"], "provider": a["provider"],
                                "status": "loading", "windows": [], "fetched_at": 0,
                                "identity_verified": False, "source": "mini"}
@@ -208,8 +264,39 @@ class UsageStore:
                         row["reset_credits"] = previous["reset_credits"]
                     row["last_success_at"] = previous["last_success_at"]
                     row["identity_verified"] = previous.get("identity_verified", False)
+                # x3: the windows running out, for the battery to blink (a reading not in keeps the last good one's)
+                row["slow"] = (self.slow(row) if row["status"] == "ok" else
+                               lasting(row, previous.get("slow") or [], wall, self.good(row["key"])))
                 self.rows[row["key"]] = row
             self.updated_at = int(time.time())
+
+    def slow(self, row):
+        """The labels of `row`'s windows running out (running_out), its reading (one that came in) taken into their
+        histories."""
+        at, found, kept = row.get("last_success_at") or row["fetched_at"], [], set()
+        for w in row["windows"]:
+            used = w.get("used_percent")
+            if used is None:
+                continue
+            key = (row["key"], w["label"])
+            kept.add(key)
+            readings = self.paces.setdefault(key, [])
+            if not readings or at > readings[-1][0]:  # (a reading already taken, or an older one, adds nothing)
+                if readings and (used < readings[-1][1] or not same_window(readings[-1][2], w.get("resets_at"))):
+                    readings.clear()  # a new window, or a correction: its pace starts over
+                readings.append((at, used, w.get("resets_at")))
+            while len(readings) > 1 and readings[1][0] <= readings[-1][0] - RATE_WINDOW:
+                readings.pop(0)  # one at or before the window's start is enough
+            if running_out(readings):
+                found.append(w["label"])
+        for key in [key for key in self.paces if key[0] == row["key"] and key not in kept]:
+            del self.paces[key]  # a window no longer reported
+        return found
+
+    def good(self, key):
+        """The last good reading of each of account `key`'s windows, as taken into its pace: {label: (measured at,
+        used %, resets at)}. Only a reading that came in goes there, never an old copy (lasting)."""
+        return {label: readings[-1] for (owner, label), readings in self.paces.items() if owner == key and readings}
 
     def schedule(self, row, started, wall):
         """When a failing account is read next: when its service said (Retry-After, at most RETRY_CAP), else after a
@@ -235,11 +322,14 @@ class UsageStore:
         with self.lock:
             rows = copy.deepcopy(self.rows)
             updated = self.updated_at
+            good = {key: self.good(key) for key in rows}
         now = time.time()
-        for row in rows.values():
+        for key, row in rows.items():
             if row["status"] == "ok" and now - row.get("last_success_at", row["fetched_at"]) > STALE_SECONDS:
                 row["status"] = "stale"
                 row.setdefault("error_code", "snapshot_old")
+            if row["status"] != "ok":  # OLD: the last good reading's SLOW, only while it is under HORIZON old
+                row["slow"] = lasting(row, row.get("slow") or [], now, good[key])
             row["active"] = bool(row.get("rose_at")) and now - row["rose_at"] < ACTIVE_SECONDS
             by_label = {w["label"]: w for w in row["windows"]}
             for prefix, label in (("session", "5H"), ("weekly", "WEEK")):

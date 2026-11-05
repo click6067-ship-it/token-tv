@@ -1,3 +1,4 @@
+import os
 import sys
 import tempfile
 import unittest
@@ -76,12 +77,56 @@ class AutostartTests(unittest.TestCase):
         config = self.folder / 'config.json'
         (self.folder / 'state').mkdir()
         (self.folder / 'state' / 'live.pid').write_text('4242', encoding='utf-8')
+        (self.folder / 'state' / 'live.url').write_text('http://127.0.0.1:8787', encoding='utf-8')
         (self.folder / 'TokenTV.vbs').write_text(autostart.entry(['pythonw', '-m', 'token_tv', 'start', '--config', str(config)], 'startup'), encoding='utf-8')
         python = mock.Mock(returncode=0, stdout=f'"C:\\Py\\pythonw.exe" -m token_tv start --yes --no-browser --config "{config}"', stderr='')
         with self.placed('startup'), mock.patch.object(autostart, 'run', return_value=python), mock.patch('os.kill') as kill:
             self.assertIn('stopped', autostart.remove())
         kill.assert_called_once_with(4242, autostart.signal.SIGTERM)
         self.assertFalse((self.folder / 'TokenTV.vbs').exists())
+        # ended outright, it could not take its address away itself: no agent goes on telling that port
+        self.assertFalse((self.folder / 'state' / 'live.url').exists())
+        self.assertFalse((self.folder / 'state' / 'live.pid').exists())
+
+    def test_windows_off_leaves_the_address_of_a_tokentv_started_meanwhile(self):
+        config, state = self.folder / 'config.json', self.folder / 'state'
+        state.mkdir()
+        (state / 'live.pid').write_text('4242', encoding='utf-8')
+        (state / 'live.url').write_text('http://127.0.0.1:8787', encoding='utf-8')
+        (self.folder / 'TokenTV.vbs').write_text(autostart.entry(['pythonw', '-m', 'token_tv', 'start', '--config', str(config)], 'startup'), encoding='utf-8')
+        python = mock.Mock(returncode=0, stdout=f'"C:\\Py\\pythonw.exe" -m token_tv start --yes --no-browser --config "{config}"', stderr='')
+
+        def ended_and_another_started(pid, sig):  # a new TokenTV starts the moment the old one is gone
+            (state / 'live.pid').write_text('5151', encoding='utf-8')
+            (state / 'live.url').write_text('http://127.0.0.1:8790', encoding='utf-8')
+        with self.placed('startup'), mock.patch.object(autostart, 'run', return_value=python), \
+                mock.patch('os.kill', side_effect=ended_and_another_started) as kill:
+            self.assertIn('stopped', autostart.remove())
+        kill.assert_called_once_with(4242, autostart.signal.SIGTERM)
+        self.assertEqual((state / 'live.pid').read_text(encoding='utf-8'), '5151')  # the new one's, kept
+        self.assertEqual((state / 'live.url').read_text(encoding='utf-8'), 'http://127.0.0.1:8790')
+
+    def test_windows_off_leaves_the_files_of_a_tokentv_that_holds_the_lock(self):
+        # a new TokenTV that took the lock the moment the old one was gone, before writing its own number
+        state = self.folder / 'state'
+        state.mkdir()
+        (state / 'live.pid').write_text('4242', encoding='utf-8')
+        (state / 'live.url').write_text('http://127.0.0.1:8787', encoding='utf-8')
+        from token_tv.private_files import open_private
+        with open_private(state / 'live.lock') as held:
+            if os.name == 'nt':
+                import msvcrt
+                msvcrt.locking(held.fileno(), msvcrt.LK_NBLCK, 1)
+            else:
+                import fcntl
+                fcntl.flock(held, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            with mock.patch.object(autostart, 'LOCK_WAIT', .2):
+                autostart.forget_ended_run(state, 4242)
+        self.assertTrue((state / 'live.pid').exists())
+        self.assertTrue((state / 'live.url').exists())
+        autostart.forget_ended_run(state, 4242)  # once the lock is free, the ended run's files go
+        self.assertFalse((state / 'live.pid').exists())
+        self.assertFalse((state / 'live.url').exists())
 
     def test_windows_off_never_ends_another_program_that_took_the_number(self):
         config = self.folder / 'config.json'
@@ -92,6 +137,7 @@ class AutostartTests(unittest.TestCase):
         with self.placed('startup'), mock.patch.object(autostart, 'run', return_value=other), mock.patch('os.kill') as kill:
             self.assertIn('Task Manager', autostart.remove())
         kill.assert_not_called()
+        self.assertTrue((self.folder / 'state' / 'live.pid').exists())  # whatever runs, nothing of it is touched
 
     def test_the_npm_launchers_own_uv_starts_it_with_the_computer(self):
         env = {'TOKEN_TV_LAUNCHER': 'npx', 'TOKEN_TV_UVX': '/home/me/.cache/token-tv/uv/uvx'}

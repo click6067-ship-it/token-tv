@@ -74,6 +74,12 @@ contributors' units ran; if an Ultra ever freezes on a picture, turn it off and 
 On the SD_PRO, leave TokenTV's `tokentv*.gif` files alone in the album while TokenTV runs: it switches them
 itself, and one turned on by hand can be the next file TokenTV writes while the clock plays it.
 
+The SD_PRO shows each picture of a GIF for as long as the GIF asks, but never shorter than about 142 ms (on the
+author's unit: two films at 120 fps of pictures asking 70 ms, and a test GIF holding one picture for 3 s), so
+TokenTV times the end of each animation loop by its pictures' times that way, and a change lands as a loop ends. A
+unit whose shortest picture is longer or shorter can say so in the config: `"device_frame_ms": 150` (20 to 2000).
+The GIF itself stays as it is. On the Ultra, TokenTV times a loop as long as the GIF declares (not measured yet).
+
 A new SmallTV-Ultra has no `/app.json` (it answers 404) until its theme is changed for the first time.
 TokenTV then records that there was no saved theme, switches to the Photo Album as usual, and on restore
 puts autoplay back but leaves the theme alone. Pick a theme on the clock's settings page afterwards if you
