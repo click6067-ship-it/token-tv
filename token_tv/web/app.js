@@ -313,7 +313,7 @@ $('#get-copy').onclick = async () => {
 };
 $('#get-runner').onclick = () => {runner = runner === 'npx' ? 'uvx' : 'npx'; paintSetup()};
 $('#get-it').oninput = paintSetup;
-const styleName = s => s === 'retro' ? 'Pixel Retro' : s === 'retro-dual' ? 'Pixel Retro Dual' : s === 'hud' ? 'Sci-Fi HUD' : s === 'gameboy' ? 'Game Boy' : s ? s[0].toUpperCase() + s.slice(1) : 'Unknown';
+const styleName = s => s === 'retro' ? 'Pixel Retro' : s === 'retro-dual' ? 'Pixel Retro Dual' : s === 'hud' ? 'Sci-Fi HUD' : s === 'survival' ? 'Survival HUD' : s === 'gameboy' ? 'Game Boy' : s ? s[0].toUpperCase() + s.slice(1) : 'Unknown';
 let displayPolling = false;
 async function refreshDisplay(forceImage = false) {if (displayPolling) return; displayPolling = true; try {const r = await fetch(DEMO ? '/demo-display.json' : '/display', {cache:'no-store'}); if (!r.ok) throw Error(); const data = await r.json(); const dirty = displayInfo && clockChoice !== displayInfo.style; displayInfo = data; if (!clockChoice || !dirty) clockChoice = data.style; const select = $('#clock-style'); if (!select.options.length) for (const s of [...data.styles].sort((a, b) => (b === 'arcade') - (a === 'arcade'))) {const o = el('option', styleName(s)); o.value = s; select.append(o)} select.value = clockChoice; paintClock(forceImage); if (DEMO && themeData && !lastThumbFrames) {lastThumbFrames = true; paintThemes()}} catch {$('#display-state').textContent = 'Clock status unavailable'} finally {displayPolling = false}}
 $('#clock-style').onchange = e => {clockChoice = e.target.value; clockError = false; paintClock(true); paintThemes()};

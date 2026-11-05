@@ -6,6 +6,7 @@ from concurrent.futures import ThreadPoolExecutor
 from fractions import Fraction
 
 from token_tv.sources import STALE_SECONDS, fetch_account
+from token_tv.usage import even_day, today_window, window_minutes
 
 # An account counts as working for this long after its used % last went up. It outlasts the slowest
 # fetch below, so a steady worker keeps running between readings.
@@ -130,6 +131,86 @@ def lasting(row, slow, now, good):
     return kept
 
 
+# x7: today's use, for the survival HUD's bar, read from one window (usage.today_window: its week over its 5 hours) on
+# this computer's local date. It is the sum over the day's windows (a window is one reset period, new_window) of each
+# one's last reading less its first that day, in the window's points: a window that began today counts from nothing,
+# and for the one the day began in, a reading taken within DAY_EDGE before midnight (TokenTV was reading then) stands
+# for midnight. Any fall within a window is a correction. The row's 'today' is that as a share of an even day
+# (usage.even_day: a seventh of a week). It goes into the state folder with the snapshot, so a restart mid-day keeps it.
+DAY_EDGE = 15 * 60
+DAY_FIELDS = {"date": str, "label": str, "minutes": int, "base": (int, float), "used": (int, float),
+              "at": (int, float), "carried": (int, float)}
+
+
+def day_start(at):
+    """The local midnight that began `at`'s day."""
+    t = time.localtime(at)
+    return time.mktime((t.tm_year, t.tm_mon, t.tm_mday, 0, 0, 0, 0, 0, -1))
+
+
+def day_of(at):
+    return time.strftime("%Y-%m-%d", time.localtime(at))
+
+
+def new_window(day, value):
+    """Whether the reading `value` is of a new window, not the one `day` follows: its reset time moved later than
+    same_window allows, or, with no reset time known, its use fell to under half and below 10 %."""
+    was, resets = day.get("resets_at"), value.get("resets_at")
+    if was is not None and resets is not None:
+        return resets - was > SAME_WINDOW
+    return value["used_percent"] < min(10, day["used"] / 2)
+
+
+def day_step(day, value, at):
+    """An account's day after a good reading `value` of the window today's use is read from (of a known length),
+    measured at `at`: {'date', 'label', 'minutes', 'resets_at', 'base', 'used', 'at', 'carried'}. Today's use is
+    'used' (the window's last reading) less 'base' (its first today, or nothing for one begun today), plus 'carried'
+    (the day's windows before it). An older reading changes nothing."""
+    if value is None or value.get("used_percent") is None:
+        return day
+    used, resets, start = value["used_percent"], value.get("resets_at"), day_start(at)
+    fresh = {"date": day_of(at), "label": value["label"], "minutes": window_minutes(value), "resets_at": resets,
+             "base": used, "used": used, "at": at, "carried": 0}
+    if not day or day.get("label") != value["label"]:
+        return fresh  # the first reading, or another window read now: counted from here
+    if at < day["at"]:
+        return day
+    today = day["date"] == fresh["date"]
+    if new_window(day, value):  # begun its length before its reset time, else after the old one's last reading
+        began = resets - 60 * fresh["minutes"] if resets is not None else day["at"]
+        return dict(fresh, base=0 if began >= start - DAY_EDGE else used,
+                    carried=day["carried"] + max(0, day["used"] - day["base"]) if today else 0)
+    if today:  # the same window, risen or corrected
+        return dict(day, used=used, at=at, resets_at=resets, minutes=fresh["minutes"])
+    watched = day["at"] >= start - DAY_EDGE  # read just before midnight: that reading stands for it
+    return dict(fresh, base=day["used"] if watched else used)
+
+
+def today_share(day, now):
+    """Today's use at `now` as a share of an even day (1.0: a seventh of the week), or None when it is not known: no
+    reading of the window today, nor one in the DAY_EDGE before midnight (that one stands for the day's start)."""
+    if not day or not even_day(day.get("minutes")):
+        return None
+    if day["date"] == day_of(now):
+        points = day["carried"] + max(0, day["used"] - day["base"])
+    elif day_start(now) - DAY_EDGE <= day["at"] < day_start(now):
+        points = 0  # the day has only just begun, and nothing read since
+    else:
+        return None
+    return points / even_day(day["minutes"])
+
+
+def valid_day(day):
+    """A day kept in the state folder, as day_step makes them, or None."""
+    if not isinstance(day, dict) or not all(isinstance(day.get(k), t) and not isinstance(day.get(k), bool)
+                                            for k, t in DAY_FIELDS.items()):
+        return None
+    resets = day.get("resets_at")
+    if resets is not None and (isinstance(resets, bool) or not isinstance(resets, (int, float))):
+        return None
+    return {k: day[k] for k in (*DAY_FIELDS, "resets_at")}
+
+
 def trail_of(row):
     """The good readings behind `row` for rates, oldest first: [(measured at, {label: used %})], the ones in the
     ten minutes before it and its own (a stale row keeps the windows and the time they were measured)."""
@@ -189,13 +270,16 @@ class UsageStore:
                      for a in accounts}
 
     def restore(self, snapshot):
-        """Carry over when each account last rose (and its run's start) from the snapshot the last run wrote,
-        so a restart does not make a second 'first use of the day' or forget a break."""
+        """Carry over when each account last rose (and its run's start) and its day (today's use) from the snapshot
+        the last run wrote, so a restart does not make a second 'first use of the day', forget a break or start today
+        over."""
         for key, old in (snapshot or {}).get("accounts", {}).items():
             if key in self.rows and isinstance(old, dict):
                 for field in ("rose_at", "active_since"):
                     if isinstance(old.get(field), (int, float)) and not isinstance(old.get(field), bool):
                         self.rows[key][field] = old[field]
+                if valid_day(old.get("day")):
+                    self.rows[key]["day"] = valid_day(old["day"])
 
     def fetch_one(self, account):
         """This account's reading. Whatever goes wrong while reading it is its own error, named by its type only (a
@@ -267,6 +351,9 @@ class UsageStore:
                 # x3: the windows running out, for the battery to blink (a reading not in keeps the last good one's)
                 row["slow"] = (self.slow(row) if row["status"] == "ok" else
                                lasting(row, previous.get("slow") or [], wall, self.good(row["key"])))
+                # x7: today's use goes on from a reading that came in; one that did not keeps the day as it was
+                row["day"] = (day_step(previous.get("day"), today_window(row["windows"]), row["last_success_at"])
+                              if row["status"] == "ok" else previous.get("day"))
                 self.rows[row["key"]] = row
             self.updated_at = int(time.time())
 
@@ -331,6 +418,7 @@ class UsageStore:
             if row["status"] != "ok":  # OLD: the last good reading's SLOW, only while it is under HORIZON old
                 row["slow"] = lasting(row, row.get("slow") or [], now, good[key])
             row["active"] = bool(row.get("rose_at")) and now - row["rose_at"] < ACTIVE_SECONDS
+            row["today"] = today_share(row.get("day"), now)  # a share of an even day; None while not known
             by_label = {w["label"]: w for w in row["windows"]}
             for prefix, label in (("session", "5H"), ("weekly", "WEEK")):
                 value = by_label.get(label, {})

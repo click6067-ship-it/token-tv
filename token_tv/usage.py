@@ -42,6 +42,48 @@ def window(label, percent, reset=None, duration=None):
             "resets_at": timestamp(reset), "duration_minutes": duration}
 
 
+NAMED_DAYS = {"WEEK": 7, "MONTH": 30, "BUDGET": 30, "DAY": 1}  # a window's length by its name, when it gives none
+
+
+def window_minutes(value):
+    """How long a window is, in minutes: as its service says, else by its name (5H, WEEK, DAY; a month or a budget as
+    30 days); None when neither says (CHAT, WINDOW)."""
+    minutes = value.get("duration_minutes")
+    if isinstance(minutes, int) and not isinstance(minutes, bool) and minutes > 0:
+        return minutes
+    label = str(value.get("label", "")).rstrip("2")
+    return 300 if label == "5H" else NAMED_DAYS[label] * 1440 if label in NAMED_DAYS else None
+
+
+def five_hour(windows):
+    """The 5-hour window among `windows`, or None."""
+    return min((w for w in windows if window_minutes(w) == 300), key=lambda w: str(w.get("label")), default=None)
+
+
+def long_window(windows):
+    """The long window among `windows` (a survival HUD's hunger): the week, else the longest other one but the 5-hour
+    one (a month, a budget), else any other; None when there is none. The same whatever order they come in."""
+    def rank(w):
+        minutes = window_minutes(w)
+        return minutes != 10080, minutes is None, -(minutes or 0), str(w.get("label"))
+    return min((w for w in windows if window_minutes(w) != 300), key=rank, default=None)
+
+
+def today_window(windows):
+    """The window today's use is read from: the longest of a known length (a week over a 5-hour one), None when no
+    window says how long it is."""
+    return min((w for w in windows if window_minutes(w)), key=lambda w: (-window_minutes(w), str(w.get("label"))),
+               default=None)
+
+
+def even_day(minutes):
+    """The used % an even day takes of a window `minutes` long: a seventh of a week, a thirtieth of a month, and of
+    a window of a day or less (5 hours) all of it, one a day; None for a window of unknown length."""
+    if not minutes:
+        return None
+    return 100 * 1440 / minutes if minutes >= 1440 else 100
+
+
 def normalize_claude(data):
     result = []
     for key, label, duration in (("five_hour", "5H", 300), ("seven_day", "WEEK", 10080)):

@@ -27,7 +27,7 @@ BRAND = {'claude': ('#d97757',), 'codex': ('#2f3aa8', '#9aa0ff'), 'grok': ('#f2f
          'copilot': ('#36d8b4', '#1fa7e2', '#2563eb'), 'antigravity': ('#e77345', '#94c45f', '#4f83f2')}
 FONT_MAIN = '/usr/share/fonts/truetype/dejavu/DejaVuSans'
 FONT_NUMBERS = '/usr/share/fonts/truetype/dejavu/DejaVuSansMono'
-STYLES = ('pixel', 'digital', 'neon', 'retro', 'hud', 'space', 'gameboy', 'arcade', 'retro-dual')
+STYLES = ('pixel', 'digital', 'neon', 'retro', 'hud', 'space', 'gameboy', 'arcade', 'retro-dual', 'survival')
 # Gauge-only levels; labels/percentages always use TEXT, logos retain provider ink.
 GAUGE_LEVELS = ((50, '#76a99a'), (80, '#93c9b9'), (90, '#d1b275'), (101, '#d8877e'))
 STATUS = {'loading': 'WAIT', 'auth_required': 'LOGIN', 'identity_mismatch': 'CHECK',

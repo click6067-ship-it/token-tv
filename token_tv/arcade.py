@@ -19,6 +19,7 @@ import io
 import json
 import math
 import random
+import threading
 import time
 
 from PIL import Image, ImageDraw, ImageEnhance
@@ -120,8 +121,34 @@ def loop_offset(f, length, cycles):
     return (f * length * cycles / FRAMES) % length
 
 
+SEASON = threading.local()  # .dress: what the scene this thread draws wears (seasons.Dress), None as usual
+
+
+def dressed():
+    """The season the scene being drawn in this thread is dressed for (a seasons.Dress), or None: Arcade as ever."""
+    return getattr(SEASON, 'dress', None)
+
+
+def tag(art, pet):
+    """`art` marked as `pet`'s own picture (in its info, not its pixels), so a season's hat finds its head."""
+    art.info['pet'] = pet
+    return art
+
+
 def paste(frame, art, x, y):
     frame.paste(art, (round(x), round(y)), art)
+    dress = dressed()
+    if dress is not None and art.info.get('pet'):  # a pet in season: its hat on (seasons.py)
+        from token_tv import seasons
+        seasons.wear(dress, frame, art, round(x), round(y))
+
+
+def season_scenery(draw, box, ground):
+    """The season's scenery behind a scene's pet and gauge, as its backdrop ends; nothing off season (seasons.py)."""
+    dress = dressed()
+    if dress is not None:
+        from token_tv import seasons
+        seasons.scenery(dress, draw, box, ground)
 
 
 def band_color(used):
@@ -171,7 +198,7 @@ def clawd(name, index, scale):
     palette = [tuple(int(c[i:i + 2], 16) for i in (1, 3, 5)) + (255,) for c in sheet['palette']]
     art = Image.new('RGBA', (sheet['w'], sheet['h']))
     art.putdata([(0, 0, 0, 0) if v == 255 else palette[v] for v in clawd_frames(name)[index]])
-    return art.resize((art.width * scale, art.height * scale), Image.Resampling.NEAREST)
+    return tag(art.resize((art.width * scale, art.height * scale), Image.Resampling.NEAREST), 'claude')
 
 
 def place_clawd(frame, name, index, scale, foot_x, foot_y, flip=False):
@@ -294,6 +321,7 @@ def claude_backdrop(frame, draw, box, f, s, active, pit=True):
     frame.paste(crop, (x, ground_y - hills.height), crop)
     crop = ground.crop((round(shift), 0, round(shift) + w, ground.height))
     frame.paste(crop, (x, ground_y), crop)
+    season_scenery(draw, box, ground_y)
     return ground_y, period, pits, pit_w, shift
 
 
@@ -318,12 +346,21 @@ def moon_gauge(draw, cx, cy, r, left):
 # A moment comes from the TokenTV mod in Claude Code (or Codex's notify) as a name only; the row carries it as
 # {'kind': 'needs', 'since': t} or {'kind': 'done', 'at': t}. Waiting grows more insistent: a hand up, then hops,
 # then a sign (x2). Phase 2's (pet_moments.py): {'kind': 'pet'} or 'snack' on Clawd's rows, {'kind': 'drink'} or
-# 'stretch' on every pet's, each once through its pet's turn.
+# 'stretch' on every pet's, each once through its pet's turn. Phase 3a's (claude_moments.py), on Clawd's rows:
+# {'kind': 'risky', 'style': 'verdict' or 'objection'} the courtroom, {'kind': 'deleted', 'style': 'drift' or 'wave'}
+# the ghost, {'kind': 'rude'} the back turned ('ghost': a style, with the ghost about too), {'kind': 'calm'} the turn
+# back round, {'kind': 'failed'} dizzy, {'kind': 'compact'} the squeeze; and a row's 'word' (x6), Claude Code's own
+# thinking word, said by the readout in place of what Clawd is doing.
 NEEDS_LEVELS = ((15 * 60, 3), (5 * 60, 2), (0, 1))  # seconds waited -> how insistent
 MOMENT_ACTION = {'needs': 'NEEDS YOU', 'done': 'DONE', 'pet': 'PETTED', 'snack': 'SNACKING', 'drink': 'DRINKING',
-                 'stretch': 'STRETCHING'}
-ONCE_THROUGH = ('pet', 'snack', 'drink', 'stretch')  # moments drawn once through the turn, a scene frame a frame
-JOINING = ('done', 'pet', 'snack')  # moments that bring their pet into the loop beside the ones at work
+                 'stretch': 'STRETCHING', 'risky': 'ORDER!', 'deleted': 'BOO!', 'rude': 'SULKING', 'calm': 'FORGIVEN',
+                 'failed': 'DIZZY', 'compact': 'COMPACTING'}
+STYLE_ACTION = {('risky', 'objection'): 'OBJECTION!'}  # a variant that says its own word
+CLAWD_3A = ('risky', 'deleted', 'rude', 'calm', 'failed', 'compact')  # claude_moments.py draws these
+# moments drawn once through the turn, a scene frame a frame (the ghost's lap and the sulk's glare a loop each)
+ONCE_THROUGH = ('pet', 'snack', 'drink', 'stretch') + CLAWD_3A
+JOINING = ('done', 'pet', 'snack') + CLAWD_3A  # moments that bring their pet into the loop beside the ones at work
+QUIET = ('deleted', 'rude', 'calm', 'failed', 'compact')  # moments that leave the readout to SLOW when it is due
 SIGN_INK, SIGN_BOARD, SIGN_EDGE = (34, 40, 120), (250, 244, 226), (150, 110, 70)
 
 
@@ -408,6 +445,12 @@ def bow_style(moment):
 
 
 def claude_scene(frame, draw, box, f, span, active, s, plan):
+    moment = plan.get('moment') if isinstance(plan, dict) else None
+    if moment and moment.get('kind') in CLAWD_3A:  # phase 3a's (claude_moments.py) draw the whole stage
+        from token_tv import claude_moments
+        scene = claude_moments.scene_of(moment)
+        if scene:
+            return scene(frame, draw, box, f, span, active, s, plan, claude_scene)
     x, y, w, h = box
     ground_y, period, pits, pit_w, shift = claude_backdrop(frame, draw, box, f, s, False)  # the world stands still
     if isinstance(plan, dict) and plan.get('moon') is not None:
@@ -550,7 +593,7 @@ def codex_pose(eye='open', mouth='long', squash=0):
 @functools.lru_cache(maxsize=None)
 def codex_art(scale, eye='open', mouth='long', squash=0):
     art = codex_pose(eye, mouth, squash)
-    return art.resize((art.width * scale, art.height * scale), Image.Resampling.NEAREST)
+    return tag(art.resize((art.width * scale, art.height * scale), Image.Resampling.NEAREST), 'codex')
 
 
 def rain_glyph(draw, char, x, y, scale, color):
@@ -608,6 +651,7 @@ def garden_backdrop(draw, box, f, s):
     draw.line((x, ground, x + w - 1, ground), fill=SOIL_TOP)
     for i in range(3, w, 7 * s):
         draw.point((x + i, ground + 2 * s + (i // 7) % 2 * s), fill=SOIL_DOT)
+    season_scenery(draw, box, ground)
     return ground
 
 
@@ -868,7 +912,10 @@ def rotsprite(art, degrees):
     """`art` turned clockwise by `degrees`, RotSprite style (EPX ×8, turn, back down) so edges stay clean."""
     big = scale2x(scale2x(scale2x(art)))
     big = big.rotate(-degrees, resample=Image.Resampling.NEAREST, expand=True)
-    return big.resize((max(1, big.width // 8), max(1, big.height // 8)), Image.Resampling.NEAREST)
+    out = big.resize((max(1, big.width // 8), max(1, big.height // 8)), Image.Resampling.NEAREST)
+    if art.info.get('pet'):  # a turned pet (a bow's tilt, a break-dance spin) is still the pet, turned
+        out.info.update(pet=art.info['pet'], turn=degrees)
+    return out
 
 
 @functools.lru_cache(maxsize=None)
@@ -898,7 +945,7 @@ def grok_pose(size, eyes='open', squash=0):
     art = art.resize((max(1, round(art.width * scale)), max(1, round(art.height * scale))), Image.Resampling.NEAREST)
     if squash:
         art = art.resize((art.width + 2 * squash, art.height - 2 * squash), Image.Resampling.NEAREST)
-    return art
+    return tag(art, 'grok')
 
 
 def stars(w, h, count):
@@ -965,6 +1012,7 @@ def grok_backdrop(draw, box, f, s):
                      (rx + sep, step // 2 + round(3 * u))):
         draw.rectangle((cx - half, deck, cx + half - 1, ground - 1), fill=DECK)
         draw.line((cx - half, deck, cx + half - 1, deck), fill=DECK_EDGE)
+    season_scenery(draw, box, ground)
     return u, ground, deck, hr, rx, rest_art, max(12, round(31 * u)), x + round(w * .2), sep
 
 
@@ -1185,7 +1233,7 @@ def copilot_pose(size, eyes='open'):
             for x, key in enumerate(line):
                 if key in COPILOT_INK:
                     art.putpixel((x, y), COPILOT_INK[key] + (255,))
-        return art
+        return tag(art, 'copilot')
     with Image.open(ASSETS / 'copilot-pixel.png') as source:
         art = source.convert('RGBA')
     art = art.crop(art.getbbox())
@@ -1202,7 +1250,7 @@ def copilot_pose(size, eyes='open'):
             for x, y in eye:
                 if y < bottom:
                     px[x, y] = COPILOT_INK['N'] + (255,)
-    return art
+    return tag(art, 'copilot')
 
 
 def cloud(draw, cx, cy, r, top=CLOUD_TOP, base=CLOUD_BASE):
@@ -1260,6 +1308,7 @@ def copilot_backdrop(draw, box, f, s, far=0, clouds=True):
     for i, (fx, fy, r) in enumerate(((.15, .3, 7), (.6, .22, 6), (.95, .36, 8)) if clouds else ()):  # far, drifting
         cx = x + (round(fx * period) - far) % period - round(40 * u)
         cloud(draw, cx, y + round(fy * h), max(3, round(r * u)))
+    season_scenery(draw, box, y + round(h * .78))  # (its ground: the cloud it rests on)
     return period
 
 
@@ -1474,7 +1523,8 @@ def anti_art(face='normal', body='logo', dx=0, dy=0, flip=False, scale=1, pose='
     anti_face(draw, face, dx, dy, pad, tops[2] - 4)
     if flip:
         art = art.transpose(Image.Transpose.FLIP_TOP_BOTTOM)
-    return art.resize((art.width * scale, art.height * scale), Image.Resampling.NEAREST) if scale != 1 else art
+    return tag(art.resize((art.width * scale, art.height * scale), Image.Resampling.NEAREST) if scale != 1 else art,
+               'antigravity')
 
 
 @functools.lru_cache(maxsize=None)
@@ -1528,6 +1578,7 @@ def anti_maze(draw, box, f, s, left, middle='wall', label='', wall=MAZE_WALL, do
             draw.rectangle((x + dx, y + dy, x + dx + 1, y + dy + 1), fill=MAZE_DOT)
     if pellets:
         anti_pellets(draw, box, left, label)
+    season_scenery(draw, box, y + ANTI_FLOOR + 1)
 
 
 def anti_on_loop(s_):
@@ -1879,7 +1930,8 @@ FULL_ACTION = {'claude': 'WIPED OUT', 'codex': 'PANTING', 'grok': 'OUT OF FUEL',
 
 
 def action_label(row, plan, egg, f, span):
-    """What `row`'s pet is doing at scene frame `f` (the frame its scene draws), in at most eleven letters."""
+    """What `row`'s pet is doing at scene frame `f` (the frame its scene draws), in at most eleven letters; Claude
+    Code's thinking word (x6) can take fourteen, the last two in the readout's small letters."""
     provider = row['provider']
     if egg is not None and egg_scene(egg, row):
         if hasattr(egg, 'frames'):  # a hidden one-off: the name it was sealed with
@@ -1888,10 +1940,13 @@ def action_label(row, plan, egg, f, span):
         if kind == 'full':
             return FULL_ACTION.get(provider, 'ALL USED')
         return 'POWER UP' if provider == 'antigravity' else 'CELEBRATING'
-    if isinstance(plan, dict) and plan.get('moment'):
-        return MOMENT_ACTION[plan['moment']['kind']]
+    moment = plan.get('moment') if isinstance(plan, dict) else None
+    if moment and not (moment['kind'] in QUIET and row.get('slow')):  # a ghost or a dizzy Clawd leaves SLOW be
+        return STYLE_ACTION.get((moment['kind'], moment.get('style')), MOMENT_ACTION[moment['kind']])
     if row.get('slow'):  # x3: a window would run out within half an hour at its pace (state.py); the pet goes on
         return 'SLOW'
+    if says_word(row, plan):  # x6: what Claude Code says it is doing, in place of the pet's
+        return row['word']
     worried = isinstance(plan, dict) and plan.get('mood') == 'worried'
     if row.get('active'):
         if worried:
@@ -1910,6 +1965,21 @@ def action_label(row, plan, egg, f, span):
     return IDLE_ACTION.get(idle_now(plan, f, span), 'RESTING')
 
 
+def says_word(row, plan):
+    """Whether `row`'s readout says Claude Code's thinking word (x6) with no one-off on the clock (action_label):
+    Clawd's row with a word, no moment of its own (BOO! and SULKING say theirs) and no SLOW due."""
+    moment = plan.get('moment') if isinstance(plan, dict) else None
+    return bool(row.get('word')) and row['provider'] == 'claude' and not moment and not row.get('slow')
+
+
+def word_readable(snapshot, now=None):
+    """Whether the Arcade picture of `snapshot` says Claude Code's thinking word in a readout: on a Claude row the
+    clock takes its turn on (shown_rows), in the battery look (the others draw no label). A word's minute on the clock
+    starts only then (live.py tells moments.Moments.shown)."""
+    return readout_look.STYLE == 'battery' and any(
+        row.get('word') and says_word(row, scene_plan(row, now)) for row in shown_rows(snapshot, now))
+
+
 def shown_rows(snapshot, now=None):
     """The accounts Arcade takes turns on: the working ones, or every one while all are idle. Four at most share
     a loop; with more, the four move on with each round of the rest flow (six minutes), so every account gets its
@@ -1921,11 +1991,12 @@ def shown_rows(snapshot, now=None):
     every = [dict(row, key=key) for key, row in snapshot['accounts'].items()]
     every.sort(key=lambda row: order.index(row['provider']) if row['provider'] in order else len(order))
     # Claude waiting for you takes the whole loop, so NEEDS YOU is on the clock all the time (the others come back
-    # once it is answered); a bow, a pet or a snack gets its turn beside the working ones, when some work. The break
-    # is every pet's: the ones that would be on the clock anyway take it, and nobody else joins them.
+    # once it is answered); a bow, a pet or a snack gets its turn beside the working ones, when some work, and so do
+    # Clawd's phase-3a moments and its thinking word. The break is every pet's: the ones that would be on the clock
+    # anyway take it, and nobody else joins them.
     waiting = [row for row in every if (row.get('moment') or {}).get('kind') == 'needs']
     working = [row for row in every if row.get('active')]
-    joins = lambda row: (row.get('moment') or {}).get('kind') in JOINING  # noqa: E731
+    joins = lambda row: (row.get('moment') or {}).get('kind') in JOINING or bool(row.get('word'))  # noqa: E731
     pool = waiting or ([row for row in every if row.get('active') or joins(row)] if working else every)
     if len(pool) <= MAX_ROWS:
         return pool
@@ -2113,6 +2184,7 @@ def pace_share(value, at):
 
 
 def arcade_frames(snapshot, now, egg=None):
+    from token_tv import seasons
     shown = shown_rows(snapshot, now)
     # a one-off plays for its own account even when that account is not among the rows the clock cycles through
     every = [dict(row, key=key) for key, row in snapshot.get('accounts', {}).items()]
@@ -2122,6 +2194,7 @@ def arcade_frames(snapshot, now, egg=None):
     starts = [k * FRAMES // len(shown) for k in range(len(shown))] + [FRAMES]
     plans = [scene_plan(row, now, (starts[k + 1] - starts[k]) / FPS) for k, row in enumerate(shown)]
     night = time.localtime(time.time() if now is None else now).tm_hour in NIGHT_HOURS
+    season = seasons.season_at(time.time() if now is None else now)  # Halloween, Christmas or Seollal: the props
     # When the pace ticks stand: the snapshot's own `pace_at` where live.py keeps the clock's (time passing alone
     # moves no tick there), else now.
     pace_at = snapshot.get('pace_at') or (time.time() if now is None else now)
@@ -2142,8 +2215,14 @@ def arcade_frames(snapshot, now, egg=None):
         local = (f - starts[index]) * scene_speed(row, eggy)
         bowing = (plans[index].get('moment') or {}).get('kind') == 'done'
         scene_f = local if eggy or bowing else local % span  # a one-off, and a bow, run once through their turn
-        scene(stage, ImageDraw.Draw(stage), (0, 0, SIZE // 2, 71), scene_f, span,
-              bool(row.get('active')), 1, plans[index])
+        # In season every scene but a one-off's is dressed: its backdrop adds the scenery, its pet the hat.
+        SEASON.dress = (seasons.Dress(season, row['provider'], scene_f, span, bool(row.get('active')),
+                                      scene_speed(row, eggy) * PLAYBACK, stage) if season and not oneoff else None)
+        try:
+            scene(stage, ImageDraw.Draw(stage), (0, 0, SIZE // 2, 71), scene_f, span,
+                  bool(row.get('active')), 1, plans[index])
+        finally:
+            SEASON.dress = None
         if not oneoff and row.get('trace_prop'):
             leave_prop(stage, row)
         if night:  # late at night the stage glows lower, so nothing flares in a dark room

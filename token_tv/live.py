@@ -24,10 +24,11 @@ from urllib.parse import parse_qs, urlparse
 from token_tv.device import FILES, BackupMismatch, open_display
 from token_tv.catalog import payload as theme_payload
 from token_tv.display import STYLES, overview_rows, render_page, watch_payload
-from token_tv.arcade import LOOP_SECONDS, gif_delays, gif_seconds
+from token_tv.arcade import LOOP_SECONDS, gif_delays, gif_seconds, word_readable
 from token_tv.events import EGG_SECONDS
 from token_tv.lockbox import Lockbox
 from token_tv import moments
+from token_tv.seasons import season_at
 
 # After a unique one has played its prop stays in the scene for an hour; a legend's, till midnight.
 TRACE = {'unique': lambda now: now + 3600,
@@ -40,7 +41,8 @@ from token_tv.state import ACTIVE_SECONDS, MIN_FETCH_SECONDS, UsageStore
 
 # How long an SD_PRO shows each picture of a GIF (m1): the delay the GIF gives it, but never less than one tick of
 # about 142 ms, max(delay, tick). On the author's unit, with every picture asking 70 ms, it put up a new one every
-# ~142 ms (two 120 fps films); a GIF of red for 3000 ms then blue for 100 ms showed red, not a flicker a tick apart;
+# ~142 ms (two 120 fps films); a GIF of red for 3000 ms then blue for 100 ms showed the owner red, then a blue flash
+# (t1g, 2026-11-05); the first test GIF's "only red" was a broken GIF (its blue in a local colour table), not timing;
 # and an older film showed pictures held 1.1-1.7 s. Long delays are not yet timed frame by frame. A loop there is the
 # sum of its pictures' times (the marked line in loop_seconds: another rule per picture is a change to that line
 # alone), and every loop's end on it is timed so. `device_frame_ms` in the config sets the tick; other clocks play
@@ -474,10 +476,10 @@ def unique_keys(pairs):
 
 
 def moment_of(body):
-    """The moment a request body names: exactly {"moment": <one of moments.MOMENTS>}, as strict UTF-8 JSON; else
-    ValueError (UnicodeError is one)."""
+    """The moment a request body names: exactly {"moment": <one of moments.MOMENTS, or moments.WORD and one word of
+    letters>}, as strict UTF-8 JSON; else ValueError (UnicodeError is one)."""
     data = json.loads(body.decode('utf-8'), object_pairs_hook=unique_keys)
-    if not isinstance(data, dict) or set(data) != {'moment'} or data['moment'] not in moments.MOMENTS:
+    if not isinstance(data, dict) or set(data) != {'moment'} or not moments.known(data['moment']):
         raise ValueError('Not a moment')
     return data['moment']
 
@@ -934,8 +936,9 @@ def main(argv=None, ready=None):
                              wake=lambda: (kick.set(), preferences.changed.set('moment')), active=ACTIVE_SECONDS)
 
     def version():
-        """What a picture waiting for its loop's end was drawn from: the moments due and the readings in."""
-        return agents.count, readings['count']
+        """What a picture waiting for its loop's end was drawn from: the moments due, the readings in and Arcade's
+        season (x8: one drawn as a season begins or ends is drawn again with the new date's props)."""
+        return agents.count, readings['count'], season_at(time.time())
 
     def follow_clock():
         """The clock to drive: the address in the config, read again each minute (`start` finding the clock, or
@@ -1015,10 +1018,11 @@ def main(argv=None, ready=None):
             moments.CLOCK.wait(kick, min(until, until if turn is None else turn) - now)
         return False
 
-    def show(image, name, digest, what, receipts, where, paced=None):
+    def show(image, name, digest, what, receipts, where, paced, readable):
         """Send `image` and make it the one the clock shows, its loop starting as the switch is done; `what` is the
-        agent's moment in it, `paced` when its pace ticks stand. A bow, a treat or the break is then over: it plays
-        that one loop, and what follows is due as it ends."""
+        agent's moment in it, `paced` when its pace ticks stand, `readable` whether its readout says the thinking
+        word in `what` (said()). A bow, a treat or the break is then over: it plays that one loop, and what follows
+        is due as it ends."""
         nonlocal last_upload
         begun, on = moments.CLOCK.now(), {}
         try:
@@ -1032,7 +1036,7 @@ def main(argv=None, ready=None):
             last_upload = None  # what the clock shows is unknown: the next picture goes in full, even this one
             displayed['what'] = unsure
             if on:  # its slot went on before the old one failed to go off: its moment has been on the clock
-                agents.shown(what, on['at'], on['wall'])
+                agents.shown(what, on['at'], on['wall'], readable)
             elif what and what[0] == 'break':  # still due: once more as the next loop ends (sync_moments), not before
                 failed['break'] += 1
                 failed['again'] = moments.loop_end(shown, moments.CLOCK.now() + .001) if failed['break'] == 1 else None
@@ -1046,7 +1050,12 @@ def main(argv=None, ready=None):
         last_upload = (name, digest)
         pace['at'] = paced
         displayed['what'] = what
-        agents.shown(what, shown['at'], wall)
+        agents.shown(what, shown['at'], wall, readable)
+
+    def said(drawn, what):
+        """Whether the picture of `drawn` (the snapshot with `what` on it) says the thinking word in `what` in a
+        readout: not behind SLOW, BOO! or SULKING. A word's minute on the clock starts only once it does."""
+        return bool(what and what[0] == 'state' and what[3]) and word_readable(drawn)
 
     def picture(snapshot, style, egg=None):
         """(image, its file name, digest, when its pace ticks stand) for `snapshot` on `style`. Time passing alone
@@ -1090,16 +1099,20 @@ def main(argv=None, ready=None):
                 for _ in range(25):  # a storm of moments still ends in a picture
                     seen = version()  # what it is drawn from (and `came`, when the first change of it came in)
                     snapshot = base()  # (a reading that came in while the last one waited for its loop's end)
+                    # (The usual face's states, a ghost, the back turned or the thinking word, take nothing from a
+                    # one-off: it hides them for its loop.)
                     if quiet_loop is not None:  # an agent's moment due as the one-off ends goes in its quiet loop's place
-                        egg = None if style == 'arcade' and agents.wanted()[0] else quiet_loop
-                    elif entry and style == 'arcade' and agents.wanted()[0]:  # one came while it waited: it goes first
+                        egg = None if style == 'arcade' and moments.urgent(agents.wanted()[0]) else quiet_loop
+                    elif entry and style == 'arcade' and moments.urgent(agents.wanted()[0]):  # it came meanwhile: first
                         return None
                     follows = style == 'arcade' and egg is None  # a one-off takes the whole loop: no moment in it
                     what, since, mark = agents.wanted() if follows else (None, None, None)
-                    image, name, digest, paced = picture(moments.overlay(snapshot, what, mark), style, egg)
+                    drawn = moments.overlay(snapshot, what, mark)
+                    image, name, digest, paced = picture(drawn, style, egg)
+                    readable = said(drawn, what)
                     if (name, digest) == last_upload:  # identical frames are not rewritten to flash
                         displayed['what'] = what
-                        agents.shown(what, shown['at'])
+                        agents.shown(what, shown['at'], readable=readable)
                         break
                     if what is None:  # a picture with an agent's moment in it is never kept
                         write_private(state_dir / name, image)
@@ -1113,7 +1126,7 @@ def main(argv=None, ready=None):
                         if stopping.is_set():
                             return delivered
                         continue  # a moment or a reading changed while the loop played out: draw it in
-                    show(image, name, digest, what, receipts, where, paced)
+                    show(image, name, digest, what, receipts, where, paced, readable)
                     break
                 if what is None:  # receipts say nothing of the agents' moments
                     write_json(state_dir / "display-receipt.json", {"at": int(time.time()), "style": style, "uploads": receipts})
@@ -1206,7 +1219,9 @@ def main(argv=None, ready=None):
             if last_upload is None:  # nothing of this run's on the clock yet (its first reading not in), or what it
                 cycle(False)  # shows is not known (a send failed): one in full, drawn from what TokenTV has, with the
                 continue  # moment, at once or as the loop it holds ends
-            image, name, digest, paced = picture(moments.overlay(base(), what, mark), 'arcade')
+            drawn = moments.overlay(base(), what, mark)
+            image, name, digest, paced = picture(drawn, 'arcade')
+            readable = said(drawn, what)
             due = switch_at(shown, since, moments.CLOCK.now())  # the end of the loop that was playing when it became due
             if due is not None and not hold(due, seen, what):
                 if stopping.is_set():
@@ -1214,10 +1229,10 @@ def main(argv=None, ready=None):
                 continue  # changed again while the loop played out: draw the newest instead
             if (name, digest) == last_upload:
                 displayed['what'] = what
-                agents.shown(what, shown['at'])
+                agents.shown(what, shown['at'], readable=readable)
                 continue
             try:
-                show(image, name, digest, what, [], {}, paced)
+                show(image, name, digest, what, [], {}, paced, readable)
             except (OSError, ValueError, KeyError, HTTPException) as error:
                 agents.drop_bow()  # (a break stays due)
                 reason = problem_of(error)
@@ -1230,15 +1245,15 @@ def main(argv=None, ready=None):
 
     def quiet_wait(seconds):
         """Wait out a one-off's quiet loop; True when TokenTV stops or an agent's moment wants the clock first, the
-        break included, which comes due with time alone."""
+        break included, which comes due with time alone (the usual face's states wait for the quiet loop's end)."""
         end = moments.CLOCK.now() + seconds
         while not stopping.is_set() and moments.CLOCK.now() < end:
             kick.clear()
-            if agents.wanted()[0] != displayed['what']:
+            if moments.urgent(agents.wanted()[0]):
                 return True
             turn = agents.next_change()
             moments.CLOCK.wait(kick, min(end, end if turn is None else turn) - moments.CLOCK.now())
-        return stopping.is_set() or agents.wanted()[0] != displayed['what']
+        return stopping.is_set() or moments.urgent(agents.wanted()[0])
 
     def play(egg, mark=True, came=None):
         """One one-off on the clock: the event, then for a unique or legend its quiet aftermath, then the usual face.
@@ -1268,6 +1283,11 @@ def main(argv=None, ready=None):
         except Exception:
             print("TokenTV easter egg skipped.", flush=True)
         return bool(went)
+
+    def moment_on():
+        """Whether an agent's moment is due or on the clock: no hidden one-off or replay starts then. The usual
+        face's states (a ghost, the back turned, the thinking word) are no such moment: a one-off hides them."""
+        return agents.busy() or (displayed['what'] is not unsure and moments.urgent(displayed['what']))
 
     def read_usage():
         """Read every account (a provider may take its time) apart from the clock's work, so that no agent's moment
@@ -1333,7 +1353,7 @@ def main(argv=None, ready=None):
                             streaks[key] = 1  # history out of reach: the event still plays
                     pending.append(f"{kind}@{key}")
                 # An agent's moment comes first: no one-off starts while one is due or on the clock.
-                busy = agents.busy() or displayed['what'] not in (None, unsure)
+                busy = moment_on()
                 try:
                     egg = (pending.pop(0) if pending else locks.pick(snap)) if arcade_on and not busy else None
                 except (OSError, ValueError):
@@ -1352,7 +1372,7 @@ def main(argv=None, ready=None):
                     # Never serialize exception text, which may include auth material.
                     print("TokenTV poll failed; retained previous snapshot.", flush=True)
             # Asked for from the collection book: played now, or once an agent's moment is off the clock.
-            while device and replays and not (agents.busy() or displayed['what'] not in (None, unsure)):
+            while device and replays and not moment_on():
                 check = replays.pop(0)
                 egg = locks.replay(check)
                 if egg and play(egg, mark=False) is None:
@@ -1361,7 +1381,7 @@ def main(argv=None, ready=None):
                 sync_moments()
             except Exception:
                 print("TokenTV moment skipped.", flush=True)
-            if device and replays and not (agents.busy() or displayed['what'] not in (None, unsure)):
+            if device and replays and not moment_on():
                 continue  # a replay waited for a moment that is over now
             due = agents.next_change()  # a wait grows more insistent, or is let go, on time without a poll
             # and for the next reading, unless one is still under way (that one says when it is in)
