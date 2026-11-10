@@ -1342,7 +1342,8 @@ class Rig:
         self.url = self.device.__enter__()
         test.addCleanup(self.device.__exit__, None, None, None)
         self.readings, accounts = {}, []
-        now = self.wall.time() if wall else time.time()
+        # the first readings at the drawings' own instant when one is given (two Rigs built a minute apart draw alike)
+        now = self.wall.time() if wall else self.frozen.at if at is not None else time.time()
         for k, provider in enumerate(providers):
             key, alias = f'{provider}_a', provider.upper()
             shown = (windows or {}).get(provider) or [('WEEK', 30 + 10 * k, 3 * 86400)]
@@ -1395,7 +1396,9 @@ class Rig:
                 window['used_percent'] = used
 
     def write(self, at=None):
-        """The readings as measured at `at` (default: now), where TokenTV reads them at its next poll."""
+        """The readings as measured at `at` (default: now), where TokenTV reads them at its next poll. A test that
+        changes them runs on `wall`: else now is the computer's clock, which can step back a second or two between
+        two writes (WSL2's does), and a reading measured before the last one adds nothing to today's use."""
         for row in self.readings.values():
             row['fetched_at'] = self.now() if at is None else at
         (self.dir / 'readings.json').write_text(json.dumps({'accounts': self.readings}), encoding='utf-8')

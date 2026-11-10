@@ -257,7 +257,8 @@ class ClockTests(unittest.TestCase):
         return render_page(rig.held(), 0, 'survival')
 
     def test_on_the_clock_it_changes_with_the_readings_only(self):
-        rig = Rig(self, providers=('codex',))  # (read every minute, as a Claude account is not)
+        # (Codex: read every minute, as a Claude account is not; on `wall`, as the readings change: Rig.write)
+        rig = Rig(self, providers=('codex',), wall=True)
         arcade, began = rig.showing()
         self.pick(rig, 'survival')
         due = rig.end_of_loop()
@@ -277,8 +278,9 @@ class ClockTests(unittest.TestCase):
         rig.write()
         rig.clock.to(rig.poll_at(4) + .5)
         self.assertEqual(len(rig.uploads()), sent + 1)
-        image, on = rig.showing()
-        self.assertEqual(image, self.held_face(rig))
+        self.assertEqual(rig.showing()[0], self.held_face(rig))
+        on = rig.uploads()[-1]  # (a still face is written over in place, its file already on: the send is the switch)
+        self.assertGreaterEqual(on, rig.poll_at(4) - 1e-6)
         self.assertLess(on, rig.poll_at(4) + .25)
         kept = json.loads((rig.state / 'snapshot.json').read_text(encoding='utf-8'))['accounts']['codex_a']['day']
         self.assertEqual(kept['used'], 55)  # today's use goes into the state folder with the snapshot

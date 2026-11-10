@@ -154,6 +154,11 @@ class CatalogTest(unittest.TestCase):
     def test_package_version_matches_pyproject(self):
         self.assertIn(f'version = "{__version__}"', (ROOT / 'pyproject.toml').read_text(encoding='utf-8'))
 
+    def test_npm_and_the_claude_plugin_carry_the_package_version(self):
+        # Claude Code updates an installed plugin only when its version moves (0.6.0 went out with the plugin at 0.5.0)
+        for path in ('package.json', 'claude-plugin/.claude-plugin/plugin.json'):
+            self.assertEqual(json.loads((ROOT / path).read_text(encoding='utf-8'))['version'], __version__, path)
+
 
 class RefreshTest(unittest.TestCase):
     def test_refresh_keeps_last_count_on_failure(self):
