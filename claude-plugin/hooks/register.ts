@@ -5,8 +5,8 @@
 // compaction makes it squeeze its head, and the readout says Claude Code's own thinking word while a turn runs.
 // `/tokentv sound on` plays a short sound on this computer when a prompt waits for you and when a turn is done.
 //
-// It tells the TokenTV running on this computer a name and nothing else: `claude.ask` (a permission prompt is now
-// waiting for you), `claude.answered` (you answered it, or it is over), `claude.end` (a turn ended), `claude.stop`
+// It tells the TokenTV running on this computer a name and nothing else: `claude.ask` (a prompt is now waiting for
+// you: a permission dialog, a question, a plan to approve), `claude.answered` (you answered it, or it is over), `claude.end` (a turn ended), `claude.stop`
 // (a turn that showed a thinking word was cut short), `claude.pet` and `claude.snack` (the two commands),
 // `claude.risky`, `claude.deleted`, `claude.rude`, `claude.calm`, `claude.failed`, `claude.compact`, and
 // `claude.word:` with one word of letters (Claude Code's spinner word, `claude.word:PONDERING`). Prompts, commands,
@@ -43,10 +43,15 @@ const COMMAND_READ = 128 * 1024
 type Wait = { agent: string | undefined; at: number; to?: string; sent?: Promise<unknown>; waited?: number }
 
 const waits = new Map<string, Wait>() // tool_use_id -> a prompt this session announced and has not closed
+// Calls whose check said `ask` and that are still going: tool_use_id -> the tool, its arguments and its loop. The
+// prompt Claude Code then raises names the tool and the arguments, not the call. Held as they came (never copied),
+// read only to tell which call a prompt is for, and let go as the call ends.
+type Asked = { tool: unknown; input: unknown; agent: string | undefined }
+const asked = new Map<string, Asked>()
 const callers = new Map<string, string | undefined>() // tool_use_id -> the subagent making a call now, if one is
 const answered: string[] = []
 let interactive = true // false in `claude -p` and the SDK: nobody sits at a dialog there
-let mode: string | undefined // the permission mode, when Claude Code says it (auto mode's classifier asks no one)
+let mode: string | undefined // the permission mode, where Claude Code says it (2.1.289 did; 2.1.321 does not)
 let lastTurn: string | undefined
 let queue: Promise<void> = Promise.resolve() // what is told goes out in the order it happened
 // What a call that is still going has shown of itself, kept only till it ends: whether it asked you, ran (drawn
@@ -97,8 +102,8 @@ export function register(on: any) {
     return { text: word === 'pet' ? 'A pat for Clawd, on its way to TokenTV.' : 'A snack for Clawd, on its way to TokenTV.' }
   })
 
-  // Read only for the permission mode (auto mode's classifier, not a person, settles what the rules leave open):
-  // as the session starts and again before each tool call, as Claude Code's settings hooks are told it.
+  // Read only for the permission mode, where Claude Code says it: as the session starts and again before each tool
+  // call (2.1.289). Claude Code 2.1.321 says neither; there the prompt itself tells (PermissionRequest, below).
   on('classic.SessionStart', noteMode)
   on('classic.PreToolUse', async ($: any, e: any, next: any) => {
     if (typeof e?.permission_mode === 'string') mode = e.permission_mode
@@ -124,23 +129,35 @@ export function register(on: any) {
     return next(e)
   })
 
-  // The decision on a call, with Claude Code's verdict passed on untouched. `ask` with nobody else to decide it
-  // means the permission prompt is about to show: one wait, once per call however often it is seen.
+  // The decision on a call, with Claude Code's verdict passed on untouched. `ask` is put to the mode's decider, and
+  // that is you only sometimes: in auto mode (the default from Claude Code 2.1.3xx) the classifier settles most
+  // asks within a second (measured in 2.1.321, 2026-11-11: every Bash call's check said `ask`, approver `person`,
+  // and no dialog came). So an ask is only remembered here, till the call ends; the prompt is told below. An older
+  // Claude Code that says its mode instead of who answers (2.1.289) is taken at its word, as before.
   on('tool.check', async ($: any, e: any, next: any) => {
     const decided = await next(e)
     try {
       const id = e?.tool_use_id
       if (decided?.decision === 'deny') note(denied, id)
-      if (asksYou(decided, id) && !waits.has(id) && !answered.includes(id)) {
-        const wait = { agent: e.agentId ?? callers.get(id), at: 0 }
-        const first = waits.size === 0 // this session's first prompt open: a wait begins (its sound, if on)
-        waits.set(id, wait)
-        note(prompted, id)
-        send($, 'claude.ask', wait)
-        if (first) cue($, 'wait')
+      if (mayAskYou(decided, e) && callers.has(id)) {
+        const agent = e.agentId ?? callers.get(id)
+        asked.set(id, { tool: e.tool, input: e.input, agent })
+        if (mode !== undefined && e.approver === undefined && asksYou(decided)) open($, id, agent)
       }
     } catch {}
     return decided
+  })
+
+  // The prompt itself: Claude Code raises PermissionRequest as it puts a call to you, a permission dialog, a
+  // question (AskUserQuestion) or a plan to approve, in every mode, and never for a call the classifier settles
+  // (measured in 2.1.321: about 20 ms after the check; its settings hooks answer nothing and the dialog stays
+  // yours). One wait, once per call however often it is raised. The request passes on untouched.
+  on('classic.PermissionRequest', async ($: any, e: any, next: any) => {
+    try {
+      const id = raisedFor(e)
+      if (id !== undefined) open($, id, asked.get(id)?.agent)
+    } catch {}
+    return next(e)
   })
 
   // Your answer, as it happens: Claude Code draws the asked call's row again the moment you answer, running (you
@@ -221,6 +238,7 @@ export function register(on: any) {
       return result
     } finally {
       callers.delete(id)
+      asked.delete(id)
       answer($, id)
       try {
         finished($, id, kinds, result, next?.signal)
@@ -324,11 +342,68 @@ async function noteMode($: any, e: any, next: any) {
   return next(e)
 }
 
-function asksYou(decided: any, id: unknown) {
-  if (!decided || decided.decision !== 'ask' || decided.decider) return false // a host program answers that one
-  if (typeof id !== 'string' || id === '' || !interactive || mode === 'dontAsk') return false
-  // In auto mode the classifier settles an ask, unless an ask rule or a PreToolUse hook asked for you.
+// An ask a person could be put: not one a host program answers, nor in a run with nobody at a dialog.
+function mayAskYou(decided: any, e: any) {
+  if (!decided || decided.decision !== 'ask' || decided.decider || e?.approver === 'host') return false
+  const id = e?.tool_use_id
+  return typeof id === 'string' && id !== '' && interactive && mode !== 'dontAsk'
+}
+
+// Where Claude Code says its mode (2.1.289): in auto mode the classifier settles an ask, unless an ask rule or a
+// PreToolUse hook asked for you; in any other the ask is yours.
+function asksYou(decided: any) {
   return mode !== 'auto' || Boolean(decided.rule || decided.hook)
+}
+
+// A prompt is open for the call: one wait, once per call (its sound, if on, when it is this session's first open).
+function open($: any, id: string, agent: string | undefined) {
+  if (waits.has(id) || answered.includes(id)) return
+  const wait = { agent, at: 0 }
+  const first = waits.size === 0
+  waits.set(id, wait)
+  note(prompted, id)
+  send($, 'claude.ask', wait)
+  if (first) cue($, 'wait')
+}
+
+// The call a prompt is for. Among the calls whose check asked and that are still going, of that tool and loop: the
+// earliest with these arguments that has no prompt yet (two calls alike each get their own); none, if those with
+// these arguments all have theirs (raised again: nothing new); and if the arguments tell none apart, the earliest
+// that has no prompt yet.
+function raisedFor(e: any): string | undefined {
+  if (!interactive) return undefined
+  let earliest: string | undefined
+  let again = false
+  for (const [id, call] of asked) {
+    if (call.tool !== e?.tool_name) continue
+    if (call.agent !== undefined && e?.agent_id !== undefined && call.agent !== e.agent_id) continue
+    const prompted = waits.has(id) || answered.includes(id)
+    if (alike(call.input, e?.tool_input)) {
+      if (!prompted) return id
+      again = true
+    } else if (earliest === undefined && !prompted) {
+      earliest = id
+    }
+  }
+  return again ? undefined : earliest
+}
+
+// The same arguments as far as both say: every field both have is equal, and they share one (a prompt's arguments
+// may carry more fields than the check's). Strings are compared where they are, never copied.
+function alike(a: any, b: any) {
+  if (a === b) return true
+  if (!a || !b || typeof a !== 'object' || typeof b !== 'object') return false
+  let shared = 0
+  for (const key of Object.keys(a)) {
+    if (!(key in b)) continue
+    shared++
+    const one = a[key]
+    const other = b[key]
+    if (one === other) continue
+    if (!one || !other || typeof one !== 'object' || typeof other !== 'object') return false
+    if (JSON.stringify(one) !== JSON.stringify(other)) return false
+  }
+  return shared > 0 || (Object.keys(a).length === 0 && Object.keys(b).length === 0)
 }
 
 function answer($: any, id: unknown) {

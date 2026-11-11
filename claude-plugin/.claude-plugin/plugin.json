@@ -1,7 +1,7 @@
 {
   "name": "tokentv",
   "displayName": "TokenTV",
-  "version": "0.6.1",
+  "version": "0.6.2",
   "description": "Your TokenTV desk clock shows Clawd raising a hand while Claude Code waits for your permission, a bow when a turn is done, a courtroom for a risky command, a ghost for a deleted file, its back turned for a rude prompt, dizzy after a failed tool and Claude Code's thinking word; /tokentv pet, snack and sound on|off. Tells the TokenTV on this computer the moment's name, nothing else.",
   "author": { "name": "click6067-ship-it" },
   "homepage": "https://github.com/click6067-ship-it/token-tv",

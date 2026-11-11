@@ -20,4 +20,4 @@ Code's work is blocked or changed. With no TokenTV running it does nothing.
 On Windows it sends nothing for now.
 The whole story, Codex's half and how to turn it off: [docs/claude-code-mod.md](../docs/claude-code-mod.md).
 
-Tests: `claude plugin test claude-plugin` (tested with Claude Code 2.1.289).
+Tests: `claude plugin test claude-plugin` (tested with Claude Code 2.1.321).
