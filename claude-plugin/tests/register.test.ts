@@ -43,13 +43,37 @@ function computer(on: any, options: any = {}) {
     return { value: { status: 204, ok: true, headers: {}, text: '' } }
   }))
   const calls: any[] = []
-  // Claude Code itself: a call waits inside next() for the check, the person and the tool, here until released
+  const begun = new Set<string>() // calls Claude Code has begun and not checked yet (its PreToolUse comes first)
+  const asking: string[] = [] // calls whose check said ask, in order: the prompt Claude Code raises next is the first's
+  const dialogs: Record<string, (yes: boolean) => void> = {} // the prompts open now, by call
+  const released = new Set<string>()
+  on('classic.PreToolUse', ($: any, e: any) => {
+    begun.add(e.tool_use_id)
+    return {}
+  })
+  // Claude Code itself: the tool, once the check and you have let it run, here until released
   on('tool.call', async ($: any, e: any) => {
     calls.push(e)
-    await new Promise<void>((done) => { gates[e.tool_use_id] = done })
+    if (!released.has(e.tool_use_id)) await new Promise<void>((done) => { gates[e.tool_use_id] = done })
     return { result: 'ran ' + e.tool_use_id, context: ['for the model'] }
   })
-  on('tool.check', ($: any, e: any) => verdicts[e.tool_use_id] ?? { decision: 'ask' })
+  on('tool.check', ($: any, e: any) => {
+    const verdict = verdicts[e.tool_use_id] ?? { decision: 'ask' }
+    // (the call's own check, the first after it began: the kit raises a prompt for that one's ask, for no other)
+    if (begun.delete(e.tool_use_id) && verdict.decision === 'ask') asking.push(e.tool_use_id)
+    return verdict
+  })
+  // You, at the prompt. Claude Code raises PermissionRequest as it puts a call to you (measured in 2.1.321: about
+  // 20 ms after the check, in every mode, and never for a call auto mode's classifier settles), and its settings
+  // hooks answer it with nothing: the dialog is yours. The kit raises one for every call whose check says ask and
+  // takes the answer to it for yours: here it waits until the test answers. One a test raises itself (no call of
+  // the kit's behind it) gets nothing, as from Claude Code.
+  on('classic.PermissionRequest', async () => {
+    const id = asking.shift()
+    if (id === undefined) return {}
+    const yes = await new Promise<boolean>((done) => { dialogs[id] = done })
+    return { decision: { behavior: yes ? 'allow' : 'deny' } }
+  })
   on('ui.render', ($: any, e: any) => DRAWN) // Claude Code's own drawing of the row
   on('turn.complete', () => ({ text: '' }))
   on('session.start', () => ({ cwd: '/work' }))
@@ -60,7 +84,10 @@ function computer(on: any, options: any = {}) {
     registered.push(e)
     return { value: { command: e.name } }
   })
-  return { sent, refused, calls, reads, registered, release: (id: string) => gates[id]?.(),
+  return { sent, refused, calls, reads, registered, verdicts,
+           // "Yes" at the prompt, if one is open, and the tool is done (now, or as soon as it starts)
+           release: (id: string) => { released.add(id); dialogs[id]?.(true); gates[id]?.() },
+           refuse: (id: string) => dialogs[id]?.(false), // "No": the call ends with no tool run
            moments: () => sent.map((s) => JSON.parse(s.init.body).moment) }
 }
 
@@ -72,12 +99,15 @@ const tokentv = ($: any, args?: string) => $.command.run(args === undefined ? { 
 // list, or a ToolUse row of one call (measured in 2.1.289: the asked call `isRunning` once you said yes).
 const row = (id: string, fields: any = {}) => ({ tool_use_id: id, tool: 'Bash', input: { command: ASKING },
                                                  isRunning: false, isErrored: false, isInterrupted: false, ...fields })
+// (the kit marks what is drawn with who drew it, `part`: left out here, these tests are about the tree)
+const tree = ({ part, ...drawn }: any) => drawn
 const group = ($: any, ...calls: any[]) => $.ui.render({ surface: 'terminal', component: 'ToolGroup', requestId: 'g1',
-                                                          props: { calls, isActive: true, isExpanded: false } })
+                                                          props: { calls, isActive: true, isExpanded: false } }).then(tree)
 const single = ($: any, call: any) => $.ui.render({ surface: 'terminal', component: 'ToolUse', requestId: call.tool_use_id,
-                                                     props: call })
+                                                     props: call }).then(tree)
 
-// A tool call that needs your permission: the call starts, Claude Code checks it, and the prompt waits for you.
+// A tool call that needs your permission: the call starts, Claude Code checks it and raises the prompt, which waits
+// for you (pc.release: yes, and the tool is done; pc.refuse: no). The check asked again is the verdict, untouched.
 async function prompt($: any, id: string, command = ASKING) {
   const call = $.tool.call({ tool: 'Bash', command, tool_use_id: id })
   call.catch(() => {}) // a call a test leaves waiting is let go with the test, not left a rejection nobody handles
@@ -85,6 +115,12 @@ async function prompt($: any, id: string, command = ASKING) {
   const verdict = await $.tool.check({ tool: 'Bash', input: { command }, tool_use_id: id })
   await flush()
   return { call, verdict }
+}
+
+// Until Claude Code has the call running (its own check of it, allowed, is over by then): a test that then asks the
+// check again with another verdict plays a check whose ask the kit raises no prompt for.
+async function running(pc: any, id: string) {
+  for (let k = 0; k < 80 && !pc.calls.some((c: any) => c.tool_use_id === id); k++) await flush()
 }
 
 const turn = (turnId: string, extra: any = {}) =>
@@ -139,7 +175,7 @@ test('a "No" closes the prompt when its refusal is drawn, or else when the call 
   await group($, row('n2')) // drawn while the dialog is up, and never again
   await flush()
   expect(pc.moments()).toEqual(['claude.ask', 'claude.answered', 'claude.ask'])
-  pc.release('n2') // refused: the call ends with no tool run
+  pc.refuse('n2') // refused: the call ends with no tool run
   await second.call
   await flush()
   expect(pc.moments()).toEqual(['claude.ask', 'claude.answered', 'claude.ask', 'claude.answered'])
@@ -213,27 +249,107 @@ test('calls nobody is asked about send nothing: allowed, denied, another mod\'s 
     expect(pc.moments()).toEqual([])
   })
 
-test('nothing is asked of anyone in a -p run, in dontAsk mode, or by auto mode\'s classifier', async ($: any, on: any) => {
+test('nothing is asked of anyone in a -p run', async ($: any, on: any) => {
   const pc = computer(on)
   await $.session.start({ surface: null, isInteractive: false, cwd: '/work' })
-  const first = await prompt($, 'p1')
+  const { call } = await prompt($, 'p1')
   pc.release('p1')
-  await first.call
-  await $.session.start({ surface: 'terminal', isInteractive: true, cwd: '/work' })
-  for (const [mode, id] of [['dontAsk', 'd1'], ['auto', 'a1']]) {
-    await $.classic.SessionStart({ hook_event_name: 'SessionStart', permission_mode: mode, source: 'startup' })
-    const { call } = await prompt($, id)
-    pc.release(id)
-    await call
-  }
+  await call
   await flush()
   expect(pc.moments()).toEqual([])
 })
 
-test('in auto mode an ask rule still puts the prompt to you', async ($: any, on: any) => {
+// Measured in Claude Code 2.1.321 (2026-11-11), where auto mode is the default: the check of a Bash call says `ask`
+// (approver `person`, as for a real prompt), the classifier allows it about a second later, and no PermissionRequest
+// is raised; Claude Code no longer says its permission mode to a hook. Each such call was a second of NEEDS YOU.
+test('a check that says ask is no prompt: what auto mode\'s classifier settles sends nothing', async ($: any, on: any) => {
+  const pc = computer(on, { verdicts: { c1: { decision: 'allow' } } }) // (the kit: so that it raises no prompt itself)
+  const { call } = await prompt($, 'c1')
+  await running(pc, 'c1')
+  pc.verdicts.c1 = { decision: 'ask', reason: 'This command requires approval' }
+  expect(await $.tool.check({ tool: 'Bash', input: { command: ASKING }, tool_use_id: 'c1', approver: 'person' }))
+    .toEqual({ decision: 'ask', reason: 'This command requires approval' })
+  await group($, row('c1', { isRunning: true })) // the classifier let it run
+  await flush()
+  expect(pc.moments()).toEqual([])
+  pc.release('c1')
+  await call
+  await $.turn.complete(turn('c'))
+  await flush()
+  expect(pc.moments()).toEqual(['claude.end'])
+})
+
+test('the prompt is Claude Code\'s PermissionRequest for a call whose check asked: one claude.ask, as it is raised',
+  async ($: any, on: any) => {
+    const pc = computer(on, { verdicts: { q1: { decision: 'allow' }, q2: { decision: 'allow' } } })
+    const request = (command: string, extra: any = {}) =>
+      $.classic.PermissionRequest({ hook_event_name: 'PermissionRequest', tool_name: 'Bash', tool_input: { command },
+                                    permission_mode: 'auto', ...extra })
+    expect(await request('ls')).toEqual({}) // a prompt for a call the mod never saw checked: nothing, passed on
+    const one = await prompt($, 'q1', 'npm test')
+    const two = await prompt($, 'q2', 'git push') // two calls at once: the classifier settles one, a rule asks for the other
+    await running(pc, 'q1')
+    await running(pc, 'q2')
+    pc.verdicts.q1 = pc.verdicts.q2 = { decision: 'ask' }
+    await $.tool.check({ tool: 'Bash', input: { command: 'npm test' }, tool_use_id: 'q1' })
+    await $.tool.check({ tool: 'Bash', input: { command: 'git push' }, tool_use_id: 'q2' })
+    await flush()
+    expect(pc.moments()).toEqual([])
+    await request('git push') // the prompt is for the second call: the one with these arguments
+    await request('git push') // (raised again: still the one wait)
+    await flush()
+    expect(pc.moments()).toEqual(['claude.ask'])
+    pc.release('q1') // the first call ends: the prompt is not its own, and stays open
+    await one.call
+    await flush()
+    expect(pc.moments()).toEqual(['claude.ask'])
+    await group($, row('q2', { isRunning: true })) // "Yes"
+    await flush()
+    expect(pc.moments()).toEqual(['claude.ask', 'claude.answered'])
+    pc.release('q2')
+    await two.call
+  })
+
+test('a question Claude Code puts to you (AskUserQuestion) is a prompt as any other, in any mode', async ($: any, on: any) => {
+  const pc = computer(on)
+  const call = $.tool.call({ tool: 'AskUserQuestion', questions: [{ question: 'Red or blue?' }], tool_use_id: 'ask-1' })
+  call.catch(() => {})
+  for (let k = 0; k < 40 && pc.sent.length === 0; k++) await flush() // (the kit raises the prompt in its own time)
+  expect(pc.moments()).toEqual(['claude.ask'])
+  pc.release('ask-1')
+  await call
+  await flush()
+  expect(pc.moments()).toEqual(['claude.ask', 'claude.answered'])
+})
+
+// An older Claude Code (2.1.289) says its permission mode and not who answers a check: taken at its word, as before.
+test('where Claude Code says its mode, an ask is yours at the check unless auto mode has it; dontAsk asks no one',
+  async ($: any, on: any) => {
+    const pc = computer(on, { verdicts: { d1: { decision: 'allow' }, a1: { decision: 'allow' }, a2: { decision: 'allow' },
+                                          m1: { decision: 'allow' } } }) // (the kit: so that it raises no prompt)
+    const said = async (mode: string, id: string, verdict: any) => {
+      await $.classic.SessionStart({ hook_event_name: 'SessionStart', permission_mode: mode, source: 'startup' })
+      const { call } = await prompt($, id)
+      await running(pc, id)
+      pc.verdicts[id] = verdict
+      await $.tool.check({ tool: 'Bash', input: { command: ASKING }, tool_use_id: id })
+      await flush()
+      pc.release(id)
+      await call
+      await flush()
+    }
+    await said('dontAsk', 'd1', { decision: 'ask' })
+    await said('auto', 'a1', { decision: 'ask' })
+    expect(pc.moments()).toEqual([])
+    await said('auto', 'a2', { decision: 'ask', rule: 'Bash(git push:*)' })
+    expect(pc.moments()).toEqual(['claude.ask', 'claude.answered'])
+    await said('default', 'm1', { decision: 'ask' })
+    expect(pc.moments()).toEqual(['claude.ask', 'claude.answered', 'claude.ask', 'claude.answered'])
+  })
+
+test('a prompt an ask rule raises is put to you as any other', async ($: any, on: any) => {
   const pc = computer(on, { verdicts: { r1: { decision: 'ask', rule: 'Bash(git push:*)' } } })
-  await $.classic.SessionStart({ hook_event_name: 'SessionStart', permission_mode: 'auto', source: 'startup' })
-  const { call } = await prompt($, 'r1', 'git push')
+  const { call } = await prompt($, 'r1', 'git push') // Claude Code raises the prompt: that is all the mod goes by
   expect(pc.moments()).toEqual(['claude.ask'])
   pc.release('r1')
   await call
@@ -586,16 +702,19 @@ test('the call, its arguments and its result pass through untouched, and only yo
     const pc = computer(on)
     const { call } = await prompt($, 'u1', 'echo "untouched" && ls -la')
     expect(await Promise.race([call, flush().then(() => 'still waiting')])).toBe('still waiting')
-    expect(pc.calls).toEqual([{ tool: 'Bash', command: 'echo "untouched" && ls -la', tool_use_id: 'u1' }])
+    expect(pc.calls).toEqual([]) // no tool runs before your answer
     pc.release('u1')
     expect(await call).toEqual({ result: 'ran u1', context: ['for the model'] })
+    expect(pc.calls).toEqual([{ tool: 'Bash', command: 'echo "untouched" && ls -la', tool_use_id: 'u1' }])
   })
 
 test('a subagent\'s prompt is its own even when the check does not say whose it is', async ($: any, on: any) => {
-  const pc = computer(on)
+  const pc = computer(on, { verdicts: { s1: { decision: 'allow' } } }) // (the kit: the check below is the one that asks)
   const sub = $.tool.call({ tool: 'Bash', command: 'make', tool_use_id: 's1', agentId: 'agent-9' })
-  await flush()
+  await running(pc, 's1')
+  pc.verdicts.s1 = { decision: 'ask' }
   await $.tool.check({ tool: 'Bash', input: { command: 'make' }, tool_use_id: 's1' }) // Claude Code 2.1.289
+  await $.classic.PermissionRequest({ hook_event_name: 'PermissionRequest', tool_name: 'Bash', tool_input: { command: 'make' } })
   await $.turn.complete(turn('main-turn')) // the main turn's end leaves the subagent's prompt open
   await flush()
   expect(pc.moments()).toEqual(['claude.ask', 'claude.end'])

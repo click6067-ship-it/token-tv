@@ -35,6 +35,8 @@ function computer(on: any, options: any = {}) {
     return answer ?? { result: 'ran ' + e.tool_use_id }
   })
   on('tool.check', ($: any, e: any) => verdicts[e.tool_use_id] ?? { decision: 'allow' })
+  // You, at the prompt Claude Code raises for a call whose check says ask (register.test.ts has it): here "Yes" at once.
+  on('classic.PermissionRequest', () => ({ decision: { behavior: 'allow' } }))
   on('ui.render', ($: any, e: any) => DRAWN)
   on('turn.start', ($: any, e: any) => ({ turnId: e.turnId }))
   on('turn.complete', () => ({ text: '' }))
@@ -81,9 +83,11 @@ async function started($: any, pc: any, input: any) {
 
 const turn = (turnId: string, extra: any = {}) =>
   ({ turnId, answer: 'done', durationMs: 1200, isAborted: false, reason: 'answer', usage: null, ...extra })
+// (the kit marks what is drawn with who drew it, `part`: left out, the test is about the tree)
 const spinner = ($: any, word: unknown, extra: any = {}) =>
   $.ui.render({ surface: 'terminal', component: 'Spinner', requestId: 'main',
                 props: { word, message: null, suffix: '…', mode: 'thinking', ...extra } })
+    .then(({ part, ...drawn }: any) => drawn)
 const typed = ($: any, text: string, kind = 'composer') => $.prompt.submit({ text, origin: { kind }, wait: false })
 const named = (e: any) => JSON.parse(e.init.body).moment
 // Until `count` requests have gone out (each waits for the one before it), or a second has gone by.

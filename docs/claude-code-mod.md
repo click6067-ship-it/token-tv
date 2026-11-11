@@ -2,7 +2,8 @@
 
 On the Arcade face, TokenTV's pets also show what your agents are doing right now:
 
-- **Claude Code waits for you.** When a permission prompt opens, Clawd raises a hand, with the readout
+- **Claude Code waits for you.** When a permission prompt opens (or Claude Code puts a question to you), Clawd
+  raises a hand, with the readout
   `NEEDS YOU`, and has the clock to itself (the other services' pets come back after). After 5 minutes unanswered
   it hops; after 15 it holds up a sign. Once you answer (yes or no) or the turn ends, the usual face comes back,
   even while the command you allowed is still running. After 30 minutes unanswered it gives up and
@@ -153,9 +154,9 @@ is the picture, as for everything else TokenTV shows.
 - The mod sees your answer as Claude Code draws the call again (running, or refused). Where no such drawing names
   the call (a desktop app older than that), the hand comes down when the call is over instead: after you approve a
   long command there, it stays up until the command finishes.
-- In auto mode, Claude Code's classifier (not you) settles most calls, and those raise no hand; an ask rule or a
-  hook that asks you still does. Where an organization manages Claude Code, the mod cannot read the permission
-  mode, and auto mode's checks may briefly raise the hand.
+- In auto mode (Claude Code's default now), its classifier (not you) settles most calls, and those raise no hand:
+  the hand is for the prompts Claude Code actually puts to you, an ask rule's, a hook's or a question (measured
+  with Claude Code 2.1.321). An older Claude Code that says its permission mode (2.1.289) is taken at its word.
 - With several Claude accounts on the clock, every Claude pet shows the moment: Claude Code does not say which
   account a session uses.
 - TokenTV and the agents have to run on the same computer.
