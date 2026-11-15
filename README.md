@@ -27,3 +27,5 @@ Turn a ~$5 AliExpress clock (GeekMagic SmallTV) into pixel pets for Claude Code 
 **And a few secret scenes.** Some come only at certain hours, some only after a bot has really worked, and some almost never. Each lasts only a moment, and we're not telling you which. [The collection](https://token-tv.vercel.app/collection/) shows how much is out there.
 
 Simple numbers at a glance, and cute while it's at it. Coding alone at 3 a.m.? Your bots are still up with you, and someone might even make you coffee. Ideas, suggestions and PRs are welcome. *Cuteness is a feature.*
+
+**More:** [TokenTV in the wild](https://github.com/click6067-ship-it/token-tv/blob/main/docs/in-the-wild.md) (press, lists, builds by others, clips you may reuse) · [Which clock to buy](https://github.com/click6067-ship-it/token-tv/blob/main/docs/hardware-compatibility.md#buying-a-clock)

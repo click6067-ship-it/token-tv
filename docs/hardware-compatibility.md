@@ -3,6 +3,18 @@
 Only what has been checked on a real clock is listed as verified. Everything else is unknown,
 not "probably fine".
 
+## Buying a clock
+
+- **What to look for:** a 240×240 Wi-Fi desk clock in the GeekMagic SmallTV style whose web page has a photo album
+  (photo upload) page. TokenTV draws by uploading pictures there, so that page matters more than the brand.
+- **Price:** these usually sell for about US$5–13 on AliExpress, depending on region, shipping and deals. The
+  crossed-out "original" price is not a guide; compare the checkout price with shipping. The author's SD_PRO cost
+  about US$4 (₩5,650). geekmagic.com, a separate shop, lists the Ultra at about US$20.
+- **Safest picks today:** the two cards below, an SD_PRO and a SmallTV-Ultra on `Ultra-V9.0.54` or `9.1.54`.
+  SmallTV and SmallTV-Ultra share the same ESP8266 board; the SmallTV Pro is an ESP32 model and is not checked yet.
+  Many look-alikes are sold under other names; they may work if the photo album page behaves the same, but nobody
+  has checked them. If you try one, please open an issue with what `token-tv start` printed, so it can get a card.
+
 ## Verified units
 
 One card per clock checked with TokenTV on real hardware. "Not checked" means nobody has tried it on that unit,
