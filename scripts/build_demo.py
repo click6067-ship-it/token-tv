@@ -25,6 +25,31 @@ META = '''<meta name="description" content="Your AI limits, on a tiny desk clock
 <meta property="og:url" content="{site}/">
 <meta name="twitter:card" content="summary_large_image">'''
 BAR = f'<div class="demo-bar">Live demo with sample data<a href="{REPO}">TokenTV on GitHub</a></div>'
+COLLECTION_ENTRY = '''<section class="demo-collection" aria-labelledby="demo-collection-title">
+    <div><p class="eyebrow">AI desk pets</p><h2 id="demo-collection-title">Your AI has moods.</h2>
+    <p>Everyday reactions. Rare finds. Unique and Legend scenes to discover.</p></div>
+    <a class="control primary" href="/collection/">Animation Collection →</a>
+  </section>
+  '''
+COLLECTION_STYLE = '''<style id="collection-entry-style">
+/* Hallmark · component: collection entry · existing dashboard tokens
+   Pre-emit critique: P4 H5 E4 S5 R5 V4 */
+.demo-collection{display:flex;align-items:center;justify-content:space-between;gap:20px;margin:18px 0;padding:22px;border:1px solid var(--line-2);border-left:4px solid var(--codex);border-radius:var(--radius-control);background:var(--panel);color:var(--ink)}
+.demo-collection h2{font:700 25px/1.2 var(--font-label);font-style:normal;letter-spacing:0;margin:5px 0 8px;overflow-wrap:anywhere;min-width:0}
+.demo-collection p:last-child{margin:0;color:var(--ink-2);font:400 14px/1.5 var(--font-body)}
+.demo-collection .primary{display:inline-flex;justify-content:center;align-items:center;flex-shrink:0;min-height:48px;padding:12px 20px;text-decoration:none;white-space:nowrap;font:700 16px/1.3 var(--font-label)}
+.demo-collection .primary:active{transform:translateY(1px)}
+@media(max-width:700px){.demo-collection{align-items:stretch;flex-direction:column;gap:16px;padding:18px}.demo-collection .primary{width:100%;font-size:15px}}
+</style>'''
+
+
+def add_collection_entry(html):
+    """Keep the public animation catalogue one click away, above the demo controls."""
+    if 'id="demo-collection-title"' in html:
+        return html
+    marker = '<nav class="theme-section"'
+    assert marker in html and '</head>' in html, 'public demo navigation markers changed'
+    return html.replace('</head>', COLLECTION_STYLE + '\n</head>', 1).replace(marker, COLLECTION_ENTRY + marker, 1)
 
 
 def build(out, site):
@@ -36,6 +61,7 @@ def build(out, site):
     html = html.replace('<html lang="en" data-theme="digital">', '<html lang="en" data-theme="digital" data-demo>', 1)
     html = html.replace('<title>TokenTV · AI usage</title>', '<title>TokenTV · Live demo</title>\n' + META.format(site=site.rstrip('/')), 1)
     html = html.replace('<a class="skip" href="#providers">Skip to usage</a>', '<a class="skip" href="#providers">Skip to usage</a>\n' + BAR, 1)
+    html = add_collection_entry(html)
     assert 'data-demo' in html and 'demo-bar' in html and 'og:image' in html, 'index.html markers changed'
     (out / 'index.html').write_text(html, encoding='utf-8')
     assets = out / 'assets'

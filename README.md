@@ -6,10 +6,11 @@
   <a href="https://github.com/steipete/CodexBar#desk-display"><img alt="Listed in CodexBar" src="https://img.shields.io/badge/listed%20in-CodexBar-555555"></a>
 </p>
 
+<p align="center"><a href="https://token-tv.vercel.app/meet/"><img src="https://raw.githubusercontent.com/click6067-ship-it/token-tv/main/docs/images/real-reactions.gif" width="320" alt="A real TokenTV clock: Claude finishes its task and Clawd bows, Claude runs rm -rf and it goes on trial, I swear at Claude and it turns its back"></a></p>
 <p align="center"><img src="https://raw.githubusercontent.com/click6067-ship-it/token-tv/main/docs/images/real-photos.jpg" width="600" alt="Digital, Sci-Fi HUD, Neon and Arcade on the real clock"> <a href="https://youtube.com/shorts/FN5DLILYiI0"><img src="https://raw.githubusercontent.com/click6067-ship-it/token-tv/main/docs/images/real-clock.gif" width="146" alt="TokenTV on a real clock (16 seconds; the full video is on YouTube)"></a></p>
 <p align="center"><img src="https://raw.githubusercontent.com/click6067-ship-it/token-tv/main/docs/images/main-faces.png" width="600" alt="The four main faces: Digital, Sci-Fi HUD, Neon and Arcade (sample data)"></p>
 
-Turn a ~$5 AliExpress clock (GeekMagic SmallTV) into a physical AI usage dashboard. No firmware flashing.
+Turn a ~$5 AliExpress clock (GeekMagic SmallTV) into pixel pets for Claude Code and Codex. They react to your agents and keep your usage limits in sight. No firmware flashing.
 
 **Live demo:** [token-tv.vercel.app](https://token-tv.vercel.app)  
 **YouTube:** [https://www.youtube.com/shorts/FN5DLILYiI0](https://youtube.com/shorts/FN5DLILYiI0)  
