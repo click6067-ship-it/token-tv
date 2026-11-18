@@ -10,6 +10,10 @@ not "probably fine".
 - **Price:** these usually sell for about US$5–13 on AliExpress, depending on region, shipping and deals. The
   crossed-out "original" price is not a guide; compare the checkout price with shipping. The author's SD_PRO cost
   about US$4 (₩5,650). geekmagic.com, a separate shop, lists the Ultra at about US$20.
+- **From the maker:** to buy from GeekMagic itself, use the shop linked from its site [geekmagic.cc](https://geekmagic.cc)
+  or the authorized AliExpress stores at the top of its [smalltv-ultra README](https://github.com/GeekMagicClock/smalltv-ultra).
+  TokenTV is a community project with no tie to GeekMagic, and these are plain links, not affiliate links. Buying
+  there is a choice, not a requirement: the author's own SD_PRO came from an AliExpress discount.
 - **Safest picks today:** the two cards below, an SD_PRO and a SmallTV-Ultra on `Ultra-V9.0.54` or `9.1.54`.
   SmallTV and SmallTV-Ultra share the same ESP8266 board; the SmallTV Pro is an ESP32 model and is not checked yet.
   Many look-alikes are sold under other names; they may work if the photo album page behaves the same, but nobody

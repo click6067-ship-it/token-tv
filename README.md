@@ -6,7 +6,7 @@
   <a href="https://github.com/steipete/CodexBar#desk-display"><img alt="Listed in CodexBar" src="https://img.shields.io/badge/listed%20in-CodexBar-555555"></a>
 </p>
 
-<p align="center"><a href="https://token-tv.vercel.app/meet/"><img src="https://raw.githubusercontent.com/click6067-ship-it/token-tv/main/docs/images/real-reactions.gif" width="320" alt="A real TokenTV clock: Claude finishes its task and Clawd bows, Claude runs rm -rf and it goes on trial, I swear at Claude and it turns its back"></a></p>
+<p align="center"><a href="https://token-tv.vercel.app/meet/"><img src="https://raw.githubusercontent.com/click6067-ship-it/token-tv/main/docs/images/real-reactions.gif" width="320" alt="A real TokenTV clock playing sample scenes: Clawd bows when Claude finishes a task, goes on trial when Claude runs rm -rf and turns its back when you swear at Claude"></a></p>
 <p align="center"><img src="https://raw.githubusercontent.com/click6067-ship-it/token-tv/main/docs/images/real-photos.jpg" width="600" alt="Digital, Sci-Fi HUD, Neon and Arcade on the real clock"> <a href="https://youtube.com/shorts/FN5DLILYiI0"><img src="https://raw.githubusercontent.com/click6067-ship-it/token-tv/main/docs/images/real-clock.gif" width="146" alt="TokenTV on a real clock (16 seconds; the full video is on YouTube)"></a></p>
 <p align="center"><img src="https://raw.githubusercontent.com/click6067-ship-it/token-tv/main/docs/images/main-faces.png" width="600" alt="The four main faces: Digital, Sci-Fi HUD, Neon and Arcade (sample data)"></p>
 

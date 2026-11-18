@@ -157,6 +157,11 @@ is the picture, as for everything else TokenTV shows.
 - In auto mode (Claude Code's default now), its classifier (not you) settles most calls, and those raise no hand:
   the hand is for the prompts Claude Code actually puts to you, an ask rule's, a hook's or a question (measured
   with Claude Code 2.1.321). An older Claude Code that says its permission mode (2.1.289) is taken at its word.
+- On a computer with Claude Code managed settings (such as `/etc/claude-code/managed-settings.json` on Linux),
+  Claude Code's built-in security plugin runs first and passes the permission prompt on past the TokenTV plugin,
+  so the hand does not go up there; the bow still comes (measured with Claude Code 2.1.326, which says the plugin's
+  `classic.PermissionRequest` hook was skipped). Claude Code describes that security plugin as running first for
+  Team and Enterprise organizations too; not tried there.
 - With several Claude accounts on the clock, every Claude pet shows the moment: Claude Code does not say which
   account a session uses.
 - TokenTV and the agents have to run on the same computer.
