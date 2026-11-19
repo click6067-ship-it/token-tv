@@ -14,7 +14,7 @@ not "probably fine".
   or the authorized AliExpress stores at the top of its [smalltv-ultra README](https://github.com/GeekMagicClock/smalltv-ultra).
   TokenTV is a community project with no tie to GeekMagic, and these are plain links, not affiliate links. Buying
   there is a choice, not a requirement: the author's own SD_PRO came from an AliExpress discount.
-- **Safest picks today:** the two cards below, an SD_PRO and a SmallTV-Ultra on `Ultra-V9.0.54` or `9.1.54`.
+- **Safest picks today:** the two cards below, an SD_PRO and a SmallTV-Ultra on `Ultra-V9.0.54`, `Ultra-V9.0.51` or `9.1.54`.
   SmallTV and SmallTV-Ultra share the same ESP8266 board; the SmallTV Pro is an ESP32 model and is not checked yet.
   Many look-alikes are sold under other names; they may work if the photo album page behaves the same, but nobody
   has checked them. If you try one, please open an issue with what `token-tv start` printed, so it can get a card.
@@ -75,6 +75,18 @@ card yet.
 | Date | 2026-10-27 |
 | Evidence | [video in #7](https://github.com/click6067-ship-it/token-tv/pull/7#issuecomment-6433844118) |
 
+### SmallTV-Ultra on Ultra-V9.0.51 (#13, @sym0nd0)
+
+| Field | |
+| --- | --- |
+| Clock | GeekMagic **SmallTV-Ultra**, bought on AliExpress |
+| Firmware | Stock `Ultra-V9.0.51` |
+| Still / GIF | Still: the HUD face (upload HTTP 200, and the picture read back from the clock matched TokenTV's). Arcade (animated) and Claude Code mode were reported working too, without a receipt |
+| Restore | Not checked |
+| Host | Not reported; TokenTV 0.6.2 |
+| Date | 2026-11-19 |
+| Evidence | A photo of the clock and the upload receipt: [#13](https://github.com/click6067-ship-it/token-tv/issues/13) |
+
 TokenTV never flashes firmware and never deletes your photos. It uploads one picture, switches the
 clock to its photo theme, and `token-tv run --restore-display` puts the original theme back.
 
@@ -105,7 +117,7 @@ want a different one.
 
 - Other GeekMagic models, SmallTV Pro, and clones that look the same. A similar case is not evidence
   of the same firmware.
-- SmallTV-Ultra on firmware other than `Ultra-V9.0.54` and the pre-release `9.1.54`.
+- SmallTV-Ultra on firmware other than `Ultra-V9.0.54`, `Ultra-V9.0.51` and the pre-release `9.1.54`.
 - Restoring the original theme on a real SmallTV-Ultra.
 - Firmware without the photo album page or with different photo API paths.
 - macOS and Windows hosts.

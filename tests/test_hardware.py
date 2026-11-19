@@ -52,6 +52,7 @@ class ClockInfoTests(unittest.TestCase):
         for info, known in (({'kind': 'sdpro', 'model': 'SD_PRO', 'firmware': None}, True),
                             ({'kind': 'ultra', 'model': 'SmallTV-Ultra', 'firmware': 'Ultra-V9.0.54'}, True),
                             ({'kind': 'ultra', 'model': 'SmallTV-Ultra', 'firmware': 'Ultra-V9.1.54'}, True),
+                            ({'kind': 'ultra', 'model': 'SmallTV-Ultra', 'firmware': 'Ultra-V9.0.51'}, True),
                             ({'kind': 'ultra', 'model': 'SmallTV-Ultra', 'firmware': 'Ultra-V9.2.10'}, False),
                             ({'kind': 'ultra', 'model': 'SmallTV-Ultra', 'firmware': 'Ultra-V9.0.540'}, False),
                             ({'kind': 'ultra', 'model': 'SmallTV-Ultra', 'firmware': None}, False),
@@ -99,12 +100,12 @@ class PassportTests(unittest.TestCase):
     def test_one_card_per_checked_unit_with_every_field(self):
         doc = (ROOT / 'docs' / 'hardware-compatibility.md').read_text(encoding='utf-8')
         cards = re.split(r'\n### ', doc.split('\n## Verified units', 1)[1].split('\n## ', 1)[0])[1:]
-        self.assertEqual(len(cards), 4)
+        self.assertEqual(len(cards), 5)
         for card in cards:
             for field in ('Firmware', 'Still / GIF', 'Restore', 'Host', 'Date', 'Evidence'):
                 self.assertRegex(card, rf'\| {re.escape(field)} \|', card.splitlines()[0])
         text = '\n'.join(cards)
-        for needle in ('SD_PRO', 'Ultra-V9.0.54', '/app.json', 'Raspberry Pi 4', '9.1.54', 'pull/7', 'pull/10',
+        for needle in ('SD_PRO', 'Ultra-V9.0.54', '/app.json', 'Raspberry Pi 4', '9.1.54', 'pull/7', 'pull/10', 'Ultra-V9.0.51', 'issues/13',
                        'https://github.com/click6067-ship-it/token-tv/pull/7#issuecomment-6433844118'):
             self.assertIn(needle, text)
         new_unit = next(card for card in cards if '/app.json' in card.splitlines()[0])

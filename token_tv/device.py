@@ -317,7 +317,7 @@ def clock_model(base_url, timeout=3):
 
 # Model and firmware pairs checked on a real clock (docs/hardware-compatibility.md): the SD_PRO's photo-album web UI,
 # which reports no version, and the SmallTV-Ultra on these firmware versions.
-VERIFIED_ULTRA = ('9.0.54', '9.1.54')
+VERIFIED_ULTRA = ('9.0.51', '9.0.54', '9.1.54')
 REPORT_URL = 'https://github.com/click6067-ship-it/token-tv/issues/new?template=hardware_compatibility.md'
 
 
