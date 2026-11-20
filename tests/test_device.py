@@ -135,9 +135,13 @@ def ultra_clock(state, calls):
                 name = url.path.removeprefix("/image/")
                 if name not in state["files"]:
                     return self.reply({}, 404)
+                saved = state["files"][name]
                 self.send_response(200)
+                if "readback_prefix" in state:
+                    self.send_header("Content-Length", str(len(saved)))
+                    saved = saved[:state.pop("readback_prefix")]
                 self.end_headers()
-                self.wfile.write(state["files"][name])
+                self.wfile.write(saved)
                 return
             if url.path == "/v.json":
                 return self.reply({"m": "SmallTV-Ultra", "v": "Ultra-V9.0.54"})
@@ -453,6 +457,19 @@ class UltraTests(unittest.TestCase):
                     self.assertEqual(receipt["sha256"], digest)
                     self.assertEqual(self.state["files"]["tokentv.jpg"], image)
                     self.assertEqual(self.state["img"], "/image/tokentv.jpg")
+
+    def test_ultra_rejects_interrupted_readback_even_when_prefix_matches(self):
+        image = b"EXACT-JPEG"
+        self.state["next_copy"] = image + b"EXTRA"
+        self.state["readback_prefix"] = len(image)
+        with serve(ultra_clock(self.state, self.calls)) as url:
+            display = UltraDisplay(url)
+            with self.assertRaisesRegex(ValueError, "whole picture"):
+                display.show(ULTRA_BACKUP, "tokentv.jpg", image, hashlib.sha256(image).hexdigest())
+            self.assertEqual(self.state["img"], "/image/cat.jpg")
+            self.state["readback_prefix"] = len(image)
+            receipt = display.upload("tokentv.jpg", image)
+            self.assertEqual(receipt["bytes"], len(image))
 
     def test_ultra_reports_which_request_returned_404(self):
         with serve(ultra_clock(self.state, self.calls)) as url:
