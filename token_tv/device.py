@@ -63,10 +63,10 @@ class PhotoDisplay:
         self.last_used = {}  # slot -> the turn it was last shown in, so the one longest unused is written next
         self.turns = 0  # a count, not a clock: Windows' clock can give two quick switches the same time
 
-    def request(self, path, data=None, headers=None):
+    def request(self, path, data=None, headers=None, *, max_bytes=None):
         # Straight to the clock: it is on this network, so a proxy set for the internet must not stand between.
         with DIRECT.open(Request(self.base_url + path, data=data, headers=headers or {}), timeout=20) as response:
-            body = response.read()
+            body = response.read(max_bytes)
             return response.status, body
 
     def check_backup(self, original):
@@ -255,8 +255,19 @@ class UltraDisplay(PhotoDisplay):
         boundary = "TokenTV" + uuid.uuid4().hex
         body = (f'--{boundary}\r\nContent-Disposition: form-data; name="file"; filename="{name}"\r\n'
                 f'Content-Type: {mime}\r\n\r\n').encode() + image + f"\r\n--{boundary}--\r\n".encode()
-        status, _ = self.request("/doUpload?dir=/image/", body,
-                                 {"Content-Type": "multipart/form-data; boundary=" + boundary})
+        upload_path = "/doUpload"
+        image_path = "/image/" + name
+        operation = "POST " + upload_path
+        try:
+            status, _ = self.request(upload_path + "?dir=/image/", body,
+                                     {"Content-Type": "multipart/form-data; boundary=" + boundary})
+            operation = "GET " + image_path
+            _, saved = self.request(image_path, max_bytes=len(image) + 1)
+        except HTTPError as error:
+            error.clock_operation = operation
+            raise
+        if saved != image:
+            raise ValueError("The clock did not keep the whole picture")
         return {"file": name, "status": status, "bytes": len(image)}
 
     def activate(self, original, name=FILES[0]):
