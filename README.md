@@ -6,15 +6,15 @@
   <a href="https://github.com/steipete/CodexBar#desk-display"><img alt="Listed in CodexBar" src="https://img.shields.io/badge/listed%20in-CodexBar-555555"></a>
 </p>
 
-<p align="center"><a href="https://token-tv.vercel.app/meet/"><img src="https://raw.githubusercontent.com/click6067-ship-it/token-tv/main/docs/images/real-reactions.gif" width="320" alt="A real TokenTV clock playing sample scenes: Clawd bows when Claude finishes a task, goes on trial when Claude runs rm -rf and turns its back when you swear at Claude"></a></p>
+<p align="center"><a href="https://click6067-ship-it.github.io/token-tv/meet/"><img src="https://raw.githubusercontent.com/click6067-ship-it/token-tv/main/docs/images/real-reactions.gif" width="320" alt="A real TokenTV clock playing sample scenes: Clawd bows when Claude finishes a task, goes on trial when Claude runs rm -rf and turns its back when you swear at Claude"></a></p>
 <p align="center"><img src="https://raw.githubusercontent.com/click6067-ship-it/token-tv/main/docs/images/real-photos.jpg" width="600" alt="Digital, Sci-Fi HUD, Neon and Arcade on the real clock"> <a href="https://youtube.com/shorts/FN5DLILYiI0"><img src="https://raw.githubusercontent.com/click6067-ship-it/token-tv/main/docs/images/real-clock.gif" width="146" alt="TokenTV on a real clock (16 seconds; the full video is on YouTube)"></a></p>
 <p align="center"><img src="https://raw.githubusercontent.com/click6067-ship-it/token-tv/main/docs/images/main-faces.png" width="600" alt="The four main faces: Digital, Sci-Fi HUD, Neon and Arcade (sample data)"></p>
 
 Turn a ~$5 AliExpress clock (GeekMagic SmallTV) into pixel pets for Claude Code and Codex. They react to your agents and keep your usage limits in sight. No firmware flashing.
 
-**Live demo:** [token-tv.vercel.app](https://token-tv.vercel.app)  
+**Live demo:** [click6067-ship-it.github.io/token-tv](https://click6067-ship-it.github.io/token-tv/)  
 **YouTube:** [https://www.youtube.com/shorts/FN5DLILYiI0](https://youtube.com/shorts/FN5DLILYiI0)  
-**Try it:** [live demo](https://token-tv.vercel.app) or `npx token-tv demo`, no clock or login needed.  
+**Try it:** [live demo](https://click6067-ship-it.github.io/token-tv/) or `npx token-tv demo`, no clock or login needed.  
 **Set it up:** run `npx token-tv start` (or `uvx token-tv start`) on a computer that stays on. It finds your signed-in tools and the clock on your Wi-Fi, keeps running in the background and opens your dashboard. Or tell your AI *"Set up TokenTV for me"* ([AGENTS.md](https://github.com/click6067-ship-it/token-tv/blob/main/AGENTS.md)).
 
 **New: Claude Code mode.** Clawd raises a hand when Claude Code needs you, bows when a turn ends, holds court over risky commands and sulks when you shout ([set it up](https://github.com/click6067-ship-it/token-tv/blob/main/docs/claude-code-mod.md)).
@@ -24,7 +24,7 @@ Turn a ~$5 AliExpress clock (GeekMagic SmallTV) into pixel pets for Claude Code 
 <p align="center"><img src="https://raw.githubusercontent.com/click6067-ship-it/token-tv/main/docs/images/highlight-claude.gif" width="150" alt="Clawd breakdancing"> <img src="https://raw.githubusercontent.com/click6067-ship-it/token-tv/main/docs/images/highlight-codex.gif" width="150" alt="The Codex cloud raining code on its flowers"> <img src="https://raw.githubusercontent.com/click6067-ship-it/token-tv/main/docs/images/highlight-grok.gif" width="150" alt="Grok's rocket losing a side booster"> <img src="https://raw.githubusercontent.com/click6067-ship-it/token-tv/main/docs/images/highlight-copilot.gif" width="150" alt="Copilot drawing a heart in the sky"> <img src="https://raw.githubusercontent.com/click6067-ship-it/token-tv/main/docs/images/highlight-anti.gif" width="150" alt="Anti floating in zero gravity"></p>
 
 **Each reacts in its own way.** With little left, one rushes and another frets.  
-**And a few secret scenes.** Some come only at certain hours, some only after a bot has really worked, and some almost never. Each lasts only a moment, and we're not telling you which. [The collection](https://token-tv.vercel.app/collection/) shows how much is out there.
+**And a few secret scenes.** Some come only at certain hours, some only after a bot has really worked, and some almost never. Each lasts only a moment, and we're not telling you which. [The collection](https://click6067-ship-it.github.io/token-tv/collection/) shows how much is out there.
 
 Simple numbers at a glance, and cute while it's at it. Coding alone at 3 a.m.? Your bots are still up with you, and someone might even make you coffee. Ideas, suggestions and PRs are welcome. *Cuteness is a feature.*
 
