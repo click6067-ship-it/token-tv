@@ -1,0 +1,160 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="description" content="Turn a small Wi-Fi desk clock into a companion for Claude Code and Codex. Reactions, usage limits, and secret scenes to collect. Free, open source, stock firmware.">
+  <title>TokenTV — Your AI, alive on your desk.</title>
+  <link rel="stylesheet" href="tokens.css">
+  <style>
+    *{box-sizing:border-box}html,body{overflow-x:clip}body{margin:0;background:var(--color-paper);color:var(--color-ink);font:17px/1.5 var(--font-body)}
+    a{color:inherit;text-underline-offset:4px}a:hover{color:var(--color-accent)}a:active{opacity:.7}a:focus-visible,video:focus-visible{outline:3px solid var(--color-focus);outline-offset:5px}
+    [aria-disabled=true]{opacity:.5;pointer-events:none}img,video{display:block;max-width:100%;height:auto}figure{margin:0}p,h1,h2,h3{margin:0}h1,h2,h3{font-style:normal;overflow-wrap:anywhere;min-width:0}
+    .wrap{max-width:1140px;margin:auto;padding:0 var(--space-md)}header{padding:var(--space-md) 0}.brand{font:700 21px var(--font-display);text-decoration:none;letter-spacing:-1px}
+    .hero{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,.86fr);align-items:center;gap:var(--space-xl);padding:var(--space-sm) 0 var(--space-xl)}
+    h1{font:700 clamp(34px,5vw,60px)/1.05 var(--font-display);letter-spacing:-2.5px;max-width:12ch}.intro{margin-top:var(--space-md);font-size:19px;max-width:38ch}.facts{margin-top:var(--space-sm);color:var(--color-muted);font-size:15px;max-width:43ch}
+    .actions{display:flex;flex-wrap:wrap;gap:var(--space-sm);align-items:center;margin-top:var(--space-md)}.button{display:inline-flex;min-height:46px;padding:10px 18px;border-radius:var(--radius);background:var(--color-button);color:var(--color-button-ink);font-weight:bold;text-decoration:none;white-space:nowrap}.button:hover{background:var(--color-hover);color:var(--color-button-ink)}.button.ghost{background:transparent;color:var(--color-ink);box-shadow:inset 0 0 0 2px var(--color-button)}.button.ghost:hover{background:var(--color-button);color:var(--color-button-ink)}.text-link{white-space:nowrap;font-size:15px}
+    .hero video{width:100%;max-height:590px;object-fit:contain;background:var(--color-ink);border-radius:var(--radius)}figcaption{font-size:13px;color:var(--color-muted);margin-top:var(--space-xs)}
+    section{border-top:var(--rule);padding:var(--space-lg) 0}h2{font:700 27px/1.15 var(--font-display);letter-spacing:-1px}section>p{margin-top:var(--space-xs);max-width:65ch;color:var(--color-muted)}
+    .reactions{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:var(--space-md);margin-top:var(--space-md)}.reactions img{width:100%;border-radius:var(--radius)}.still{display:none}.reactions h3{font-size:17px;margin-top:var(--space-sm)}.reactions a{font-size:14px}.reactions figcaption{margin-top:4px}
+    .support{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:var(--space-lg);margin-top:var(--space-md)}.support h3{font:700 20px var(--font-display)}.support p{margin-top:var(--space-xs);max-width:48ch}.support small{display:block;margin-top:var(--space-sm);color:var(--color-muted);font-size:14px}.support video{max-height:320px;margin-top:var(--space-sm);border-radius:var(--radius)}
+    .setup{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:var(--space-lg);align-items:center}.setup p{margin-top:var(--space-sm);max-width:52ch}.setup img{border-radius:var(--radius)}.setup .text-link{display:inline-block;margin-top:var(--space-sm)}
+    footer{border-top:var(--rule);padding:var(--space-md) 0 var(--space-lg);font-size:14px;color:var(--color-muted)}footer a{white-space:nowrap}.motion-control{margin-top:var(--space-sm);font-size:14px}.motion-control input{margin-right:6px;accent-color:var(--color-accent)}
+    @media(max-width:700px){.wrap{padding:0 var(--space-sm)}header{padding:var(--space-sm) 0}.hero{grid-template-columns:minmax(0,1fr);gap:var(--space-md);padding:var(--space-xs) 0 var(--space-lg)}h1{font-size:36px;max-width:15ch;letter-spacing:-1.8px}.intro{margin-top:var(--space-sm);font-size:17px}.facts{margin-top:var(--space-xs);font-size:14px}.actions{margin-top:var(--space-sm);gap:var(--space-sm)}.hero video{max-height:54svh;width:auto;margin:auto}.hero figcaption{text-align:center}.reactions{gap:var(--space-xs)}.reactions h3{font-size:15px}.reactions figcaption{font-size:12px}.support,.setup{grid-template-columns:minmax(0,1fr);gap:var(--space-md)}h2{font-size:24px}section{padding:var(--space-md) 0}.support video{max-height:360px}}
+    @media(prefers-reduced-motion:reduce){.animated{display:none!important}.still{display:block!important}}
+    body.paused .animated{display:none}body.paused .still{display:block}
+    /* Hallmark component edit · inherited playful/product arcade tokens · no page redesign */
+    .explore-links{display:flex;flex-wrap:wrap;align-items:center;gap:0 var(--space-sm);margin-top:var(--space-xs);font-size:14px}.explore-links a{display:inline-flex;align-items:center;min-height:44px;line-height:1.25}.proof{margin-top:var(--space-xs);color:var(--color-muted);font-size:13px}.proof a{display:inline-flex;align-items:center;min-height:44px;line-height:1.25}
+    #start{scroll-margin-top:var(--space-md)}.start-note{font-size:15px}.start-steps{list-style:none;padding:0;margin:var(--space-md) 0 0;counter-reset:start}.start-steps>li{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,2fr);gap:var(--space-md);padding:var(--space-md) 0;border-top:var(--rule);counter-increment:start}.start-steps h3{font:700 19px/1.3 var(--font-display)}.start-steps h3::before{content:counter(start) ". ";color:var(--color-muted)}.start-steps p{max-width:65ch}.start-steps code{font:inherit;font-family:var(--font-display)}
+    .start-steps p+p{margin-top:var(--space-xs)}.agent-options{margin-top:var(--space-xs);max-width:65ch}.agent-options summary{min-height:44px;padding:var(--space-xs) 0;font-size:15px;cursor:pointer}.agent-options summary:focus-visible,.setup-command:focus-visible{outline:3px solid var(--color-focus);outline-offset:5px}.agent-options summary:active{color:var(--color-accent)}.agent-options details[open]{padding-bottom:var(--space-sm)}.agent-options p{font-size:15px}.agent-options a{display:inline-flex;align-items:center;min-height:44px;font-size:14px;line-height:1.25}.start-steps .setup-command{display:block;margin:var(--space-xs) 0;font-size:15px;line-height:1.5;white-space:pre-wrap;overflow-wrap:anywhere;user-select:all}
+    .command-row{display:flex;flex-wrap:wrap;align-items:center;gap:var(--space-sm);margin-top:var(--space-sm)}.command-row code{display:block;padding:var(--space-xs) 0;font-size:17px;overflow-wrap:anywhere;user-select:all;line-height:1.25}.command-row code:focus-visible,.copy-command:focus-visible{outline:3px solid var(--color-focus);outline-offset:5px}.copy-command{min-width:108px;min-height:44px;padding:var(--space-xs) var(--space-sm);border:1px solid var(--color-muted);border-radius:var(--radius);background:var(--color-paper);color:var(--color-ink);font:700 14px/1 var(--font-body);cursor:pointer}.copy-command:active{background:var(--color-line)}.copy-command:disabled{opacity:.55;cursor:not-allowed}.copy-command[data-state=loading]{cursor:wait}.copy-command[data-state=error]{border-color:var(--color-accent)}.copy-command[data-state=success]{border-color:var(--color-ink)}.copy-status{min-height:1.5em;margin-top:var(--space-xs);font-size:14px;color:var(--color-muted)}.copy-status[data-state=error]{color:var(--color-accent)}
+    @media(hover:hover){.copy-command:hover:not(:disabled){background:var(--color-line)}.agent-options summary:hover{color:var(--color-accent)}}
+    @media(max-width:700px){.start-steps>li{grid-template-columns:minmax(0,1fr);gap:var(--space-xs);padding:var(--space-sm) 0}.explore-links{gap:0 var(--space-sm)}}
+  </style>
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="TokenTV">
+<meta property="og:title" content="TokenTV — Your AI, alive on your desk.">
+<meta property="og:description" content="Turn a small Wi-Fi desk clock into a companion for Claude Code and Codex. Reactions, usage limits, and secret scenes to collect. Free, open source, stock firmware.">
+<meta property="og:url" content="https://click6067-ship-it.github.io/token-tv/meet/">
+<meta property="og:image" content="https://click6067-ship-it.github.io/token-tv/meet/media/clock-photos.jpg">
+<meta property="og:image:type" content="image/jpeg">
+<meta property="og:image:width" content="2184">
+<meta property="og:image:height" content="900">
+<meta property="og:image:alt" content="Three photographs of a real TokenTV desk clock">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="TokenTV — Your AI, alive on your desk.">
+<meta name="twitter:description" content="Turn a small Wi-Fi desk clock into a companion for Claude Code and Codex. Reactions, usage limits, and secret scenes to collect. Free, open source, stock firmware.">
+<meta name="twitter:image" content="https://click6067-ship-it.github.io/token-tv/meet/media/clock-photos.jpg">
+<meta name="twitter:image:alt" content="Three photographs of a real TokenTV desk clock">
+<link rel="canonical" href="https://click6067-ship-it.github.io/token-tv/meet/">
+</head>
+<body>
+<div class="wrap">
+  <header><a class="brand" href="https://github.com/click6067-ship-it/token-tv" aria-label="TokenTV on GitHub">TokenTV</a></header>
+  <main>
+    <div class="hero">
+      <div>
+        <h1>Your AI, alive on your desk.</h1>
+        <p class="intro">Claude bows when it finishes. Swear at it and it sulks. Your usage limits stay in sight.</p>
+        <p class="facts">Pixel pets for Claude Code and Codex.<br>~$5 GeekMagic SmallTV. Stock firmware.<br>Free, open-source software.</p>
+        <div class="actions"><a class="button" href="https://click6067-ship-it.github.io/token-tv/collection/">Animation Collection →</a><a class="button ghost" href="#start">Set up TokenTV</a></div>
+        <div class="explore-links"><a href="https://click6067-ship-it.github.io/token-tv/">No clock? Try it in your browser →</a><a href="https://github.com/click6067-ship-it/token-tv">Save TokenTV on GitHub →</a></div>
+        <p class="proof"><a href="https://hackaday.com/2026/10/06/smalltv-hacking-with-surprisingly-little-fuss/">Featured on Hackaday</a> · <a href="https://github.com/steipete/CodexBar#desk-display">Listed in CodexBar</a></p>
+      </div>
+      <figure>
+        <video id="clock" controls muted playsinline loop preload="metadata" poster="media/clock-poster.jpg" aria-label="Real TokenTV desk clock playing sample Claude Code reaction scenes"><source src="media/clock-film.mp4" type="video/mp4"></video>
+        <figcaption>A real clock playing sample scenes. Footage at 2.5× speed.</figcaption>
+      </figure>
+    </div>
+    <section aria-labelledby="reactions-title">
+      <h2 id="reactions-title">It has moods.</h2>
+      <p>Claude finishes: a bow. A rude prompt: a sulk. Make peace: a heart.</p>
+      <label class="motion-control"><input id="pause" type="checkbox">Pause GIF previews</label>
+      <div class="reactions">
+        <figure><img class="animated" src="media/ready.gif" width="560" height="600" loading="lazy" alt="Claude bows when a task is done"><img class="still" src="media/ready.png" width="560" height="600" loading="lazy" alt="Claude bowing"><h3>Done.</h3><a href="media/ready.gif" download>Save GIF</a></figure>
+        <figure><img class="animated" src="media/sulking.gif" width="560" height="600" loading="lazy" alt="Claude turns its back and sulks"><img class="still" src="media/sulking.png" width="560" height="600" loading="lazy" alt="Claude looking back while sulking"><h3>Hmph.</h3><a href="media/sulking.gif" download>Save GIF</a></figure>
+        <figure><img class="animated" src="media/forgiven.gif" width="560" height="600" loading="lazy" alt="Claude turns back around with a heart"><img class="still" src="media/forgiven.png" width="560" height="600" loading="lazy" alt="Claude smiling with a heart"><h3>We're good.</h3><a href="media/forgiven.gif" download>Save GIF</a></figure>
+      </div>
+      <p><small>GIFs show the app's animations in an illustrated clock.</small></p>
+      <p>Some scenes are yours to discover. <a href="https://click6067-ship-it.github.io/token-tv/collection/">Explore the collection →</a></p>
+    </section>
+    <section aria-labelledby="agents-title">
+      <h2 id="agents-title">Different agents. Different little lives.</h2>
+      <div class="support">
+        <div><h3>Claude Code</h3><p>Bows when done, raises a hand when it needs you, and reacts to your session. Usage limits stay in view.</p><small>Reactions need the TokenTV plugin on macOS or Linux. Windows reactions aren't supported.</small><p><a class="text-link" href="https://github.com/click6067-ship-it/token-tv/blob/main/docs/claude-code-mod.md#claude-code">Connect Claude Code →</a></p></div>
+        <div><h3>Codex</h3><p>A cloud bows when a turn ends. Its garden grows with token usage.</p><small>Completion needs a notify setting. Permission prompts and Claude's other reactions aren't supported for Codex.</small><p><a class="text-link" href="https://github.com/click6067-ship-it/token-tv/blob/main/docs/claude-code-mod.md#codex">Connect Codex →</a></p><video controls muted playsinline preload="none" aria-label="Rendered Codex cloud and code garden demonstration"><source src="media/reactions-codex.mp4" type="video/mp4"></video><small>Screen animation demo; also includes Claude reactions.</small></div>
+      </div>
+    </section>
+    <section id="start" aria-labelledby="start-title">
+      <h2 id="start-title">Make your clock react.</h2>
+      <p class="start-note">Use the Arcade clock face. Run TokenTV and your agent on the same computer.</p>
+      <ol class="start-steps">
+        <li>
+          <h3>Start the display</h3>
+          <div><p>On the computer where your AI CLI is signed in:</p>
+            <div class="command-row"><code id="start-command" tabindex="0">npx token-tv start</code><button class="copy-command" type="button" aria-label="Copy the TokenTV start command" aria-describedby="copy-status">Copy</button></div>
+            <p class="copy-status" id="copy-status" role="status" aria-live="polite">Copy the command, then paste it into your terminal.</p>
+          </div>
+        </li>
+        <li>
+          <h3>Connect your agent</h3>
+          <div><p>To get the reactions in the video, connect Claude Code or Codex.</p>
+            <div class="agent-options">
+              <details name="agent-setup"><summary>Claude Code · macOS / Linux</summary><p>In Claude Code 2.1.275 or later, run:</p><code class="setup-command" tabindex="0">/plugin install tokentv --marketplace click6067-ship-it/token-tv</code><a href="https://github.com/click6067-ship-it/token-tv/blob/main/docs/claude-code-mod.md#claude-code">Other install options &amp; full guide →</a></details>
+              <details name="agent-setup"><summary>Codex · notify setup</summary><p>For the npx start above, add this at the top level of the <code>config.toml</code> you use:</p><code class="setup-command" tabindex="0">notify = ["npx", "--yes", "token-tv", "notify"]</code><p>Already have a <code>notify</code> setting? Keep it and use the guide to connect TokenTV.</p><a href="https://github.com/click6067-ship-it/token-tv/blob/main/docs/claude-code-mod.md#codex">Existing notify, other installs &amp; full guide →</a></details>
+            </div>
+          </div>
+        </li>
+        <li>
+          <h3>See a first reaction</h3>
+          <div><p>With the plugin connected on macOS or Linux, try <code>/tokentv pet</code> in Claude Code.</p><p>With notify connected, finish a Codex turn to see its cloud bow.</p></div>
+        </li>
+      </ol>
+    </section>
+    <section class="setup" aria-labelledby="setup-title">
+      <div><h2 id="setup-title">One little clock.<br>One computer that stays on.</h2><p>Your computer reads usage and sends pictures over Wi-Fi. The clock keeps its stock firmware.</p><p>Checked on SD_PRO and specific SmallTV Ultra units. Prices vary; similar-looking clocks may not work.</p><a class="text-link" href="https://github.com/click6067-ship-it/token-tv/blob/main/docs/hardware-compatibility.md">Check your clock before buying →</a></div>
+      <figure><img src="media/clock-photos.jpg" width="2184" height="900" loading="lazy" alt="Three photographs of a real TokenTV desk clock"><figcaption>The same little clock, with different faces.</figcaption></figure>
+    </section>
+  </main>
+  <footer>Made for the desk beside your code. <a href="https://github.com/click6067-ship-it/token-tv">TokenTV on GitHub →</a></footer>
+</div>
+<script>
+  const pause = document.querySelector('#pause');
+  pause.checked = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  document.body.classList.toggle('paused', pause.checked);
+  pause.addEventListener('change', () => document.body.classList.toggle('paused', pause.checked));
+  if (!pause.checked) document.querySelector('#clock').play().catch(() => {});
+  const agentOptions = document.querySelectorAll('details[name="agent-setup"]');
+  agentOptions.forEach(option => option.addEventListener('toggle', () => {
+    if (option.open) agentOptions.forEach(other => { if (other !== option) other.open = false; });
+  }));
+  const copyButton = document.querySelector('.copy-command');
+  const copyStatus = document.querySelector('#copy-status');
+  let copyReset;
+  copyButton.addEventListener('click', async () => {
+    clearTimeout(copyReset);
+    copyButton.disabled = true;
+    copyButton.dataset.state = 'loading';
+    copyButton.textContent = 'Copying…';
+    copyStatus.dataset.state = 'loading';
+    copyStatus.textContent = 'Copying the command…';
+    try {
+      if (!navigator.clipboard?.writeText) throw new Error('Clipboard unavailable');
+      await navigator.clipboard.writeText(document.querySelector('#start-command').textContent.trim());
+      copyButton.dataset.state = 'success';
+      copyButton.textContent = 'Copied';
+      copyStatus.dataset.state = 'success';
+      copyStatus.textContent = 'Copied. Paste it into your terminal.';
+      copyReset = setTimeout(() => { copyButton.dataset.state = 'default'; copyButton.textContent = 'Copy'; }, 2500);
+    } catch {
+      copyButton.dataset.state = 'error';
+      copyButton.textContent = 'Try again';
+      copyStatus.dataset.state = 'error';
+      copyStatus.textContent = "Copy didn't work. Select the command above and copy it manually.";
+    } finally {
+      copyButton.disabled = false;
+    }
+  });
+</script>
+</body>
+</html>

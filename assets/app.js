@@ -1,0 +1,396 @@
+'use strict';
+/* TokenTV web dashboard. Every theme renders the same nodes; style.css composes them. */
+const THEMES = [
+ {id:'digital', name:'Digital Terminal', eyebrow:'', title:'AI USAGE DASHBOARD', note:''},
+ {id:'neon', name:'Neon Cyberpunk', eyebrow:'Today', title:'AI USAGE', note:''},
+ {id:'retro', name:'Pixel Retro', eyebrow:'', title:'AI PROVIDERS', note:'USAGE DASHBOARD'},
+ {id:'hud', name:'Sci-Fi HUD', eyebrow:'', title:'AI PROVIDER USAGE', note:'Real-time usage monitor'}
+];
+const STATUS = {ok:'Connected', loading:'Loading', auth_required:'Login needed', identity_mismatch:'Check identity', quota_unavailable:'Quota unavailable', stale:'OLD · Previous value', rate_limited:'Retry later', error:'Fetch failed'};
+const PROVIDERS = ['claude', 'codex', 'grok', 'copilot', 'antigravity'];
+const COMPANIES = {claude:'ANTHROPIC', codex:'OPENAI', grok:'XAI', copilot:'GITHUB', antigravity:'GOOGLE'};
+const svgNS = 'http://www.w3.org/2000/svg';
+const $ = s => document.querySelector(s);
+const readPreference = (k, f) => {try {return JSON.parse(localStorage.getItem(k)) ?? f} catch {return f}};
+const savePreference = (k, v) => {try {localStorage.setItem(k, JSON.stringify(v))} catch {/* Private browsing may disallow storage. */}};
+let accountChoices = readPreference('tokentv.accounts', {});
+if (!accountChoices || typeof accountChoices !== 'object' || Array.isArray(accountChoices)) accountChoices = {};
+// The static demo (scripts/build_demo.py) serves sample data and pre-rendered clock frames.
+const DEMO = document.documentElement.hasAttribute('data-demo');
+let snapshot = null, offline = false, polling = false, displayInfo = null, clockChoice = null, applying = false, clockError = false;
+const el = (tag, text, cls) => {const n = document.createElement(tag); if (text !== undefined) n.textContent = text; if (cls) n.className = cls; return n};
+function svgNode(tag, attrs) {const n = document.createElementNS(svgNS, tag); for (const [k, v] of Object.entries(attrs)) n.setAttribute(k, v); return n}
+const clamp = v => Math.max(0, Math.min(100, v));
+/* Unlit seven-segment cells behind Digital numerals: every glyph cell becomes 8. */
+const ghost = text => text.replace(/[^\s:]/g, '8');
+const pad = n => String(n).padStart(2, '0');
+function seeded(seed) {return () => {seed |= 0; seed = seed + 0x6D2B79F5 | 0; let t = Math.imul(seed ^ seed >>> 15, 1 | seed); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296}}
+
+/* Provider marks: vector glyphs for most themes, the project's pixel mascots for Pixel Retro. */
+function icon(provider) {
+ const s = svgNode('svg', {viewBox:'0 0 48 48', 'aria-hidden':'true', fill:'none', stroke:'currentColor', 'stroke-linecap':'round', 'stroke-linejoin':'round', class:'glyph'});
+ if (provider === 'claude') {
+  const reach = [19.5, 15, 18, 14, 19, 15.5, 18.5, 14, 19.5, 15, 18, 14.5];
+  reach.forEach((r, i) => s.append(svgNode('path', {d:`M24 ${24 - 6} V${24 - r}`, 'stroke-width':3.4, transform:`rotate(${i * 30 + (i % 2 ? 4 : 0)} 24 24)`})));
+ } else if (provider === 'codex') {
+  s.append(svgNode('path', {d:'M24 5 40.5 14.5V33.5L24 43 7.5 33.5V14.5Z', 'stroke-width':3.2}));
+  s.append(svgNode('path', {d:'M7.5 14.5 24 24 40.5 14.5M24 24V43', 'stroke-width':3.2}));
+ } else if (provider === 'copilot') {
+  s.append(svgNode('rect', {x:6, y:16, width:16, height:13, rx:4, 'stroke-width':3.2}));
+  s.append(svgNode('rect', {x:26, y:16, width:16, height:13, rx:4, 'stroke-width':3.2}));
+  s.append(svgNode('path', {d:'M22 22.5H26M18 37C21 39.5 27 39.5 30 37', 'stroke-width':3.2}));
+ } else if (provider === 'antigravity') {  // its arch
+  s.append(svgNode('path', {d:'M7 42C9 24 15 9 24 9S39 24 41 42', 'stroke-width':6}));
+ } else {
+  s.append(svgNode('circle', {cx:24, cy:24, r:12.5, 'stroke-width':3.4}));
+  s.append(svgNode('path', {d:'M5 43C17 33 31 19 43 5 34 19 21 32 5 43Z', fill:'currentColor', stroke:'currentColor', 'stroke-width':1.6}));
+ }
+ return s;
+}
+function mascot(provider) {const img = el('img', undefined, 'pixel-mascot'); img.src = `/token-tv/assets/${provider}-pixel.png`; img.alt = ''; img.width = 32; img.height = 32; img.decoding = 'async'; return img}
+function clockGlyph() {
+ const s = svgNode('svg', {viewBox:'0 0 24 24', 'aria-hidden':'true', fill:'none', stroke:'currentColor', 'stroke-width':1.8, 'stroke-linecap':'round', class:'clock-icon'});
+ s.append(svgNode('circle', {cx:12, cy:12, r:9}), svgNode('path', {d:'M12 7.5V12l3 2'}));
+ const p = svgNode('svg', {viewBox:'0 0 9 9', 'aria-hidden':'true', 'shape-rendering':'crispEdges', class:'clock-pixel'});
+ for (const [x, y, w, h, c] of [[2,0,5,1,'o'],[1,1,1,1,'o'],[7,1,1,1,'o'],[0,2,1,5,'o'],[8,2,1,5,'o'],[1,7,1,1,'o'],[7,7,1,1,'o'],[2,8,5,1,'o'],[1,2,7,5,'f'],[2,1,5,1,'f'],[2,7,5,1,'f'],[4,2,1,3,'o'],[5,4,2,1,'o']])
+  p.append(svgNode('rect', c === 'o' ? {x, y, width:w, height:h, fill:'currentColor'} : {x, y, width:w, height:h, fill:'#fff3d6', class:'face'}));
+ const wrap = el('span', undefined, 'clock-mark'); wrap.setAttribute('aria-hidden', 'true'); wrap.append(s, p); return wrap;
+}
+
+/* Pixel Retro scenery on a 200×62 logical grid, anchored bottom-right. Sky objects sit
+ * near x≈138 so they fall between the title row and the score column. */
+function scene(provider) {
+ const W = 200, H = 62, rnd = seeded({claude:11, codex:23, grok:37, copilot:41, antigravity:53}[provider]);
+ const s = svgNode('svg', {viewBox:`0 0 ${W} ${H}`, preserveAspectRatio:'xMaxYMax slice', 'shape-rendering':'crispEdges', class:'scene', 'aria-hidden':'true'});
+ const rect = (x, y, w, h, fill, cls) => {const r = svgNode('rect', {x, y, width:w, height:h, fill}); if (cls) r.setAttribute('class', cls); s.append(r)};
+ const bands = colors => colors.forEach((c, i) => rect(0, Math.floor(i * H / colors.length), W, Math.ceil(H / colors.length) + 1, c));
+ const ridge = (f, fill) => {let d = `M0 ${H}`; for (let x = 0; x < W; x += 2) d += `V${Math.round(f(x))}H${x + 2}`; s.append(svgNode('path', {d:d + `V${H}Z`, fill}))};
+ const disc = (cx, cy, r, fill) => {for (let dy = -r; dy <= r; dy++) {const w = Math.round(Math.sqrt(r * r - dy * dy)); rect(cx - w, cy + dy, 2 * w + 1, 1, fill)}};
+ const pine = (x, base, h, fill) => {for (let i = 0; i < h; i++) {const w = 1 + 2 * Math.floor(i / 2); rect(x - Math.floor(w / 2), base - h + i, w, 1, fill)} rect(x, base, 1, 2, fill)};
+ const stars = (n, x0, y1, colors) => {for (let i = 0; i < n; i++) rect(x0 + Math.floor(rnd() * (W - x0)), Math.floor(rnd() * y1), 1, 1, colors[i % colors.length], i % 3 ? '' : 'twinkle')};
+ if (provider === 'claude') {
+  bands(['#2a1330', '#3a1834', '#4d1f36', '#652836', '#7f3335', '#9a4133', '#b65231', '#cf6630']);
+  disc(138, 15, 9, '#ff9e4f'); disc(138, 15, 7, '#ffc067'); disc(138, 14, 4, '#ffe08f');
+  for (const y of [17, 20, 23]) rect(128, y, 21, 1, '#4d1f36');
+  for (const [x, y] of [[112, 24], [119, 21], [126, 27]]) {rect(x, y, 1, 1, '#2a1330'); rect(x + 1, y + 1, 1, 1, '#2a1330'); rect(x + 2, y, 1, 1, '#2a1330')}
+  ridge(x => 41 - 9 * Math.max(0, Math.sin((x - 40) / 18)) - 3 * Math.sin(x / 6) - (x > 150 ? 5 * Math.max(0, Math.sin((x - 150) / 10)) : 0), '#5a2236');
+  ridge(x => 49 - 3 * Math.sin(x / 9 + 1) - 2 * Math.sin(x / 4), '#371428');
+  for (const x of [152, 158, 163, 182, 188, 194]) pine(x, 52, 7 + (x % 3), '#24101e');
+ } else if (provider === 'codex') {
+  bands(['#06171d', '#082027', '#0b2a2e', '#0e3434', '#113f39', '#15493e', '#195443', '#1e6048']);
+  stars(30, 40, 26, ['#9bffd2', '#e6fff3']);
+  disc(137, 11, 5, '#d9ffe9'); disc(139, 10, 4, '#082027');
+  let x = 52;
+  while (x < W) {const w = 6 + Math.floor(rnd() * 7), h = 10 + Math.floor(rnd() * 13); rect(x, 52 - h, w, h + 10, '#0b3530'); for (let wy = 54 - h; wy < 50; wy += 3) for (let wx = x + 1; wx < x + w - 1; wx += 2) if (rnd() > .55) rect(wx, wy, 1, 1, rnd() > .7 ? '#e8ffa6' : '#7dffb9'); x += w + 2}
+  for (let p = 0; p < W; p += 5) pine(p + 2, 58, 6 + Math.floor(rnd() * 5), '#05201a');
+  for (let i = 0; i < 9; i++) rect(60 + Math.floor(rnd() * 138), 38 + Math.floor(rnd() * 12), 1, 1, '#c8ff8a', 'twinkle');
+ } else if (provider === 'copilot') {
+  bands(['#062033', '#072a40', '#08344d', '#0a3f5b', '#0c4a68', '#0f5676', '#126283', '#166e90']);
+  stars(24, 40, 22, ['#9fe8ff', '#e6faff']);
+  for (const [cx, cy, r] of [[132, 14, 4], [137, 12, 5], [143, 14, 4]]) disc(cx, cy, r, '#bfefff');
+  ridge(x => 48 - 3 * Math.abs(Math.sin(x / 9)), '#2b86b8');
+  ridge(x => 54 - 2 * Math.abs(Math.sin(x / 6 + 1)), '#1b5f88');
+ } else if (provider === 'antigravity') {  // a dark maze: walls, a row of dots, a power pellet
+  bands(['#020208', '#03030c', '#040410', '#050514', '#060618', '#07071c', '#080820', '#090924']);
+  for (const [x, y, w, h] of [[100, 8, 96, 1], [100, 8, 1, 40], [195, 8, 1, 40], [100, 47, 96, 1], [124, 24, 48, 1], [124, 31, 48, 1], [124, 24, 1, 8], [171, 24, 1, 8]]) rect(x, y, w, h, '#2121de');
+  for (let x = 106; x < 192; x += 6) rect(x, 15, 1, 1, '#ffb8ae');
+  for (let x = 106; x < 192; x += 6) rect(x, 40, 1, 1, '#ffb8ae');
+  disc(110, 28, 2, '#ffb8ae');
+ } else {
+  bands(['#0d0a28', '#120d33', '#170f3e', '#1c1349', '#211654', '#271a5f', '#2d1e6a', '#33226f']);
+  stars(80, 0, 46, ['#efe6ff', '#b9a6ff', '#ffffff']);
+  disc(140, 15, 8, '#8f6cf2'); disc(138, 13, 6, '#a98bff'); disc(136, 11, 2, '#cdbbff');
+  for (let i = -15; i <= 15; i++) rect(140 + i, 16 + Math.round(-i * .28), 1, 1, Math.abs(i) < 8 ? '#e2d6ff' : '#bca8ff');
+  disc(108, 26, 2, '#d9cff7');
+  ridge(x => 50 - 4 * Math.abs(Math.sin(x / 13)) - 2 * Math.sin(x / 5), '#120c33');
+  ridge(x => 56 - 2 * Math.abs(Math.sin(x / 8 + 2)), '#0a0722');
+  for (const [cx, cy] of [[120, 58], [150, 59], [184, 58]]) rect(cx, cy, 3, 1, '#1d1550');
+ }
+ return s;
+}
+/* The TokenTV cube mascot for the Pixel Retro banner (36×32 logical pixels). */
+function retroMascot() {
+ const s = svgNode('svg', {viewBox:'0 0 44 34', 'shape-rendering':'crispEdges', class:'mascot-art'});
+ const r = (x, y, w, h, fill, cls) => {const n = svgNode('rect', {x, y, width:w, height:h, fill}); if (cls) n.setAttribute('class', cls); s.append(n)};
+ const O = '#151238', C = '#fff1d6', D = '#e3c79c', N = '#1c2a63', M = '#7ff5c8', P = '#ff7aa8', Y = '#ffd86b';
+ r(15, 1, 3, 3, P); r(15, 1, 1, 1, '#ffd0e0'); r(16, 4, 1, 4, O);
+ r(5, 8, 22, 1, O); r(4, 9, 1, 16, O); r(27, 9, 1, 16, O); r(5, 25, 22, 1, O);
+ r(5, 9, 22, 16, C); r(25, 10, 2, 15, D); r(5, 23, 22, 2, D); r(6, 10, 4, 1, '#ffffff');
+ r(8, 11, 16, 10, O); r(9, 12, 14, 8, N); r(9, 12, 14, 1, '#25367a');
+ r(12, 14, 2, 1, M); r(11, 15, 1, 1, M); r(14, 15, 1, 1, M); r(18, 14, 2, 1, M); r(17, 15, 1, 1, M); r(20, 15, 1, 1, M);
+ r(14, 18, 4, 1, M); r(13, 17, 1, 1, M); r(18, 17, 1, 1, M); r(10, 17, 2, 1, P); r(20, 17, 2, 1, P);
+ r(1, 15, 3, 1, O); r(1, 16, 1, 5, O); r(2, 16, 2, 4, C); r(1, 21, 3, 1, O);
+ r(28, 13, 2, 2, O); r(29, 9, 2, 4, O); r(28, 5, 4, 1, O); r(27, 6, 1, 3, O); r(32, 6, 1, 3, O); r(28, 6, 4, 3, C); r(28, 9, 4, 1, O);
+ r(8, 26, 1, 4, O); r(9, 26, 4, 3, '#2a2f6a'); r(13, 26, 1, 4, O); r(8, 30, 6, 1, O);
+ r(18, 26, 1, 4, O); r(19, 26, 4, 3, '#2a2f6a'); r(23, 26, 1, 4, O); r(18, 30, 6, 1, O);
+ for (const [x, y, w, h] of [[36,2,2,1],[39,2,2,1],[35,3,7,2],[36,5,5,1],[37,6,3,1],[38,7,1,1]]) r(x, y, w, h, '#ff5d8f', 'beat');
+ for (const [x, y] of [[33, 13], [40, 18], [1, 3]]) {r(x, y - 1, 1, 3, Y, 'twinkle'); r(x - 1, y, 3, 1, Y, 'twinkle')}
+ return s;
+}
+function buildStarfield() {
+ const rnd = seeded(5), s = svgNode('svg', {viewBox:'0 0 480 300', preserveAspectRatio:'xMidYMid slice', 'shape-rendering':'crispEdges'});
+ for (let i = 0; i < 140; i++) {const big = i % 17 === 0, r = svgNode('rect', {x:Math.floor(rnd() * 480), y:Math.floor(rnd() * 300), width:big ? 2 : 1, height:big ? 2 : 1, fill:['#ffffff', '#b9c8ff', '#ffe9a8'][i % 3]}); if (i % 4 === 0) r.setAttribute('class', 'twinkle'); r.style.animationDelay = (-rnd() * 4).toFixed(2) + 's'; s.append(r)}
+ $('#starfield').append(s);
+}
+function resetTime(epoch) {if (!Number.isFinite(epoch) || epoch <= 0) return '—'; let m = Math.ceil((epoch - Date.now() / 1000) / 60); if (m <= 0) return 'Awaiting reset'; return m >= 1440 ? `${Math.floor(m / 1440)}d ${Math.floor(m % 1440 / 60)}h` : `${Math.floor(m / 60)}h ${pad(m % 60)}m`}
+// Why an account has no fresh reading and what to do, in the server's words; '{at}' is a time, written on this clock.
+function reasonText(r) {if (!r || !r.text) return ''; const at = Number.isFinite(r.at) ? new Date(r.at * 1000).toLocaleTimeString('en-GB', {hour:'2-digit', minute:'2-digit'}) : '—'; return r.text.replace('{at}', at)}
+function period(w) {if (!w) return 'QUOTA'; return w.label === 'BUDGET' ? 'CLI BUDGET' : w.label === 'WEEK' ? 'WEEKLY' : w.label === '5H' ? '5-HOUR' : String(w.label || 'QUOTA')}
+function level(v) {return v < 50 ? 'low' : v < 80 ? 'medium' : v < 90 ? 'high' : 'critical'}
+function levelText(v) {return v >= 100 ? 'Limit reached' : v >= 90 ? 'Near limit' : v >= 80 ? 'High usage' : v >= 50 ? 'Moderate' : 'Low usage'}
+function gauge(value, label) {
+ const g = el('div', undefined, 'meter');
+ if (Number.isFinite(value)) {value = clamp(value); g.dataset.level = level(value); g.style.setProperty('--value', value + '%'); g.style.setProperty('--v', String(Math.max(1, value))); g.setAttribute('role', 'meter'); g.setAttribute('aria-label', label); g.setAttribute('aria-valuemin', '0'); g.setAttribute('aria-valuemax', '100'); g.setAttribute('aria-valuenow', String(value))}
+ else {g.classList.add('unknown-meter'); g.setAttribute('aria-label', label + ' unavailable')}
+ for (let i = 0; i < 10; i++) {const seg = el('span', undefined, 'meter-segment'), fill = el('span', undefined, 'meter-fill'); seg.style.setProperty('--i', String(i)); fill.style.setProperty('--fill', Number.isFinite(value) ? clamp((value - i * 10) * 10) + '%' : '0%'); seg.append(fill); g.append(seg)}
+ return g;
+}
+function stat(key, value, cls) {const s = el('div', undefined, 'stat' + (cls ? ' ' + cls : '')); s.append(el('span', key, 'stat-k'), typeof value === 'string' ? el('span', value, 'stat-v') : value); return s}
+
+function setTheme(theme) {
+ const config = THEMES.find(t => t.id === theme) || THEMES[0];
+ document.documentElement.dataset.theme = config.id; savePreference('tokentv.theme', config.id);
+ $('#eyebrow').textContent = config.eyebrow; $('#eyebrow').hidden = !config.eyebrow;
+ $('#page-title').textContent = config.title;
+ $('#intro-note').textContent = config.note; $('#intro-note').hidden = !config.note;
+ for (const b of document.querySelectorAll('[data-theme-choice]')) b.setAttribute('aria-pressed', String(b.dataset.themeChoice === config.id));
+}
+for (const t of THEMES) {
+ const b = el('button', undefined, 'theme-button'); b.type = 'button'; b.dataset.themeChoice = t.id; b.setAttribute('aria-pressed', 'false');
+ const sw = el('span', undefined, 'swatch'); sw.dataset.swatch = t.id; sw.setAttribute('aria-hidden', 'true'); sw.append(el('i'), el('i'), el('i'));
+ b.append(sw, el('span', t.name, 'theme-name')); b.onclick = () => setTheme(t.id); $('#themes').append(b);
+}
+setTheme(readPreference('tokentv.theme', 'digital'));
+
+function providerCard(provider, accounts) {
+ let a = accounts.find(x => x.key === accountChoices[provider]) || accounts[0];
+ if (!a) a = {key:provider, alias:provider.toUpperCase(), provider, status:'loading', windows:[]};
+ const prior = $(`.provider-card[data-provider="${provider}"] .more-windows`);
+ const stale = offline || a.status === 'stale';
+ const valid = (a.windows || []).filter(w => Number.isFinite(w.used_percent));
+ // A mismatched identity must not expose another person's quota as this account.
+ const windows = a.status === 'identity_mismatch' ? [] : valid;
+ const primary = windows.reduce((p, w) => !p || w.used_percent > p.used_percent ? w : p, null);
+ const value = primary ? clamp(primary.used_percent) : null;
+ const shell = el('div', undefined, 'card-shell'); shell.dataset.provider = provider;
+ const card = el('article', undefined, 'provider-card');
+ Object.assign(card.dataset, {provider, key:a.key, stale:String(stale), level:value === null ? 'unknown' : level(value)});
+ const art = el('div', undefined, 'card-art'); art.setAttribute('aria-hidden', 'true'); art.append(scene(provider));
+ const head = el('div', undefined, 'card-head'), logo = el('div', undefined, 'provider-icon'); logo.append(icon(provider), mascot(provider));
+ const name = el('div', undefined, 'provider-name'); name.append(el('h2', provider.toUpperCase(), 'provider-title'), el('span', COMPANIES[provider], 'company'));
+ const tabs = el('div', undefined, 'account-tabs'); tabs.setAttribute('role', 'group'); tabs.setAttribute('aria-label', provider.toUpperCase() + ' accounts');
+ for (const row of accounts) {const letter = (row.alias || '').split(' ').at(-1); const b = el('button', letter, 'account-tab'); b.type = 'button'; b.dataset.account = row.key; b.title = row.alias; b.setAttribute('aria-label', row.alias); b.setAttribute('aria-pressed', String(row.key === a.key)); b.onclick = () => {accountChoices[provider] = row.key; savePreference('tokentv.accounts', accountChoices); renderAccounts(); $(`[data-account="${row.key}"]`)?.focus()}; tabs.append(b)}
+ head.append(logo, name, tabs);
+ const reading = el('div', undefined, 'reading'), meta = el('div', undefined, 'reading-meta');
+ meta.append(el('span', period(primary) + ' USED', 'reading-label'));
+ if (primary) meta.append(el('span', stale ? 'OLD · Last known usage' : levelText(value), 'level-label'));
+ else meta.append(el('span', a.status === 'quota_unavailable' ? 'Connected. No quota reported.' : STATUS[a.status] || 'No reading available.', 'unknown-message'));
+ const num = el('div', value === null ? '—' : undefined, 'percentage');
+ if (value !== null) {const digits = el('span', String(Math.round(value)), 'pct-num'); digits.dataset.ghost = ghost(digits.textContent); num.append(digits, el('span', '%', 'percent-sign'))}
+ reading.append(meta, num);
+ const timer = el('div', undefined, 'timer'), until = el('span', primary ? resetTime(primary.resets_at) : '—', 'timer-value');
+ if (/^[\ddh ]+$/.test(until.textContent)) until.dataset.ghost = ghost(until.textContent);
+ timer.append(clockGlyph(), el('span', 'RESETS IN', 'timer-label'), until);
+ const row = el('div', undefined, 'gauge'); row.append(gauge(value, a.alias + ' ' + period(primary) + ' used quota'), el('span', value === null ? '—' : Math.round(value) + '%', 'gauge-value'));
+ card.append(art, head, reading, timer, row);
+ const others = windows.filter(w => w !== primary);
+ if (others.length) {
+  const details = el('details', undefined, 'more-windows'); details.open = prior?.open || false;
+  const named = period(others[0]) === 'CLI BUDGET' ? 'CLI budget' : period(others[0])[0] + period(others[0]).slice(1).toLowerCase();
+  details.append(el('summary', others.length === 1 ? `${named} window` : `${others.length} more windows`));
+  for (const w of others) {const line = el('div', undefined, 'window-detail'); line.append(el('span', period(w), 'window-name'), gauge(w.used_percent, a.alias + ' ' + period(w) + ' used quota'), el('span', Math.round(w.used_percent) + '%', 'window-percent'), el('span', resetTime(w.resets_at), 'window-timer')); details.append(line)}
+  card.append(details);
+ }
+ const checked = stale ? a.last_success_at : a.fetched_at;
+ let when = el('span', '—', 'stat-v');
+ if (checked) {const d = new Date(checked * 1000); when = el('time', d.toLocaleTimeString('en-GB', {hour:'2-digit', minute:'2-digit'}), 'stat-v'); when.dateTime = d.toISOString(); when.title = d.toLocaleString('en-GB')}
+ const foot = el('div', undefined, 'card-foot');
+ foot.append(stat('Account', a.alias || '—'), stat('Window', primary ? period(primary) : '—'), stat('Source', a.source === 'mini' ? 'This computer' : a.source === 'codexbar' ? 'CodexBar' : a.source ? 'Linked snapshot' : '—'), stat(stale ? 'Last good' : 'Checked', when), stat('Status', el('span', offline ? 'OFFLINE · Previous value' : STATUS[a.status] || 'Unknown', 'row-status stat-v'), 'stat-status'));
+ if (!offline && a.reason) foot.append(el('p', reasonText(a.reason), 'card-reason'));  // why, and what to do, across the foot
+ card.append(foot); shell.append(card); return shell;
+}
+function renderAccounts() {
+ if (!snapshot) return;
+ const focused = document.activeElement?.dataset?.account, rows = Object.values(snapshot.accounts || {}), fragment = document.createDocumentFragment();
+ const used = PROVIDERS.filter(p => rows.some(a => a.provider === p)); // only services that are set up
+ for (const provider of used.length ? used : PROVIDERS) fragment.append(providerCard(provider, rows.filter(a => a.provider === provider)));
+ $('#providers').replaceChildren(fragment);
+ const reporting = offline ? 0 : rows.filter(a => a.status === 'ok' && (a.windows || []).some(w => Number.isFinite(w.used_percent))).length;
+ $('#account-count').textContent = pad(rows.length); $('#reporting-count').textContent = pad(reporting);
+ $('#foot-reporting').textContent = `${reporting} / ${rows.length} reporting`;
+ if (focused) {const b = [...document.querySelectorAll('[data-account]')].find(b => b.dataset.account === focused); b?.focus({preventScroll:true})}
+}
+/* Demo data stores resets as seconds from now so the timers stay plausible on any day. */
+function demoSnapshot(data) {
+ const now = Date.now() / 1000;
+ for (const a of Object.values(data.accounts)) {a.fetched_at = a.last_success_at = now; for (const w of a.windows) w.resets_at = now + w.resets_in}
+ return {...data, updated_at: now};
+}
+async function update() {
+ if (polling) return; polling = true;
+ try {
+  const r = await fetch(DEMO ? '/token-tv/demo-snapshot.json' : '/token-tv/snapshot', {cache:'no-store'}); if (!r.ok) throw Error();
+  const data = DEMO ? demoSnapshot(await r.json()) : await r.json(); if (!data.accounts || !Number.isFinite(data.updated_at)) throw Error();
+  snapshot = data; offline = false;
+  const staleCount = Object.values(data.accounts).filter(a => a.status === 'stale').length;
+  $('#connection').textContent = DEMO ? 'Demo · sample data' : staleCount ? `${staleCount} stale · Live server` : 'Live';
+  const clock = DEMO ? null : data.display?.problem;  // the clock not taking pictures says so here, not only in its panel
+  $('#notice').hidden = !staleCount && !clock;
+  $('#notice').textContent = clock ? `Clock: ${clock.text} (since ${new Date(clock.since * 1000).toLocaleTimeString('en-GB', {hour:'2-digit', minute:'2-digit'})})` : staleCount + ' account' + (staleCount === 1 ? ' has' : 's have') + ' an older reading. Check the selected account’s source and last successful update.';
+  $('#updated').textContent = data.updated_at ? 'Server checked ' + new Date(data.updated_at * 1000).toLocaleTimeString('en-GB') : 'Waiting for first reading';
+  $('#signal').dataset.strength = staleCount ? '2' : '3';
+  const fresh = DEMO ? null : data.update;  // a newer release, from the server's one PyPI look a day
+  $('#update-note').hidden = !fresh?.latest; $('#update-note').textContent = fresh?.latest ? `TokenTV ${fresh.latest} is out · ${fresh.command}` : '';
+ } catch {
+  offline = true; $('#connection').textContent = 'Server offline'; $('#notice').hidden = false; $('#signal').dataset.strength = '0';
+  $('#notice').textContent = snapshot ? 'Connection lost. Showing the last received readings as OLD.' : 'Cannot reach TokenTV. Is token-tv still running?';
+  if (!snapshot) $('#providers').replaceChildren(el('p', 'No usage data received.', 'loading'));
+ } finally {polling = false; document.body.dataset.offline = String(offline); renderAccounts()}
+}
+function tick() {
+ const now = new Date(), t = $('#local-time');
+ const iso = t.querySelector('.date-iso'), time = t.querySelector('.time');
+ iso.textContent = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`; iso.dataset.ghost = '8888-88-88';
+ t.querySelector('.date-long').textContent = now.toLocaleDateString('en-US', {month:'short', day:'2-digit', year:'numeric'}).toUpperCase();
+ time.textContent = `${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`; time.dataset.ghost = '88:88:88';
+}
+$('#clock-zone').textContent = new Intl.DateTimeFormat('en-US', {timeZoneName:'short'}).formatToParts(new Date()).find(p => p.type === 'timeZoneName')?.value || 'Local';
+
+function showClock(show) {$('#clock-panel').hidden = !show; $('#clock-toggle').setAttribute('aria-expanded', String(show)); if (show) {refreshDisplay(true); $('#close-clock').focus()} else $('#clock-toggle').focus()}
+$('#clock-toggle').onclick = () => showClock($('#clock-panel').hidden); $('#close-clock').onclick = () => showClock(false);
+let lastImageStyle = null, lastImageAt = 0;
+function paintClock(forceImage = false) {
+ const style = clockChoice || displayInfo?.style;
+ $('#clock-style').disabled = applying || !displayInfo; $('#apply').disabled = DEMO || applying || !displayInfo || (style === displayInfo.style && displayInfo.status !== 'error' && !clockError);
+ $('#apply').textContent = applying ? 'Sending image…' : 'Apply to clock'; $('#apply').dataset.state = applying ? 'loading' : clockError || displayInfo?.status === 'error' ? 'error' : displayInfo?.status === 'ok' ? 'success' : 'default';
+ $('#display-state').textContent = DEMO ? 'Demo · sample data' : clockError ? 'Could not apply. Please retry.' : !displayInfo ? 'Clock status unavailable' : style !== displayInfo.style ? 'Preview only · Apply to send' : displayInfo.status === 'queued' ? 'Sending image…' : displayInfo.status === 'error' ? (displayInfo.problem?.text || 'Clock upload failed. Please retry.') : displayInfo.status === 'preview_only' ? (displayInfo.problem?.text || 'Preview only · No clock connected') : 'Image sent · ' + styleName(displayInfo.applied_style);
+ paintSetup();
+ if (style && !$('#clock-panel').hidden && (forceImage || style !== lastImageStyle || Date.now() - lastImageAt > 30000)) {lastImageStyle = style; lastImageAt = Date.now(); $('#frame').src = DEMO ? displayInfo.frames?.[style] || `/token-tv/frames/${encodeURIComponent(style)}.jpg` : '/token-tv/frame/0.jpg?style=' + encodeURIComponent(style) + '&t=' + lastImageAt; $('#frame').alt = styleName(style) + (DEMO ? ' clock face with sample data' : ' live clock preview')}
+}
+// On the demo: the one command that puts the face and tools picked here on a real clock.
+let runner = 'npx';
+function setupCommand() {
+ const face = clockChoice || displayInfo?.style || 'arcade', parts = ['start'];
+ const picked = [...document.querySelectorAll('#get-it input[type=checkbox]:checked')].map(b => b.value);
+ const address = $('#get-address').value.trim().replace(/^https?:\/\//i, '').replace(/\/+$/, '');
+ const wrong = Boolean(address) && !clockAddress(address) && !addressTyping;  // half an address is not yet wrong
+ $('#get-address').setAttribute('aria-invalid', String(wrong));
+ if (STYLE_IDS.test(face) && face !== 'arcade') parts.push('--face', face);
+ if (picked.length && picked.length < 3) parts.push('--only', picked.join(','));
+ if (address && clockAddress(address)) parts.push('--device-url', address);
+ const problem = !picked.length ? 'Pick at least one tool' : wrong ? 'Check the clock address, e.g. 192.168.0.50' : '';
+ return {tail: parts.join(' '), problem};
+}
+// What the CLI takes as a clock: an IPv4 address (each part 0-255) or a host name, and a port 1-65535 if any.
+// Letters, digits, dots and hyphens only, so every shell passes it as it is.
+function clockAddress(text) {
+ const m = /^([A-Za-z0-9](?:[A-Za-z0-9.-]*[A-Za-z0-9])?)(?::(\d{1,5}))?$/.exec(text);
+ if (!m || (m[2] && !(+m[2] >= 1 && +m[2] <= 65535))) return false;
+ const parts = m[1].split('.');
+ return !parts.every(p => /^\d+$/.test(p)) || (parts.length === 4 && parts.every(p => +p <= 255));
+}
+const STYLE_IDS = /^[a-z][a-z0-9-]*$/;
+let shownSetup = '', addressTyping = null;  // a timer while the address is being typed: the command waits for it
+function paintSetup() {
+ if (!DEMO || addressTyping) return;
+ const {tail, problem} = setupCommand();
+ const text = problem ? '' : `${runner} token-tv ${tail}`;  // the problem is said once, in the status line
+ if (text + problem === shownSetup) return;  // repainted every few seconds: leave a selection the reader made alone
+ shownSetup = text + problem;
+ $('#get-command').textContent = text; $('#get-status').textContent = problem;
+ $('#get-copy').setAttribute('aria-disabled', String(Boolean(problem)));
+ $('#get-runner').textContent = runner === 'npx' ? 'No Node? Use uvx instead' : 'Use npx instead';
+}
+function addressSettled() {clearTimeout(addressTyping); addressTyping = null; paintSetup()}
+$('#get-address').oninput = e => {e.stopPropagation(); clearTimeout(addressTyping); addressTyping = setTimeout(addressSettled, 700)};
+$('#get-address').onchange = addressSettled;
+$('#get-copy').onclick = async () => {
+ if (addressTyping) addressSettled();
+ if ($('#get-copy').getAttribute('aria-disabled') === 'true') return;
+ const text = $('#get-command').textContent;
+ try {await navigator.clipboard.writeText(text); $('#get-copy').textContent = 'Copied'; $('#get-status').textContent = 'Copied: paste it into a terminal'} catch {const range = document.createRange(); range.selectNodeContents($('#get-command')); getSelection().removeAllRanges(); getSelection().addRange(range); $('#get-copy').textContent = 'Press Ctrl+C'; $('#get-status').textContent = 'Selected: press Ctrl+C (Cmd+C on a Mac) to copy'}
+ setTimeout(() => {$('#get-copy').textContent = 'Copy'}, 2000);
+};
+$('#get-runner').onclick = () => {runner = runner === 'npx' ? 'uvx' : 'npx'; paintSetup()};
+$('#get-it').oninput = paintSetup;
+const styleName = s => s === 'retro' ? 'Pixel Retro' : s === 'retro-dual' ? 'Pixel Retro Dual' : s === 'hud' ? 'Sci-Fi HUD' : s === 'survival' ? 'Survival HUD' : s === 'gameboy' ? 'Game Boy' : s ? s[0].toUpperCase() + s.slice(1) : 'Unknown';
+let displayPolling = false;
+async function refreshDisplay(forceImage = false) {if (displayPolling) return; displayPolling = true; try {const r = await fetch(DEMO ? '/token-tv/demo-display.json' : '/token-tv/display', {cache:'no-store'}); if (!r.ok) throw Error(); const data = await r.json(); const dirty = displayInfo && clockChoice !== displayInfo.style; displayInfo = data; if (!clockChoice || !dirty) clockChoice = data.style; const select = $('#clock-style'); if (!select.options.length) for (const s of [...data.styles].sort((a, b) => (b === 'arcade') - (a === 'arcade'))) {const o = el('option', styleName(s)); o.value = s; select.append(o)} select.value = clockChoice; paintClock(forceImage); if (DEMO && themeData && !lastThumbFrames) {lastThumbFrames = true; paintThemes()}} catch {$('#display-state').textContent = 'Clock status unavailable'} finally {displayPolling = false}}
+$('#clock-style').onchange = e => {clockChoice = e.target.value; clockError = false; paintClock(true); paintThemes()};
+$('#apply').onclick = async () => {if (applying || !clockChoice) return; applying = true; clockError = false; paintClock(); try {const r = await fetch('/token-tv/display/style', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({style:clockChoice})}); if (!r.ok) throw Error(); displayInfo = await r.json()} catch {clockError = true} finally {applying = false; paintClock(true)}};
+let themeData = null, themeSort = 'popular', lastThumbFrames = false;
+const REPO_URL = 'https://github.com/click6067-ship-it/token-tv';
+const day = s => new Date(s).toLocaleDateString();
+const likeText = t => ({counted: `👍 ${t.likes} · counted ${day(t.likes_counted_at)}`, stale: `👍 ${t.likes} · last counted ${t.likes_counted_at ? day(t.likes_counted_at) : 'at an unknown time'}`, unavailable: 'Likes unavailable', not_open: 'Likes not open yet', local: 'Your local face'})[t.likes_state] || 'Likes unavailable';
+function sortThemes(list, mode) {
+ const added = t => t.added_at ? -Date.parse(t.added_at) : Infinity;
+ const fresh = [...list].sort((a, b) => added(a) - added(b) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+ return mode === 'new' ? fresh : [...fresh.filter(t => t.likes !== null).sort((a, b) => b.likes - a.likes), ...fresh.filter(t => t.likes === null)];
+}
+function thumbSrc(id) {
+ if (DEMO) return displayInfo?.frames?.[id] || '';  // the frame list comes with the display info; painted again then
+ return '/token-tv/frame/0.jpg?style=' + encodeURIComponent(id);
+}
+function paintThemes() {
+ const list = $('#theme-list'); list.replaceChildren();
+ document.querySelectorAll('.theme-sort button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.sort === themeSort)));
+ if (!themeData) return;
+ $('#likes-as-of').textContent = themeData.last_attempt_at ? 'Last likes refresh: ' + day(themeData.last_attempt_at) : 'Likes not counted yet';
+ for (const t of sortThemes(themeData.themes, themeSort)) {
+  const item = el('li', undefined, 'theme-card'); item.dataset.id = t.id;
+  const usable = t.installed && !t.needs_update;
+  const src = usable ? thumbSrc(t.id) : t.preview_url;
+  if (src) {const img = el('img', undefined, 'theme-thumb'); img.src = src; img.alt = t.name + ' clock face'; img.width = 240; img.height = 240; img.loading = 'lazy'; item.append(img)}
+  const head = el('div', undefined, 'theme-title'); head.append(el('strong', t.name), el('span', t.local ? 'Local' : 'by ' + t.author, 'theme-author')); item.append(head);
+  item.append(el('p', likeText(t), 'theme-likes'));
+  const actions = el('div', undefined, 'theme-actions');
+  if (usable) {
+   const preview = el('button', clockChoice === t.id ? 'Previewing' : 'Preview', 'control'); preview.type = 'button';
+   preview.onclick = () => {clockChoice = t.id; clockError = false; $('#clock-style').value = t.id; showClock(true); paintClock(true); paintThemes(); $('#clock-panel').scrollIntoView({block:'start'})};
+   actions.append(preview);
+  } else actions.append(el('span', `Needs v${t.min_version} · update TokenTV`, 'theme-update'));
+  const link = (text, href) => {const a = el('a', text); a.href = href; a.rel = 'noopener'; a.target = '_blank'; actions.append(a)};
+  if (DEMO) link('Get', REPO_URL + '/blob/main/docs/setup.md');
+  if (t.like_url) link('Like on GitHub', t.like_url);
+  if (t.source_url) link('Source', t.source_url);
+  item.append(actions); list.append(item);
+ }
+}
+async function loadThemes() {try {const r = await fetch(DEMO ? '/token-tv/demo-themes.json' : '/token-tv/themes', {cache:'no-store'}); if (!r.ok) throw Error(); themeData = await r.json(); paintThemes()} catch {$('#likes-as-of').textContent = 'Themes unavailable · your clock styles still work'}}
+document.querySelectorAll('.theme-sort button').forEach(b => {b.onclick = () => {themeSort = b.dataset.sort; paintThemes()}});
+$('#frame').onerror = () => {$('#display-state').textContent = 'Clock preview unavailable. Reopen to retry.'};
+
+if (DEMO) {  // the demo opens on how to get it: the face, the tools and the command first, the preview under them
+ const panel = $('#clock-panel'), getIt = $('#get-it');
+ getIt.hidden = false; $('#apply').hidden = true; panel.hidden = false; $('#clock-toggle').setAttribute('aria-expanded', 'true');
+ panel.insertBefore(getIt, panel.querySelector('.device'));
+ getIt.insertBefore($('#clock-style'), getIt.querySelector('.get-services')); getIt.insertBefore(panel.querySelector('label[for=clock-style]'), $('#clock-style'));
+ panel.querySelector('.aside-head .eyebrow').textContent = 'Get it'; panel.querySelector('.aside-head h2').textContent = 'On your clock';
+}
+$('#mascot').append(retroMascot()); buildStarfield(); tick();
+update(); refreshDisplay(); loadThemes(); setInterval(update, 30000); setInterval(tick, 1000); setInterval(() => {if (!$('#clock-panel').hidden) refreshDisplay()}, 5000);
+
+// The collection book: scenes found so far, in their tier colours, each playable again on the clock.
+const TIER_NAMES = {rare:'Rare', unique:'Unique', legend:'Legend'};
+async function paintCollection() {
+ if (DEMO) return;
+ let data;
+ try {const r = await fetch('/token-tv/collection', {cache:'no-store'}); if (!r.ok) throw Error(); data = await r.json()} catch {return}
+ const box = $('#collection'); box.hidden = !data.total; if (!data.total) return;
+ $('#collection-count').textContent = `${data.found.length} of ${data.total} found`;
+ const list = $('#collection-list'); list.replaceChildren();
+ for (const item of data.found) {
+  const li = el('li', undefined, 'collection-card'); li.dataset.tier = item.tier;
+  const img = el('img'); img.src = `/token-tv/collection/${item.check}.gif`; img.alt = item.title; img.width = 240; img.height = 240; img.loading = 'lazy';
+  const when = new Date(item.first * 1000).toLocaleDateString();
+  const play = el('button', 'Replay on clock', 'control'); play.type = 'button';
+  play.onclick = async () => {play.disabled = true; try {const r = await fetch('/token-tv/collection/replay', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({check:item.check})}); play.textContent = r.ok ? 'Playing on the clock' : r.status === 409 ? (await r.json()).error : 'Could not play'} catch {play.textContent = 'Could not play'} setTimeout(() => {play.disabled = false; play.textContent = 'Replay on clock'}, 8000)};
+  const save = el('a', 'Save', 'control'); save.href = `/token-tv/collection/${item.check}.gif?save=1`; save.download = '';  // the GIF with TokenTV's mark
+  li.append(el('span', TIER_NAMES[item.tier] || item.tier, 'tier-badge'), img, el('strong', item.title), el('span', `First seen ${when} · seen ${item.count}×`, 'quiet'), play, save);
+  list.append(li);
+ }
+ for (let i = 0; i < data.hidden; i++) {const li = el('li', undefined, 'collection-card locked'); li.append(el('span', '???', 'locked-mark'), el('span', 'Not found yet', 'quiet')); list.append(li)}
+}
+paintCollection();
+setInterval(paintCollection, 5 * 60 * 1000);
+

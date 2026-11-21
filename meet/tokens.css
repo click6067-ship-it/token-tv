@@ -1,0 +1,13 @@
+/* Hallmark · macrostructure: Marquee Hero · genre: playful · theme: product arcade
+ * Audience: everyday AI coders. Use: see the physical pet, then set it up.
+ * Pre-emit critique: P5 H5 E4 S5 R5 V4. Additive approval draft; no existing site changes.
+ */
+:root {
+  --color-paper:#f0eee7; --color-ink:#242521; --color-muted:#64645b;
+  --color-line:#d2d0c5; --color-accent:#9a482b; --color-button:#262925;
+  --color-button-ink:#f5f3ed; --color-focus:#9a482b; --color-hover:#41463e;
+  --font-display:'Courier New',Courier,monospace;
+  --font-body:Arial,Helvetica,sans-serif;
+  --space-xs:8px; --space-sm:16px; --space-md:24px; --space-lg:40px; --space-xl:64px;
+  --radius:8px; --rule:1px solid var(--color-line);
+}
