@@ -99,6 +99,22 @@ async function until(done: () => boolean) {
   for (let k = 0; k < 40 && !done(); k++) await flush()
 }
 
+// A long list goes a few lines to a test. The kit ends a test after five seconds and every line waits on the host's
+// own steps: whole lists in one test took 3 s on an idle computer, and a busy one took five tests past the limit.
+function parts<T>(list: T[], size: number): [string, T[]][] {
+  const found: [string, T[]][] = []
+  for (let k = 0; k < list.length; k += size) {
+    found.push([`${k + 1} to ${Math.min(k + size, list.length)} of ${list.length}`, list.slice(k, k + size)])
+  }
+  return found
+}
+// A call the check refuses never reaches Claude Code's own step: started, with nothing to wait for there.
+function refusedCall($: any, id: string, command: string) {
+  const call = $.tool.call({ tool: 'Bash', command, tool_use_id: id })
+  call.catch(() => {})
+  return call
+}
+
 // --- e3: the courtroom ---------------------------------------------------------------------------------------------
 
 const RISKY = [
@@ -137,34 +153,41 @@ const NOT_RISKY = [
   'git push origin :old-branch', 'git push origin main',
 ]
 
-test('every risky command family says claude.risky as the call starts, and nothing of the command', async ($: any, on: any) => {
-  const pc = computer(on)
-  for (const [k, command] of RISKY.entries()) {
-    const before = pc.sent.length
-    const { call } = await bash($, pc, 'r' + k, command)
-    await sent(pc, before + 1)
-    expect([command, pc.moments().slice(-1)[0]]).toEqual([command, 'claude.risky']) // the call still running
-    expect(await Promise.race([call, flush().then(() => 'running')])).toBe('running')
-    pc.settle('r' + k, { isError: true, result: 'stopped by the test', text: 'stopped' })
-    await call
-  }
-  await flush()
-  expect(pc.moments().filter((m) => m === 'claude.risky').length).toBe(RISKY.length)
-  expect(JSON.stringify(pc.sent)).not.toContain('CANARY')
-  for (const one of pc.sent) expect(Object.keys(JSON.parse(one.init.body))).toEqual(['moment'])
-})
+for (const [label, list] of parts(RISKY, 12)) {
+  test(`every risky command family says claude.risky as the call starts, and nothing of the command (${label})`, async ($: any, on: any) => {
+    const pc = computer(on)
+    for (const [k, command] of list.entries()) {
+      const before = pc.sent.length
+      const { call } = await bash($, pc, 'r' + k, command)
+      await sent(pc, before + 1)
+      expect([command, pc.moments().slice(-1)[0]]).toEqual([command, 'claude.risky']) // the call still running
+      expect(await Promise.race([call, flush().then(() => 'running')])).toBe('running')
+      pc.settle('r' + k, { isError: true, result: 'stopped by the test', text: 'stopped' })
+      await call
+    }
+    await flush()
+    expect(pc.moments().filter((m) => m === 'claude.risky').length).toBe(list.length)
+    expect(JSON.stringify(pc.sent)).not.toContain('CANARY')
+    for (const one of pc.sent) expect(Object.keys(JSON.parse(one.init.body))).toEqual(['moment'])
+  })
+}
 
-test('near misses, mentions and data are no risky command', async ($: any, on: any) => {
+for (const [label, list] of parts(NOT_RISKY, 10)) {
+  test(`near misses, mentions and data are no risky command (${label})`, async ($: any, on: any) => {
+    const pc = computer(on)
+    for (const [k, command] of list.entries()) {
+      const { call } = await bash($, pc, 'n' + k, command)
+      await flush()
+      pc.settle('n' + k, { isError: true, result: 'stopped by the test', text: 'stopped' })
+      await call
+      await flush()
+      expect([command, pc.moments().includes('claude.risky')]).toEqual([command, false])
+    }
+  })
+}
+
+test('risky words only in a prompt, a path, an output or another tool\'s data are no risky command', async ($: any, on: any) => {
   const pc = computer(on)
-  for (const [k, command] of NOT_RISKY.entries()) {
-    const { call } = await bash($, pc, 'n' + k, command)
-    await flush()
-    pc.settle('n' + k, { isError: true, result: 'stopped by the test', text: 'stopped' })
-    await call
-    await flush()
-    expect([command, pc.moments().includes('claude.risky')]).toEqual([command, false])
-  }
-  // risky words only in a prompt, a path, an output or another tool's data
   await typed($, 'please do not run rm -rf / or git push --force')
   const { call: write } = await started($, pc, { tool: 'Write', file_path: '/work/rm -rf/x.md',
                                                   content: 'git reset --hard; DROP TABLE t', tool_use_id: 'w1' })
@@ -209,33 +232,43 @@ const NOT_DELETING = ['ls ./fixture', 'find ./fixture -print', 'git status', 'gi
                       "find . -fprintf out.txt '-delete' -print", 'command -v rm git', 'command -V rm',
                       'command -pv unlink', 'sudo command -v rm', 'type rm', 'type -a unlink', 'which rm', 'hash rm']
 
-test('a command that deletes even one file says claude.deleted once it succeeded, a multi-file one once', async ($: any, on: any) => {
-  const pc = computer(on)
-  for (const [k, command] of DELETING.entries()) {
-    const { call } = await bash($, pc, 'd' + k, command)
-    await flush()
-    expect([command, pc.moments().filter((m) => m === 'claude.deleted').length]).toEqual([command, k]) // not before it ran
-    pc.settle('d' + k)
-    await call
-    await sent(pc, k + 1)
-    expect([command, pc.moments().filter((m) => m === 'claude.deleted').length]).toEqual([command, k + 1])
-  }
-  expect(pc.moments().includes('claude.risky')).toBe(false) // none of these is risky
-})
+for (const [label, list] of parts(DELETING, 7)) {
+  test(`a command that deletes even one file says claude.deleted once it succeeded, a multi-file one once (${label})`, async ($: any, on: any) => {
+    const pc = computer(on)
+    for (const [k, command] of list.entries()) {
+      const { call } = await bash($, pc, 'd' + k, command)
+      await flush()
+      expect([command, pc.moments().filter((m) => m === 'claude.deleted').length]).toEqual([command, k]) // not before it ran
+      pc.settle('d' + k)
+      await call
+      await sent(pc, k + 1)
+      expect([command, pc.moments().filter((m) => m === 'claude.deleted').length]).toEqual([command, k + 1])
+    }
+    expect(pc.moments().includes('claude.risky')).toBe(false) // none of these is risky
+  })
+}
 
-test('no ghost for what deletes nothing, nor for a deletion that failed or was refused', async ($: any, on: any) => {
-  const pc = computer(on, { verdicts: { refused: { decision: 'deny', reason: 'a rule' } } })
-  for (const [k, command] of NOT_DELETING.entries()) {
-    const { call } = await bash($, pc, 'k' + k, command)
+for (const [label, list] of parts(NOT_DELETING, 10)) {
+  test(`no ghost for what deletes nothing (${label})`, async ($: any, on: any) => {
+    const pc = computer(on)
+    for (const [k, command] of list.entries()) {
+      const { call } = await bash($, pc, 'k' + k, command)
+      await flush()
+      pc.settle('k' + k)
+      await call
+    }
     await flush()
-    pc.settle('k' + k)
-    await call
-  }
+    expect(pc.moments().includes('claude.deleted')).toBe(false)
+  })
+}
+
+test('no ghost for a deletion that failed or was refused', async ($: any, on: any) => {
+  const pc = computer(on, { verdicts: { refused: { decision: 'deny', reason: 'a rule' } } })
   const { call: failing } = await bash($, pc, 'f1', 'rm ./missing')
   await flush()
   pc.settle('f1', { isError: true, result: 'rm: cannot remove', text: 'rm: cannot remove' })
   await failing
-  const { call: refused } = await bash($, pc, 'refused', 'rm ./kept')
+  const refused = refusedCall($, 'refused', 'rm ./kept')
   await flush()
   await $.tool.check({ tool: 'Bash', input: { command: 'rm ./kept' }, tool_use_id: 'refused' })
   pc.settle('refused', { deny: 'Permission to use Bash has been denied' })
@@ -289,13 +322,19 @@ const SWEARS = ['fuck', 'Fuck this', 'fucks', 'fucked', 'FUCKING slow', 'fucker'
 const BENIGN = ['class', 'passage', 'assess', 'shiitake', 'scrapbook', 'damnation', 'fucus', 'shitake', 'f*ck', 'sh!t',
   '시발점', '시발역에서', '병신년', '시바견', '존재', '지라프', '개새', 'bitchy?', 'ass', 'hell no', '미친 듯이 빠르다']
 
-test('every swear on the lists turns the back, none of the near misses does', async ($: any, on: any) => {
+for (const [label, list] of parts(SWEARS, 16)) {
+  test(`every swear on the lists turns the back (${label})`, async ($: any, on: any) => {
+    const pc = computer(on)
+    for (const text of list) {
+      await typed($, text)
+      await flush()
+      expect([text, pc.moments().slice(-1)[0]]).toEqual([text, 'claude.rude'])
+    }
+  })
+}
+
+test('none of the near misses turns the back, and a swear after them still does', async ($: any, on: any) => {
   const pc = computer(on)
-  for (const text of SWEARS) {
-    await typed($, text)
-    await flush()
-    expect([text, pc.moments().slice(-1)[0]]).toEqual([text, 'claude.rude'])
-  }
   for (const text of BENIGN) {
     await typed($, text)
     await flush()
@@ -382,7 +421,7 @@ test('no dizzy for a success that mentions errors, a call still running, one cut
     input: {}, isRunning: false, isErrored: true, isInterrupted: false, output: 'The user refused this tool use' } })
   pc.settle('asked', { isError: true, result: 'The user does not want to proceed', text: 'refused' })
   await asked
-  const { call: denied } = await bash($, pc, 'denied', 'curl example.com')
+  const denied = refusedCall($, 'denied', 'curl example.com')
   await flush()
   await $.tool.check({ tool: 'Bash', input: { command: 'curl example.com' }, tool_use_id: 'denied' })
   pc.settle('denied', { isError: true, result: 'Permission denied by a rule', text: 'denied' })
@@ -699,16 +738,23 @@ test('a command of many small parts is read in one pass: each reaches Claude Cod
     ]
     expect(LONG[0][1].length).toBe(125_000)
     for (const [k, [what, command, names]] of LONG.entries()) {
-      const before = pc.sent.length
-      const started = Date.now()
-      const call = $.tool.call({ tool: 'Bash', command, tool_use_id: 'long' + k })
-      call.catch(() => {})
-      await until(() => pc.reached.length > k)
-      expect([what, pc.reached[k] - started < 100]).toEqual([what, true])
-      pc.settle('long' + k)
-      await call
-      await flush()
-      expect([what, pc.moments().slice(before)]).toEqual([what, names])
+      // The fastest of three goes: a busy computer is slow once (the first shape takes 40 ms on an idle one), a
+      // second pass over the command is slow every time (1.1 s).
+      let fastest = Infinity
+      for (let n = 0; n < 3 && !(fastest < 100); n++) {
+        const before = pc.sent.length
+        const at = pc.reached.length
+        const started = Date.now()
+        const call = $.tool.call({ tool: 'Bash', command, tool_use_id: `long${k}-${n}` })
+        call.catch(() => {})
+        await until(() => pc.reached.length > at)
+        fastest = Math.min(fastest, pc.reached[at] - started)
+        pc.settle(`long${k}-${n}`)
+        await call
+        await flush()
+        expect([what, pc.moments().slice(before)]).toEqual([what, names])
+      }
+      expect([what, fastest < 100]).toEqual([what, true])
     }
   })
 
