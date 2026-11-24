@@ -6,23 +6,21 @@
   <a href="https://github.com/steipete/CodexBar#desk-display"><img alt="Listed in CodexBar" src="https://img.shields.io/badge/listed%20in-CodexBar-555555"></a>
 </p>
 
-<p align="center"><img src="docs/images/real-photos.jpg" width="600" alt="실제 시계의 Digital, Sci-Fi HUD, Neon, Arcade 화면"> <a href="https://youtube.com/shorts/FN5DLILYiI0"><img src="docs/images/real-clock.gif" width="146" alt="실제 시계에서 도는 TokenTV(16초, 전체 영상은 유튜브)"></a></p>
-<p align="center"><img src="docs/images/main-faces.png" width="600" alt="대표 화면 네 가지: Digital, Sci-Fi HUD, Neon, Arcade(샘플 데이터)"></p>
+<p align="center"><a href="https://click6067-ship-it.github.io/token-tv/meet/"><img src="docs/images/real-reactions.gif" width="360" alt="실제 TokenTV 시계가 예시 장면을 2.5배속으로 재생: Claude가 rm -rf를 돌리면 재판, 파일을 지우면 유령, 욕하면 등 돌리기, 허락이 필요하면 손 들기, 그리고 사용량 화면"></a></p>
 
-약 5달러 알리익스프레스 시계(GeekMagic SmallTV)를 AI 사용량 대시보드로 바꿉니다. 펌웨어는 그대로예요.
+약 5달러 알리익스프레스 시계(GeekMagic SmallTV)가 Claude Code와 Codex의 픽셀 펫이 됩니다. 에이전트에 반응하고 사용 한도를 보여 줍니다. 펌웨어는 그대로예요.
 
-**라이브 데모:** [click6067-ship-it.github.io/token-tv](https://click6067-ship-it.github.io/token-tv/)  
-**유튜브:** [https://www.youtube.com/shorts/FN5DLILYiI0](https://youtube.com/shorts/FN5DLILYiI0)  
 **구경하기:** [라이브 데모](https://click6067-ship-it.github.io/token-tv/) 또는 `npx token-tv demo`, 시계·로그인 없이 바로.  
-**설치하기:** 계속 켜 두는 컴퓨터에서 `npx token-tv start`(또는 `uvx token-tv start`). 로그인된 도구와 같은 와이파이의 시계를 찾고, 백그라운드에서 계속 돌며, 대시보드를 엽니다. AI에게 *"TokenTV 설정해줘"* 라고 해도 됩니다([AGENTS.md](AGENTS.md)).
+**설치하기:** 계속 켜 두는 컴퓨터에서 `npx token-tv start`(또는 `uvx token-tv start`). 같은 와이파이의 시계와 로그인된 도구를 찾습니다. AI에게 *"TokenTV 설정해줘"* 라고 해도 됩니다([AGENTS.md](AGENTS.md)).
 
-**새 기능 Claude Code 모드:** Claude Code가 허락을 기다리면 Clawd가 손을 들고, 한 턴이 끝나면 인사합니다. 위험한 명령에는 법정을 열고, 소리치면 삐집니다([설정 방법](https://github.com/click6067-ship-it/token-tv/blob/main/docs/claude-code-mod.md)).
+<p align="center"><img src="docs/images/real-photos.jpg" width="600" alt="실제 시계의 Digital, Sci-Fi HUD, Neon, Arcade 화면"></p>
 
-**새 화면 Arcade:** 코딩하는 동안 봇들도 바삐 움직입니다. 예를 들어 Codex는 토큰을 쓰는 동안 코드 비를 뿌려 꽃을 키웁니다. 많이 쓸수록 꽃밭이 가득 찹니다. Grok은 로켓에 연료를 넣다가 쉴 때는 지구를 올려다봅니다. Copilot과 Anti는 새로 온 친구들입니다.
+**Claude Code 모드:** Claude가 허락을 기다리면 Clawd가 손을 들고, 위험한 명령에는 법정을 열고, 소리치면 삐집니다([설정 방법](docs/claude-code-mod.md)).  
+**Arcade:** 코딩하는 동안 봇들도 바쁩니다. Codex는 코드 비로 꽃밭을 키우고, Grok은 로켓에 연료를 넣고, Copilot과 Anti도 함께합니다.
 
 <p align="center"><img src="docs/images/highlight-claude.gif" width="150" alt="브레이크댄스 추는 Clawd"> <img src="docs/images/highlight-codex.gif" width="150" alt="꽃밭에 코드 비를 뿌리는 Codex 구름"> <img src="docs/images/highlight-grok.gif" width="150" alt="옆 부스터가 떨어져 나간 Grok의 로켓"> <img src="docs/images/highlight-copilot.gif" width="150" alt="하늘에 하트를 그리는 Copilot"> <img src="docs/images/highlight-anti.gif" width="150" alt="무중력에 떠오른 Anti"></p>
 
-**저마다 다르게 반응합니다.** 얼마 안 남으면 누군가는 허둥대고 누군가는 초조해합니다.  
-**그리고 비밀 장면이 몇 개 있습니다.** 어떤 건 정해진 시간에만, 어떤 건 봇이 정말 열심히 일한 뒤에만, 어떤 건 거의 나오지 않습니다. 잠깐만 나오고, 무엇인지는 말하지 않겠습니다. 얼마나 있는지는 [도감](https://click6067-ship-it.github.io/token-tv/collection/)에서 볼 수 있습니다.
+**비밀 장면:** 정해진 시간에만, 혹은 거의 나오지 않는 장면들. 얼마나 있는지는 [도감](https://click6067-ship-it.github.io/token-tv/collection/)에서.
 
-숫자는 한눈에, 그리고 귀엽게. 새벽 3시에 혼자 코딩해도 봇들이 곁을 지킵니다. 누군가 커피를 타 줄지도 모르죠. 아이디어, 제안, PR 모두 환영입니다. *귀여움이 곧 기능입니다.*
+*귀여움이 곧 기능입니다.* 아이디어와 PR 환영합니다.  
+**더 보기:** [영상](https://youtube.com/shorts/FN5DLILYiI0) · [TokenTV 소개된 곳](docs/in-the-wild.md) · [어떤 시계를 살까](docs/hardware-compatibility.md#buying-a-clock)
