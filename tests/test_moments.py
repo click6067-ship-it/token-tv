@@ -1290,7 +1290,7 @@ class Rig:
     and so its loop, goes on that much later); `switch_off`: turning a slot off takes that long (the animation holds
     meanwhile, as for every request)."""
     def __init__(self, test, providers=('claude',), state_dir=None, poll_seconds=None, frame_ms=None, wall=False,
-                 windows=None, model='sdpro', delay=0, at=None, late=0, switch_off=0):
+                 windows=None, model='sdpro', delay=0, at=None, late=0, switch_off=0, first_copy=None):
         self.test = test
         self.dir = temp_dir(test)
         own_tmp(test)  # the clock locks
@@ -1311,6 +1311,8 @@ class Rig:
         self.calls, self.log = [], []
         if model == 'ultra':
             self.album = {'theme': 3, 'autoplay': 0, 'i_i': 0, 'parts': [], 'files': {}}
+            if first_copy is not None:
+                self.album["next_copy"] = first_copy
             fake = ultra_clock(self.album, self.calls)
         else:
             self.album = {'files': {}, 'enabled': set(), 'total': 3_000_000, 'base': 0}
@@ -1468,6 +1470,19 @@ class Rig:
 
 
 class ClockTimingTests(unittest.TestCase):
+    def test_ultra_retries_the_same_picture_after_a_partial_copy(self):
+        rig = Rig(self, model='ultra', first_copy=b'GIF89a')
+        receipt_path = rig.state / 'display-receipt.json'
+        self.assertEqual(json.loads(receipt_path.read_text())['reason'], 'short_copy')
+        self.assertNotIn('img', rig.album)
+        rig.clock.to(rig.poll_at(1) + .1)
+        self.assertEqual(len(rig.uploads()), 2)
+        self.assertEqual(rig.album['parts'][0][-1], rig.album['parts'][1][-1])
+        self.assertEqual(json.loads(receipt_path.read_text())['uploads'][0]['status'], 200)
+        rig.clock.to(rig.poll_at(2) + .1)
+        self.assertEqual(len(rig.uploads()), 2)
+        self.assertEqual(rig.requests(rig.poll_at(2)), [])
+
     """When each moment reaches the clock: at the end of the loop it is playing, one upload per change, none for
     the same again; a wait grows more insistent and is let go on time with nothing else happening."""
     def assertAt(self, rig, when, what, since):

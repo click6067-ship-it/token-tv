@@ -138,7 +138,7 @@ def problem_of(error):
     if isinstance(error, (json.JSONDecodeError, KeyError)):  # it answered, but not with a clock's lists
         return 'not_a_clock'
     if isinstance(error, HTTPError):
-        return 'not_a_clock' if error.code == 404 else 'error'
+        return 'not_a_clock' if error.code == 404 and not getattr(error, 'clock_operation', None) else 'error'
     if isinstance(error, (OSError, HTTPException)):
         return 'no_answer'
     return 'error'
@@ -1149,7 +1149,7 @@ def main(argv=None, ready=None):
                 reason = 'no_answer' if silent else problem_of(error)
                 if not swapped:
                     preferences.problem(reason, device.base_url, str(error) if reason in ('clock_full', 'error') else '')
-                if reason in ('no_answer', 'not_a_clock'):  # no answer, or another device answers there now
+                if reason in ('no_answer', 'not_a_clock') or getattr(error, 'code', None) == 404:
                     lost['polls'] += 1
                     if lost_search_due(lost['polls'], lost['scanned'], time.monotonic()):
                         lost['scanned'] = time.monotonic()
@@ -1177,8 +1177,12 @@ def main(argv=None, ready=None):
                             preferences.changed.set()  # send to it now, not at the next poll
                             print(f"TokenTV found the clock at its new address {moved}.", flush=True)
                 if what is None:
-                    write_json(state_dir / "display-receipt.json", {"at": int(time.time()), "style": style, "status": "error",
-                               "phase": phase, "reason": reason, "uploads": receipts, "http_status": getattr(error, "code", None)})
+                    receipt = {"at": int(time.time()), "style": style, "status": "error", "phase": phase,
+                               "reason": reason, "uploads": receipts, "http_status": getattr(error, "code", None)}
+                    operation = getattr(error, 'clock_operation', None)
+                    if operation:
+                        receipt["operation"] = operation
+                    write_json(state_dir / "display-receipt.json", receipt)
                 preferences.delivered(style, False)
         snapshot['display'] = preferences.snapshot()
         write_json(state_dir / "snapshot.json", snapshot)

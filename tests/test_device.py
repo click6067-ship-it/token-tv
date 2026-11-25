@@ -131,6 +131,18 @@ def ultra_clock(state, calls):
         def do_GET(self):
             calls.append(("GET", self.path))
             url = urlparse(self.path)
+            if url.path.startswith("/image/"):
+                name = url.path.removeprefix("/image/")
+                if name not in state["files"]:
+                    return self.reply({}, 404)
+                saved = state["files"][name]
+                self.send_response(200)
+                if "readback_prefix" in state:
+                    self.send_header("Content-Length", str(len(saved)))
+                    saved = saved[:state.pop("readback_prefix")]
+                self.end_headers()
+                self.wfile.write(saved)
+                return
             if url.path == "/v.json":
                 return self.reply({"m": "SmallTV-Ultra", "v": "Ultra-V9.0.54"})
             if url.path == "/app.json":
@@ -146,6 +158,8 @@ def ultra_clock(state, calls):
             self.reply({}, 404)
         def do_POST(self):
             calls.append(("POST", self.path))
+            if state.pop("reject_next_upload", False):
+                return self.reply({}, 404)
             body = self.rfile.read(int(self.headers["Content-Length"]))
             form = email.message_from_bytes(b"Content-Type: " + self.headers["Content-Type"].encode() + b"\r\n\r\n" + body,
                                             policy=email.policy.HTTP)
@@ -153,7 +167,8 @@ def ultra_clock(state, calls):
                 state["parts"].append((part.get_param("name", header="content-disposition"), part.get_filename(),
                                        part.get_content_type(), part.get_payload(decode=True)))
                 if self.path == "/doUpload?dir=/image/" and part.get_param("name", header="content-disposition") == "file":
-                    state["files"][part.get_filename()] = part.get_payload(decode=True)
+                    if not state.pop("lose_next_upload", False):
+                        state["files"][part.get_filename()] = state.pop("next_copy", part.get_payload(decode=True))
             self.reply("OK")
     return Handler
 
@@ -426,6 +441,49 @@ class UltraTests(unittest.TestCase):
             port = closed.getsockname()[1]
         self.assertIs(type(open_display(f"http://127.0.0.1:{port}")), PhotoDisplay)
 
+    def test_ultra_rejects_damaged_upload_and_can_retry_the_same_image(self):
+        image = b"EXACT-JPEG"
+        digest = hashlib.sha256(image).hexdigest()
+        for damaged in (image[:-1], image + b"x", b"x" + image[1:]):
+            with self.subTest(damaged=damaged):
+                self.state.pop("img", None)
+                self.state["next_copy"] = damaged
+                with serve(ultra_clock(self.state, self.calls)) as url:
+                    display = UltraDisplay(url)
+                    with self.assertRaisesRegex(ValueError, "whole picture"):
+                        display.show(ULTRA_BACKUP, "tokentv.jpg", image, digest)
+                    self.assertNotIn("img", self.state)
+                    receipt, = display.show(ULTRA_BACKUP, "tokentv.jpg", image, digest)
+                    self.assertEqual(receipt["sha256"], digest)
+                    self.assertEqual(self.state["files"]["tokentv.jpg"], image)
+                    self.assertEqual(self.state["img"], "/image/tokentv.jpg")
+
+    def test_ultra_rejects_interrupted_readback_even_when_prefix_matches(self):
+        image = b"EXACT-JPEG"
+        self.state["next_copy"] = image + b"EXTRA"
+        self.state["readback_prefix"] = len(image)
+        with serve(ultra_clock(self.state, self.calls)) as url:
+            display = UltraDisplay(url)
+            with self.assertRaisesRegex(ValueError, "whole picture"):
+                display.show(ULTRA_BACKUP, "tokentv.jpg", image, hashlib.sha256(image).hexdigest())
+            self.assertEqual(self.state["img"], "/image/cat.jpg")
+            self.state["readback_prefix"] = len(image)
+            receipt = display.upload("tokentv.jpg", image)
+            self.assertEqual(receipt["bytes"], len(image))
+
+    def test_ultra_reports_which_request_returned_404(self):
+        with serve(ultra_clock(self.state, self.calls)) as url:
+            display = UltraDisplay(url)
+            for failure, operation in (("reject_next_upload", "POST /doUpload"),
+                                       ("lose_next_upload", "GET /image/tokentv.jpg")):
+                with self.subTest(operation=operation):
+                    self.state[failure] = True
+                    with self.assertRaises(HTTPError) as caught:
+                        display.upload("tokentv.jpg", b"EXACT-JPEG")
+                    self.assertEqual(caught.exception.code, 404)
+                    self.assertEqual(caught.exception.clock_operation, operation)
+                    self.assertEqual(live.problem_of(caught.exception), "error")
+
     def test_ultra_contract_backup_upload_show_and_restore(self):
         with serve(ultra_clock(self.state, self.calls)) as url:
             display = open_display(url)
@@ -441,7 +499,8 @@ class UltraTests(unittest.TestCase):
             for name, image in (("other.jpg", b"JPEG"), ("tokentv.jpg", b""), ("tokentv.jpg", b"x" * 60001)):
                 with self.assertRaises(ValueError):
                     display.upload(name, image)
-            self.assertEqual(self.calls[start:], [("POST", "/doUpload?dir=/image/")] * 2)
+            self.assertEqual(self.calls[start:], [("POST", "/doUpload?dir=/image/"), ("GET", "/image/tokentv.jpg"),
+                                                 ("POST", "/doUpload?dir=/image/"), ("GET", "/image/tokentv.gif")])
             self.assertEqual(self.state["parts"], [("file", "tokentv.jpg", "image/jpeg", b"EXACT-JPEG"),
                                                    ("file", "tokentv.gif", "image/gif", b"GIF89a-EXACT")])
 

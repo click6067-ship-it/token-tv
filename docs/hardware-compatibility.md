@@ -95,9 +95,9 @@ the theme and autoplay back, but there is no known way to read which photo was s
 TokenTV's picture can stay in the album. Delete `tokentv.jpg` / `tokentv.gif` on the clock's image page
 if you want them gone.
 
-The Ultra has one picture file, not the SD_PRO's three: each new animated face is written over the one the
-clock is playing, and TokenTV cannot list the Ultra's files to check that it arrived whole. This is how the
-contributors' units ran; if an Ultra ever freezes on a picture, turn it off and on.
+The Ultra writes each new image over the one it is playing. TokenTV reads the saved file back and compares
+it with the upload before reporting delivery. If the bytes differ, TokenTV retries on a later update. A
+partial image can remain visible until that retry. The readback adds one request per changed image.
 
 On the SD_PRO, leave TokenTV's `tokentv*.gif` files alone in the album while TokenTV runs: it switches them
 itself, and one turned on by hand can be the next file TokenTV writes while the clock plays it.
