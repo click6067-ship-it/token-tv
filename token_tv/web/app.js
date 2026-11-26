@@ -258,14 +258,14 @@ $('#clock-zone').textContent = new Intl.DateTimeFormat('en-US', {timeZoneName:'s
 
 function showClock(show) {$('#clock-panel').hidden = !show; $('#clock-toggle').setAttribute('aria-expanded', String(show)); if (show) {refreshDisplay(true); $('#close-clock').focus()} else $('#clock-toggle').focus()}
 $('#clock-toggle').onclick = () => showClock($('#clock-panel').hidden); $('#close-clock').onclick = () => showClock(false);
-let lastImageStyle = null, lastImageAt = 0;
+let lastImageStyle = null, lastImageAt = 0, demoState = 'fresh';
 function paintClock(forceImage = false) {
  const style = clockChoice || displayInfo?.style;
  $('#clock-style').disabled = applying || !displayInfo; $('#apply').disabled = DEMO || applying || !displayInfo || (style === displayInfo.style && displayInfo.status !== 'error' && !clockError);
  $('#apply').textContent = applying ? 'Sending image…' : 'Apply to clock'; $('#apply').dataset.state = applying ? 'loading' : clockError || displayInfo?.status === 'error' ? 'error' : displayInfo?.status === 'ok' ? 'success' : 'default';
  $('#display-state').textContent = DEMO ? 'Demo · sample data' : clockError ? 'Could not apply. Please retry.' : !displayInfo ? 'Clock status unavailable' : style !== displayInfo.style ? 'Preview only · Apply to send' : displayInfo.status === 'queued' ? 'Sending image…' : displayInfo.status === 'error' ? (displayInfo.problem?.text || 'Clock upload failed. Please retry.') : displayInfo.status === 'preview_only' ? (displayInfo.problem?.text || 'Preview only · No clock connected') : 'Image sent · ' + styleName(displayInfo.applied_style);
  paintSetup();
- if (style && !$('#clock-panel').hidden && (forceImage || style !== lastImageStyle || Date.now() - lastImageAt > 30000)) {lastImageStyle = style; lastImageAt = Date.now(); $('#frame').src = DEMO ? displayInfo.frames?.[style] || `/frames/${encodeURIComponent(style)}.jpg` : '/frame/0.jpg?style=' + encodeURIComponent(style) + '&t=' + lastImageAt; $('#frame').alt = styleName(style) + (DEMO ? ' clock face with sample data' : ' live clock preview')}
+ if (style && !$('#clock-panel').hidden && (forceImage || style !== lastImageStyle || Date.now() - lastImageAt > 30000)) {lastImageStyle = style; lastImageAt = Date.now(); $('#frame').src = DEMO ? (displayInfo.state_frames?.[demoState] || displayInfo.frames)?.[style] || `/frames/${encodeURIComponent(style)}.jpg` : '/frame/0.jpg?style=' + encodeURIComponent(style) + '&t=' + lastImageAt; $('#frame').alt = styleName(style) + (DEMO ? ' clock face with sample data' : ' live clock preview')}
 }
 // On the demo: the one command that puts the face and tools picked here on a real clock.
 let runner = 'npx';
@@ -366,6 +366,8 @@ if (DEMO) {  // the demo opens on how to get it: the face, the tools and the com
  panel.insertBefore(getIt, panel.querySelector('.device'));
  getIt.insertBefore($('#clock-style'), getIt.querySelector('.get-services')); getIt.insertBefore(panel.querySelector('label[for=clock-style]'), $('#clock-style'));
  panel.querySelector('.aside-head .eyebrow').textContent = 'Get it'; panel.querySelector('.aside-head h2').textContent = 'On your clock';
+ const state = $('#demo-state');  // the same face with a fresh, stale or missing reading
+ if (state) state.onchange = () => {demoState = state.value; paintClock(true)};
 }
 $('#mascot').append(retroMascot()); buildStarfield(); tick();
 update(); refreshDisplay(); loadThemes(); setInterval(update, 30000); setInterval(tick, 1000); setInterval(() => {if (!$('#clock-panel').hidden) refreshDisplay()}, 5000);

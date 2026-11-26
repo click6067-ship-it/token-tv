@@ -43,6 +43,38 @@ COLLECTION_STYLE = '''<style id="collection-entry-style">
 </style>'''
 
 
+DEMO_STATES = ('fresh', 'old', 'missing')
+STATE_SELECT = """<label for="demo-state">Sample reading</label>
+      <select id="demo-state" class="control">
+        <option value="fresh">Fresh</option>
+        <option value="old">Old (stale)</option>
+        <option value="missing">No data</option>
+      </select>"""
+
+
+def demo_payloads(now):
+    """The same accounts in the three states a face draws differently (themes.py decides OLD and NO DATA)."""
+    fresh = snapshot(now)
+    stale = snapshot(now)
+    for row in stale['accounts'].values():
+        row['status'] = 'stale'
+        row['last_success_at'] = now - 4 * 3600
+    missing = snapshot(now)
+    for row in missing['accounts'].values():
+        row['windows'] = []
+        row.pop('today', None)
+    return {'fresh': fresh, 'old': stale, 'missing': missing}
+
+
+def add_state_select(html):
+    """A demo-only control next to the preview, so a face can be compared in all three states."""
+    if 'id="demo-state"' in html:
+        return html
+    marker = '<select id="clock-style" class="control"></select>'
+    assert marker in html, 'clock style select changed'
+    return html.replace(marker, marker + '\n      ' + STATE_SELECT, 1)
+
+
 def add_collection_entry(html):
     """Keep the public animation catalogue one click away, above the demo controls."""
     if 'id="demo-collection-title"' in html:
@@ -61,8 +93,9 @@ def build(out, site):
     html = html.replace('<html lang="en" data-theme="digital">', '<html lang="en" data-theme="digital" data-demo>', 1)
     html = html.replace('<title>TokenTV · AI usage</title>', '<title>TokenTV · Live demo</title>\n' + META.format(site=site.rstrip('/')), 1)
     html = html.replace('<a class="skip" href="#providers">Skip to usage</a>', '<a class="skip" href="#providers">Skip to usage</a>\n' + BAR, 1)
+    html = add_state_select(html)
     html = add_collection_entry(html)
-    assert 'data-demo' in html and 'demo-bar' in html and 'og:image' in html, 'index.html markers changed'
+    assert 'data-demo' in html and 'demo-bar' in html and 'og:image' in html and 'demo-state' in html, 'index.html markers changed'
     (out / 'index.html').write_text(html, encoding='utf-8')
     assets = out / 'assets'
     assets.mkdir()
@@ -73,14 +106,17 @@ def build(out, site):
     (out / 'demo-snapshot.json').write_text(json.dumps(snapshot(), separators=(',', ':')), encoding='utf-8')
     frames = out / 'frames'
     frames.mkdir()
-    rendered = snapshot(time.time())
-    paths = {}
-    for style in STYLES:
-        image = render_page(rendered, style=style)
-        name = f"{style}.{'gif' if image[:4] == b'GIF8' else 'jpg'}"  # Space is animated
-        (frames / name).write_bytes(image)
-        paths[style] = f'/frames/{name}'
-    display = {'style': 'arcade', 'applied_style': 'arcade', 'status': 'preview_only', 'styles': list(STYLES), 'frames': paths}
+    state_frames = {}
+    for state, rendered in demo_payloads(time.time()).items():
+        (frames / state).mkdir()
+        paths = state_frames[state] = {}
+        for style in STYLES:
+            image = render_page(rendered, style=style)
+            name = f"{style}.{'gif' if image[:4] == b'GIF8' else 'jpg'}"  # Space is animated
+            (frames / state / name).write_bytes(image)
+            paths[style] = f'/frames/{state}/{name}'
+    display = {'style': 'arcade', 'applied_style': 'arcade', 'status': 'preview_only', 'styles': list(STYLES),
+               'states': list(DEMO_STATES), 'state_frames': state_frames, 'frames': state_frames['fresh']}
     (out / 'demo-display.json').write_text(json.dumps(display), encoding='utf-8')
     (out / 'demo-themes.json').write_text(json.dumps(theme_payload()), encoding='utf-8')
     shutil.copy2(ROOT / 'docs' / 'images' / 'social-preview.png', out / 'og.png')

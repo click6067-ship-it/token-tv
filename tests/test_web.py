@@ -76,6 +76,16 @@ class ThemesEndpointTests(unittest.TestCase):
         self.assertIn('data-demo', html)
         self.assertIn('id="gallery"', html)
         self.assertNotIn('★', html)  # no star request in the demo bar
+        self.assertIn('id="demo-state"', html)  # the fresh / OLD / missing selector
+
+        display = json.loads((out / 'demo-display.json').read_text(encoding='utf-8'))
+        self.assertEqual(display['states'], ['fresh', 'old', 'missing'])
+        from token_tv.display import STYLES
+        for style in STYLES:  # every face draws all three states
+            self.assertEqual({s for s in display['states'] if style in display['state_frames'][s]}, set(display['states']))
+        pixel = [display['state_frames'][state]['pixel'] for state in display['states']]
+        self.assertEqual(len({(out / path.lstrip('/')).read_bytes() for path in pixel}), 3)  # three different readings,
+        self.assertEqual(display['frames'], display['state_frames']['fresh'])  # and the old field still opens on fresh
 
 
 class GalleryTests(unittest.TestCase):
